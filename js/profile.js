@@ -148,7 +148,7 @@
       const C = P.career;
       if (r.won) {
         bonus += 150 + Math.max(0, (r.opp.ovr - 60) * 4);
-        points = 3 + Math.floor(C.stage / 3);
+        points = 10 + 2 * C.stage;
         S.careerWins++; C.stage++;
         if (C.stage >= C.ladder.length) S.careerDone = 1;
       } else points = 1;
