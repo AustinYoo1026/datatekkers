@@ -7,7 +7,7 @@
 
   const App = {
     screen: 'menu',           // menu | select | match | end
-    mode: 'cpu',              // cpu | 2p
+    mode: 'cpu',              // cpu | arena (testing arena: one player, no opponent) | career (MyCareer ladder)
     diff: 'normal',
     pick: [ISO.playerById('messi'), ISO.playerById('ronaldo')],
     side: 0,                  // which side the selection grid is picking for
@@ -16,6 +16,7 @@
     demo: true, kickoffFlip: 0, acc: 0, last: 0, endTimer: 0, hintT: 0,
   };
   ISO.App = App;
+  App.show = (s) => show(s); App.toast = (a, b, c) => toast(a, b, c); App.achToasts = (l) => achToasts(l); App.updateCredits = () => updateCredits();
 
   // ------------------------------------------------------------- layout
   function fit() {
@@ -31,9 +32,10 @@
   function buildMatch(home, away, ctrl, labels, quiet) {
     const kits = ISO.resolveKits(home, away);
     App.kits = kits;
-    App.G = ISO.Game.create({ home, away, kickoff: App.kickoffFlip });
+    App.G = ISO.Game.create({ home, away, kickoff: App.kickoffFlip, solo: !quiet && App.mode === 'arena', win: quiet ? 0 : App.matchWin });
     App.ctrl = ctrl;
-    App.ai = ctrl.map((c) => (c === 'cpu' ? ISO.AI.create(quiet ? 'normal' : App.diff) : null));
+    App.ai = ctrl.map((c) => (c === 'cpu' ? ISO.AI.create(quiet ? 'normal' : App.matchDiff) : null));
+    App.matchDefs = [home, away];
     App.V = {
       sheets: [ISO.Sprites.forPlayer(home, kits[0], 0), ISO.Sprites.forPlayer(away, kits[1], 1)],
       keeperSheet: ISO.Sprites.forKeeper(ISO.KEEPERS[1], 1),
@@ -51,36 +53,63 @@
   }
 
   function startMatch() {
-    const [home, away] = App.pick;
+    let [home, away] = App.pick;
     App.demo = false; App.paused = false;
-    const two = App.mode === '2p';
-    buildMatch(home, away, ['human', two ? 'human' : 'cpu'], ['P1', two ? 'P2' : 'CPU'], false);
+    const arena = App.mode === 'arena', career = App.mode === 'career';
+    App.matchDiff = App.diff; App.matchWin = 0;
+    ISO.Profile.setSetting('diff', App.diff);
+    if (career) {
+      home = ISO.Profile.careerDef(); away = ISO.Profile.careerOpponent();
+      if (!away) { show('career'); return; }
+      App.matchDiff = ISO.Profile.careerDiff(ISO.Profile.data.career.stage); App.matchWin = 3;
+    }
+    if (arena) away = home;
+    buildMatch(home, away, ['human', arena ? 'none' : 'cpu'], [career ? 'YOU' : 'P1', arena ? '' : 'CPU'], false);
+    ISO.Input.resetMouse();
+    $('hud').classList.toggle('arena', arena);
     for (const i of [0, 1]) {
-      const d = App.pick[i], f = $('hudFace' + i).getContext('2d');
+      const d = App.matchDefs[i], f = $('hudFace' + i).getContext('2d');
       f.clearRect(0, 0, 88, 88); f.drawImage(ISO.Sprites.portrait(d, 80, App.kits[i]), 0, 0, 88, 88);
       $('hudName' + i).textContent = d.short; $('hudOvr' + i).textContent = d.ovr;
       $('hudTag' + i).textContent = App.V.labels[i]; $('hudScore' + i).textContent = '0';
     }
     App.hud = { s: [-1, -1], t: -1 };
-    App.hintT = 8;
+    App.hintT = ISO.Profile.data.settings.hint ? 8 : 0;
+    $('hint').classList.toggle('hidden', !ISO.Profile.data.settings.hint);
     show('match');
     ISO.Audio.init(); ISO.Audio.ambience(true);
   }
 
   // ------------------------------------------------------------- screens
+  const MENU_SCREENS = ['menu', 'select', 'career', 'boxes', 'ach', 'settings'];
+  function updateCredits() { $('creditsVal').textContent = ISO.Profile.infinite() ? '∞' : ISO.Profile.data.credits.toLocaleString(); }
+  function toast(title, sub, col) {
+    const el = document.createElement('div'); el.className = 'toast';
+    el.style.borderColor = col || 'var(--green)';
+    el.innerHTML = '<b></b><span></span>'; el.firstChild.textContent = title; el.lastChild.textContent = sub || '';
+    $('toasts').appendChild(el); setTimeout(() => el.classList.add('out'), 3600); setTimeout(() => el.remove(), 4200);
+  }
+  function achToasts(list) { for (const a of list || []) toast('ACHIEVEMENT UNLOCKED · ' + a.name.toUpperCase(), a.desc + ' — claim +' + a.reward + ' CR in Achievements', '#ffcf4d'); }
+
   function show(screen) {
     App.screen = screen;
-    $('menu').classList.toggle('hidden', screen !== 'menu');
-    $('select').classList.toggle('hidden', screen !== 'select');
+    for (const id of MENU_SCREENS) $(id).classList.toggle('hidden', screen !== id);
+    $('credits').classList.toggle('hidden', !MENU_SCREENS.includes(screen));
     $('hud').classList.toggle('hidden', screen !== 'match' && screen !== 'end');
     $('end').classList.toggle('hidden', screen !== 'end');
     $('pause').classList.add('hidden');
-    $('hint').classList.toggle('hidden', screen !== 'match');
-    $('dim').classList.toggle('on', screen === 'menu' || screen === 'select');
+    $('hint').classList.toggle('hidden', screen !== 'match' || !ISO.Profile.data.settings.hint);
+    $('dim').classList.toggle('on', MENU_SCREENS.includes(screen));
     ISO.Input.setCapture(screen === 'match');
     if (screen !== 'match' && screen !== 'end') ISO.Audio.ambience(false);
-    if ((screen === 'menu' || screen === 'select') && !App.demo) startDemo();
-    if (screen === 'select') renderSelect();
+    if (MENU_SCREENS.includes(screen) && !App.demo) startDemo();
+    if (screen === 'select') {
+      const P = ISO.Profile;
+      if (!P.owns(App.pick[0].id)) App.pick[0] = ISO.PLAYERS.filter((d) => P.owns(d.id)).sort((a, b) => b.ovr - a.ovr)[0];
+      renderSelect();
+    }
+    if (ISO.Meta && ISO.Meta.onShow) ISO.Meta.onShow(screen);
+    updateCredits();
   }
 
   function setPaused(p) {
@@ -98,16 +127,18 @@
     const grid = $('grid');
     ISO.PLAYERS.forEach((d) => {
       const b = document.createElement('button');
-      b.className = 'pcard' + (d.era === 'legend' ? ' legend' : '');
+      b.className = 'pcard r-' + ISO.rarityOf(d) + (d.era === 'legend' ? ' legend' : '');
       b.dataset.id = d.id;
       b.title = d.name + ' — ' + d.club;
       const c = document.createElement('canvas'); c.width = c.height = 168;
       c.getContext('2d').drawImage(ISO.Sprites.portrait(d, 84), 0, 0);
-      b.innerHTML = '<span class="c-ovr">' + d.ovr + '</span><span class="c-flag">' + d.flag + '</span><span class="c-pick"></span>';
+      b.innerHTML = '<span class="c-ovr">' + d.ovr + '</span><span class="c-flag">' + d.flag + '</span><span class="c-pick"></span><span class="c-lock">🔒<small>BOX DRAW</small></span>';
       b.appendChild(c);
       const n = document.createElement('span'); n.className = 'c-name'; n.textContent = d.short; b.appendChild(n);
       b.addEventListener('click', () => {
-        ISO.Audio.init(); ISO.Audio.play('ui');
+        ISO.Audio.init();
+        if (App.side === 0 && !ISO.Profile.owns(d.id)) { ISO.Audio.play('deny'); b.classList.remove('shake'); void b.offsetWidth; b.classList.add('shake'); toast('LOCKED', d.name + ' — win them from a Box Draw', '#f1735f'); return; }
+        ISO.Audio.play('ui');
         App.pick[App.side] = d;
         if (!App.touched) { App.touched = true; App.side = 1 - App.side; }
         renderSelect();
@@ -117,7 +148,7 @@
   }
 
   function renderPanel(i) {
-    const d = App.pick[i], el = $('panel' + i), two = App.mode === '2p';
+    const d = App.pick[i], el = $('panel' + i), two = false;
     const who = i === 0 ? 'HOME · P1' : 'AWAY · ' + (two ? 'P2' : 'CPU');
     const stars = ISO.stars(d.attr.skl);
     el.classList.toggle('active', App.side === i);
@@ -136,14 +167,17 @@
   }
 
   function renderSelect() {
-    const two = App.mode === '2p';
-    $('selMode').textContent = two ? '2 PLAYERS · LOCAL' : '1 PLAYER · VS CPU';
-    $('diffSeg').classList.toggle('hidden', two);
+    const arena = App.mode === 'arena', two = false, P = ISO.Profile;
+    $('selMode').textContent = (arena ? 'TESTING ARENA · 1 PLAYER' : '1 PLAYER · VS CPU') + '  ·  COLLECTION ' + P.ownedCount() + '/' + ISO.PLAYERS.length;
+    $('diffSeg').classList.toggle('hidden', arena);
+    $('sideSeg').classList.toggle('hidden', arena);
+    $('panel1').style.visibility = arena ? 'hidden' : '';
     renderPanel(0); renderPanel(1);
     for (const i of [0, 1]) $('segSide' + i).classList.toggle('on', App.side === i);
     for (const k of ['easy', 'normal', 'hard']) $('segDiff-' + k).classList.toggle('on', App.diff === k);
     document.querySelectorAll('.pcard').forEach((b) => {
-      const s0 = App.pick[0].id === b.dataset.id, s1 = App.pick[1].id === b.dataset.id;
+      b.classList.toggle('locked', App.side === 0 && !P.owns(b.dataset.id));
+      const s0 = App.pick[0].id === b.dataset.id, s1 = App.mode !== 'arena' && App.pick[1].id === b.dataset.id;
       b.classList.toggle('sel0', s0); b.classList.toggle('sel1', s1);
       b.querySelector('.c-pick').innerHTML = (s0 ? '<span style="background:#35e08a">P1</span>' : '') + (s1 ? '<span style="background:#ffb23d">' + (two ? 'P2' : 'CPU') + '</span>' : '');
     });
@@ -153,12 +187,12 @@
   function showEnd() {
     const G = App.G, w = G.winner, s = G.stats;
     for (const i of [0, 1]) {
-      const d = App.pick[i], c = $('endFace' + i).getContext('2d');
+      const d = App.matchDefs[i], c = $('endFace' + i).getContext('2d');
       c.clearRect(0, 0, 160, 160); c.drawImage(ISO.Sprites.portrait(d, 80, App.kits[i]), 0, 0);
       $('endName' + i).textContent = d.short; $('endScore' + i).textContent = G.score[i];
       $('endFace' + i).parentElement.classList.toggle('win', w === i);
     }
-    $('endTitle').textContent = App.pick[w].short + ' WINS' + (App.mode === 'cpu' ? (w === 0 ? ' — YOU WIN!' : ' — CPU WINS') : ' — ' + App.V.labels[w]);
+    $('endTitle').textContent = App.mode === 'career' ? (w === 0 ? 'YOU WIN!' : App.matchDefs[1].short + ' WINS') : App.matchDefs[w].short + ' WINS' + (w === 0 ? ' — YOU WIN!' : ' — CPU WINS');
     $('endTitle').style.color = R.TEAM_COL[w];
     const tot = s.poss[0] + s.poss[1] || 1, pp = Math.round((s.poss[0] / tot) * 100);
     const mm = Math.floor(G.time / 60), ss = Math.floor(G.time % 60);
@@ -166,13 +200,24 @@
       [s.saves[0], 'SAVES FACED', s.saves[1]], [s.clears[0], 'REBOUNDS CLEARED', s.clears[1]], [s.tackles[0], 'TACKLES WON', s.tackles[1]], [s.skills[0], 'SKILL MOVES', s.skills[1]],
       ['', 'MATCH TIME ' + String(mm).padStart(2, '0') + ':' + String(ss).padStart(2, '0'), '']];
     $('endStats').innerHTML = rows.map((r) => '<tr><td>' + r[0] + '</td><td>' + r[1] + '</td><td>' + r[2] + '</td></tr>').join('');
+    // rewards
+    const career = App.mode === 'career';
+    const res = ISO.Profile.recordMatch({ mode: career ? 'career' : 'cpu', won: w === 0, gf: G.score[0], ga: G.score[1], diff: App.matchDiff,
+      opp: App.matchDefs[1], skills: s.skills[0], clears: s.clears[0], powerGoals: s.powerGoals[0] });
+    let rw = '<span class="cr">+' + res.credits + ' CR</span>';
+    if (career) rw += '<span class="pts">+' + res.points + ' UPGRADE POINT' + (res.points === 1 ? '' : 'S') + '</span>' + (w === 0 ? '<span>NEXT OPPONENT UNLOCKED</span>' : '<span>TRY AGAIN — UPGRADE YOUR STATS</span>');
+    $('endRewards').innerHTML = rw;
+    $('endRematch').classList.toggle('hidden', career);
+    $('endContinue').classList.toggle('hidden', !career);
+    $('endChange').classList.toggle('hidden', career);
     show('end');
+    achToasts(res.ach);
   }
 
   // ------------------------------------------------------------- actions
   const ACTIONS = {
     'mode-cpu': () => { App.mode = 'cpu'; App.side = 0; App.touched = false; show('select'); },
-    'mode-2p': () => { App.mode = '2p'; App.side = 0; App.touched = false; show('select'); },
+    'mode-arena': () => { App.mode = 'arena'; App.side = 0; App.touched = true; show('select'); },
     'controls': () => $('controls').classList.remove('hidden'),
     'close-controls': () => $('controls').classList.add('hidden'),
     'back-menu': () => show('menu'),
@@ -182,12 +227,19 @@
     'diff-easy': () => { App.diff = 'easy'; renderSelect(); },
     'diff-normal': () => { App.diff = 'normal'; renderSelect(); },
     'diff-hard': () => { App.diff = 'hard'; renderSelect(); },
-    'kickoff': () => { App.kickoffFlip = 0; startMatch(); },
+    'kickoff': () => { if (App.mode === 'career') App.mode = 'cpu'; App.kickoffFlip = 0; startMatch(); },
+    'mode-career': () => show('career'),
+    'career-play': () => { App.mode = 'career'; App.kickoffFlip = 0; startMatch(); },
+    'career-continue': () => show('career'),
+    'boxes': () => show('boxes'),
+    'achievements': () => show('ach'),
     'resume': () => setPaused(false),
     'restart': () => startMatch(),
     'rematch': () => { App.kickoffFlip = 1 - App.kickoffFlip; startMatch(); },
-    'sound': () => { ISO.Audio.setMuted(!ISO.Audio.muted); $('soundBtn').textContent = 'SOUND: ' + (ISO.Audio.muted ? 'OFF' : 'ON'); },
-    'quit': () => { App.paused = false; show('select'); },
+    'mode-cpu-menu': () => { App.mode = 'cpu'; App.side = 0; App.touched = false; show('select'); },
+    'sound': () => { ISO.Audio.setMuted(!ISO.Audio.muted); ISO.Profile.setSetting('muted', ISO.Audio.muted); $('soundBtn').textContent = 'SOUND: ' + (ISO.Audio.muted ? 'OFF' : 'ON'); },
+    'settings': () => show('settings'),
+    'quit': () => { App.paused = false; show(App.mode === 'career' ? 'career' : 'select'); },
     'quit-menu': () => { App.paused = false; show('menu'); },
   };
   document.addEventListener('click', (e) => {
@@ -214,11 +266,29 @@
   window.addEventListener('blur', () => { if (App.screen === 'match' && !App.paused && App.G.phase !== 'end') setPaused(true); });
 
   // ------------------------------------------------------------- loop
+  // the cursor in canvas pixels, and in pitch (sim) coordinates
+  function mouseCanvas() {
+    const m = ISO.Input.mouse;
+    if (!m.moved) return null;
+    const r = cv.getBoundingClientRect();
+    return { x: ((m.x - r.left) / r.width) * R.VW, y: ((m.y - r.top) / r.height) * R.VH };
+  }
+  function mouseSim() {
+    if (!ISO.Profile.data.settings.mouseAim) return null;
+    const m = mouseCanvas();
+    return m && { x: C.FW - (m.y - R.OY) / R.Z, y: (m.x - R.OX) / R.Z };
+  }
+
   function inputs() {
     const G = App.G, out = [null, null];
     for (const i of [0, 1]) {
-      if (App.ctrl[i] === 'cpu') out[i] = ISO.AI.update(G, G.players[i], App.ai[i], C.STEP);
-      else { const k = ISO.Input.get(App.mode === '2p' ? (i ? 'p2' : 'p1') : 'solo', i); out[i] = { ...k, mx: -k.my, my: k.mx }; }   // screen: up = towards the goal (+x in the sim)
+      if (App.ctrl[i] === 'none') out[i] = ISO.Game.ZERO;
+      else if (App.ctrl[i] === 'cpu') out[i] = ISO.AI.update(G, G.players[i], App.ai[i], C.STEP);
+      else {
+        const k = ISO.Input.get('solo', i), aim = mouseSim();
+        out[i] = { ...k, mx: -k.my, my: k.mx };
+        if (aim) { out[i].ax = aim.x; out[i].ay = aim.y; }
+      }   // screen: up = towards the goal (+x in the sim)
     }
     return out;
   }
@@ -244,7 +314,7 @@
     App.last = now;
     const G = App.G, running = !(App.screen === 'match' && App.paused);
     if (running) {
-      App.acc += dt * C.SPEED;
+      App.acc += dt * (App.demo ? 0.75 : ISO.Profile.data.settings.speed);
       let stepped = false;
       while (App.acc >= C.STEP) {
         ISO.Game.step(G, inputs());
@@ -254,6 +324,7 @@
       for (const e of G.events) {
         R.onEvent(G, e);
         if (!App.demo) ISO.Audio.play(e.type, e);
+        if (!App.demo && App.mode === 'arena' && e.type === 'goal') achToasts(ISO.Profile.recordArenaGoal());
       }
       G.events.length = 0;
       if (G.phase === 'end') {
@@ -261,6 +332,8 @@
         else if (App.screen === 'match') { App.endTimer += dt; if (App.endTimer > 0.6) showEnd(); }
       }
     }
+    const ST = ISO.Profile.data.settings;
+    App.V.aim = App.screen === 'match' && !App.paused && !App.demo && ST.mouseAim && ST.reticle ? mouseCanvas() : null;
     ctx.setTransform(App.ratio, 0, 0, App.ratio, 0, 0);
     R.draw(ctx, App.G, App.V, running ? dt : 0);
     if (App.screen === 'match') {
@@ -269,6 +342,10 @@
     }
   }
 
+  { // apply saved settings
+    const ST = ISO.Profile.data.settings;
+    ISO.Audio.setVolume(ST.volume); ISO.Audio.setMuted(ST.muted); ISO.Audio.setCrowd(ST.crowd); App.diff = ST.diff || 'normal';
+  }
   buildGrid();
   fit();
   startDemo();

@@ -2,7 +2,8 @@
 (function () {
   'use strict';
   const ISO = (globalThis.ISO = globalThis.ISO || {});
-  let ctx = null, master = null, noiseBuf = null, crowd = null, muted = false;
+  let ctx = null, master = null, noiseBuf = null, crowd = null, muted = false, volume = 0.8, crowdOn = true;
+  const gainNow = () => (muted ? 0 : 0.7 * volume);
 
   function init() {
     if (ctx) { if (ctx.state === 'suspended') ctx.resume(); return; }
@@ -10,7 +11,7 @@
     if (!AC) return;
     try {
       ctx = new AC();
-      master = ctx.createGain(); master.gain.value = muted ? 0 : 0.55; master.connect(ctx.destination);
+      master = ctx.createGain(); master.gain.value = gainNow(); master.connect(ctx.destination);
       noiseBuf = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
       const d = noiseBuf.getChannelData(0);
       for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
@@ -55,11 +56,23 @@
       case 'goal': whistle(0.35); whistle(0.6, 0.45); noise(900, 0.4, 2.8, 0.55, 0, 'bandpass', 0.35); noise(2200, 0.6, 2.2, 0.2, 0.1, 'bandpass', 0.5); break;
       case 'final': whistle(0.3); whistle(0.3, 0.42); whistle(0.9, 0.84); noise(900, 0.4, 3, 0.4, 0.5, 'bandpass', 0.6); break;
       case 'ui': tone('sine', 520, 700, 0.06, 0.08); break;
+      case 'deny': tone('square', 220, 150, 0.14, 0.07); break;
+      case 'tick': tone('triangle', 1500 + (e.pitch || 0) * 400, 1300, 0.035, 0.06); break;
+      case 'shake': noise(300, 0.8, 0.12, 0.25); tone('sine', 80, 60, 0.1, 0.25); break;
+      case 'coin': tone('square', 988, 988, 0.07, 0.05); tone('square', 1319, 1319, 0.18, 0.05, 0.07); break;
+      case 'reveal': {      // bigger fanfare for rarer pulls
+        const r = e.rank || 0, notes = [523, 659, 784, 1047, 1319];
+        for (let i = 0; i <= r; i++) tone('triangle', notes[i], notes[i], 0.32, 0.12, i * 0.09);
+        if (r >= 3) { noise(900, 0.4, 2.2, 0.45, 0.3, 'bandpass', 0.3); tone('sine', 1568, 1568, 0.8, 0.08, 0.45); }
+        if (r >= 4) { whistle(0.25, 0.1); tone('sawtooth', 110, 55, 0.9, 0.12, 0.2); }
+        break;
+      }
     }
   }
 
   function ambience(on) {
     if (!ctx) return;
+    if (on && !crowdOn) on = false;
     if (on && !crowd) {
       const s = ctx.createBufferSource(), f = ctx.createBiquadFilter(), g = ctx.createGain();
       s.buffer = noiseBuf; s.loop = true; f.type = 'bandpass'; f.frequency.value = 520; f.Q.value = 0.35; g.gain.value = 0.05;
@@ -71,6 +84,8 @@
   ISO.Audio = {
     init, play, ambience,
     get muted() { return muted; },
-    setMuted(m) { muted = m; if (master) master.gain.value = m ? 0 : 0.55; },
+    setMuted(m) { muted = m; if (master) master.gain.value = gainNow(); },
+    setVolume(v) { volume = v; if (master) master.gain.value = gainNow(); },
+    setCrowd(on) { crowdOn = on; if (!on) ambience(false); },
   };
 })();

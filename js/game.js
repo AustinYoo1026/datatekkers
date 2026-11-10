@@ -10,14 +10,14 @@
   const C = (ISO.C = {
     FW: 340, FH: 720,             // drill area: depth (x, goal at x = FW) and width (y). Rendered with the goal at the top.
     GY0: 285, GY1: 435,           // goal mouth (y range)
-    K_REACH0: 6, K_REACH1: 7, K_DIVE0: 115, K_DIVE1: 75, K_STEP: 230, K_ANTIC: 0.08, K_CLOSE: 0.65,   // keeper tuning
+    K_REACH0: 8, K_REACH1: 9, K_DIVE0: 115, K_DIVE1: 75, K_STEP: 230, K_ANTIC: 0.08, K_CLOSE: 0.65,   // keeper tuning
     GD: 34,                       // goal depth
     BAR: 60,                      // crossbar height (ball z)
     PR: 12, BR: 6,                // player / ball radius
     BOXD: 190, BOXY0: 110, BOXY1: 610, PEN: 127,
     SIXD: 64, SIXY0: 250, SIXY1: 470,
     TEN: 105,                     // 10 yards (the box is 18)
-    K_CATCH: 0.55,                // keepers hold shots less often than they spill them: rebounds are the point
+    K_CATCH: 0.7,                // keepers hold shots less often than they spill them: rebounds are the point
     SPEED: 0.75,                  // game speed vs real time (1 = original pace); slows players, ball, keeper and timers together
     CR: 100, WIN: 5, STEP: 1 / 120, GRAV: 900, GOAL_T: 2.2, OUT_T: 0.9,
   });
@@ -52,7 +52,7 @@
     };
   }
 
-  const ZERO = { mx: 0, my: 0, sprint: false, jockey: false, shoot: false, finesse: false, chip: false, skill: false };
+  const ZERO = { mx: 0, my: 0, sprint: false, jockey: false, shoot: false, finesse: false, chip: false, skill: false, j: false, k: false, l: false };
   const ev = (G, type, d) => { const e = d || {}; e.type = type; G.events.push(e); };
   const mark = (G) => { G.ball.seq = ++G.seq; };
   const setState = (p, s, dur) => { p.state = s; p.stT = 0; p.stDur = dur || 0; };
@@ -103,9 +103,12 @@
   };
 
   // Which move does this input select? (also used by the UI hint)
-  function pickSkill(G, p, inp, mx, my, hasIn) {
+  // Skill moves are chosen by chord: J, K and L alone or together (bit 1 = J, 2 = K, 4 = L); Sprint swaps the single keys for the heel / drag back / nutmeg.
+  const CHORD = { 1: 'stepover', 2: 'feint', 4: 'roll', 3: 'croqueta', 5: 'roulette', 6: 'elastico', 7: 'rainbow' };
+  const CHORD_SPRINT = { 1: 'heel', 2: 'dragback', 4: 'nutmeg' };
+  function pickSkill(G, p, inp, mx, my, hasIn, mask) {
     const opp = other(G, p);
-    const stars = ISO.stars(p.a.skl);
+    const stars = G.solo ? 5 : ISO.stars(p.a.skl);       // the testing arena unlocks every move
     const fx = Math.cos(p.face), fy = Math.sin(p.face);
     let rel = 'neutral', sd = 0, inAng = p.face;
     if (hasIn) {
@@ -118,17 +121,14 @@
     if (!sd) sd = od < 170 ? (cross > 0 ? -1 : 1) : (G.rand() < 0.5 ? -1 : 1);
     const oppAhead = od < 85 && (ox * fx + oy * fy) / od > 0.8;
     const spd = hyp(p.vx, p.vy);
-    let id;
-    if (inp.sprint) id = rel === 'neutral' ? 'roulette' : rel === 'fwd' ? 'heel' : rel === 'side' ? 'elastico' : 'rainbow';
-    else id = rel === 'neutral' ? 'stepover' : rel === 'fwd' ? (oppAhead ? 'nutmeg' : 'feint')
-      : rel === 'side' ? (spd > p.jog * 0.45 ? 'croqueta' : 'roll') : 'dragback';
+    let id = (inp.sprint && CHORD_SPRINT[mask]) || CHORD[mask] || 'stepover';
     while (SK[id].star > stars) id = SK_FALLBACK[id];
     return { id, rel, sd, inAng, od };
   }
 
-  function startSkill(G, p, inp, mx, my, hasIn) {
+  function startSkill(G, p, inp, mx, my, hasIn, mask) {
     const b = G.ball, opp = other(G, p), a = p.a;
-    const pk = pickSkill(G, p, inp, mx, my, hasIn);
+    const pk = pickSkill(G, p, inp, mx, my, hasIn, mask);
     const id = pk.id, def = SK[id], sd = pk.sd;
     const fx = Math.cos(p.face), fy = Math.sin(p.face);
     const spd = hyp(p.vx, p.vy);
@@ -155,9 +155,9 @@
       if (opp.jock) P -= 0.2;
       if (opp.state !== 'free' || opp.sprinting) P += 0.15;
       b.owner = null; b.shot = null;
-      const v = 330 + pk.od * 1.5;
+      const v = 330 + Math.min(pk.od, 160) * 1.5;
       b.vx = fx * v; b.vy = fy * v; b.lastKicker = p; b.kickT = 0; b.lastTouch = p.team;
-      if (G.rand() < clamp(P, 0.1, 0.92)) { b.pass = opp; b.ptT = 0.5; }
+      if (!G.solo && G.rand() < clamp(P, 0.1, 0.92)) { b.pass = opp; b.ptT = 0.5; }
       mark(G);
     }
     ev(G, 'skill', { p, name: def.name, id });
@@ -215,6 +215,11 @@
       else tgtY = K.y > GCY ? GY0 + 34 : GY1 - 34;        // auto-aim: away from the keeper, less extreme
       aim = Math.atan2(tgtY - b.y, gx - b.x);
     } else aim = hasIn ? Math.atan2(my, mx) : p.face;
+    if (p.aim) {       // mouse aiming: strike toward the cursor
+      aim = Math.atan2(p.aim.y - b.y, p.aim.x - b.x);
+      atGoal = Math.cos(aim) > 0.05;
+      if (atGoal) tgtY = b.y + Math.tan(aim) * (gx - b.x);
+    }
 
     // which foot? aiming across the body uses the other foot
     const turn = angDiff(p.face, aim);
@@ -399,13 +404,13 @@
     return {
       kind: 'p', def, a, team, dir: 1, x: 0, y: 0, vx: 0, vy: 0, face: 0,
       top, jog: top * 0.66, state: 'free', stT: 0, stDur: 0, stam: 100, exhausted: false,
-      charge: null, skill: null, noCtrl: 0, kickT: 0, fakeT: 0, jostle: 0, skillCd: 0, boost: 0, wasJockey: 0,
+      charge: null, skill: null, chord: null, noCtrl: 0, kickT: 0, fakeT: 0, jostle: 0, skillCd: 0, boost: 0, wasJockey: 0,
       animDist: 0, dribPh: 0, prev: {}, sprinting: false, shield: false, jock: false, contact: false,
       tdx: 1, tdy: 0, tackleHit: false, won: false, beaten: false, bodyHit: false, clean: false,
     };
   }
   function resetPlayer(p) {
-    p.vx = p.vy = 0; p.state = 'free'; p.stT = 0; p.charge = null; p.skill = null;
+    p.vx = p.vy = 0; p.state = 'free'; p.stT = 0; p.charge = null; p.skill = null; p.chord = null;
     p.noCtrl = p.kickT = p.fakeT = p.jostle = p.skillCd = p.boost = p.wasJockey = 0;
     p.sprinting = p.shield = p.jock = p.contact = false;
   }
@@ -415,6 +420,7 @@
     p.noCtrl = Math.max(0, p.noCtrl - dt); p.kickT = Math.max(0, p.kickT - dt); p.fakeT = Math.max(0, p.fakeT - dt);
     p.jostle = Math.max(0, p.jostle - dt); p.skillCd = Math.max(0, p.skillCd - dt);
     p.boost = Math.max(0, p.boost - dt); p.wasJockey = Math.max(0, p.wasJockey - dt);
+    p.aim = inp.ax != null ? { x: inp.ax, y: inp.ay } : null;
     let mx = inp.mx || 0, my = inp.my || 0, ml = hyp(mx, my);
     if (ml > 1) { mx /= ml; my /= ml; ml = 1; }
     const hasIn = ml > 0.15;
@@ -422,9 +428,14 @@
     p.sprinting = false; p.shield = false; p.jock = false;
 
     if (p.state === 'free') {
-      if (inp.skill && !p.prev.skill && b.owner === p && p.skillCd <= 0 && !p.charge) startSkill(G, p, inp, mx, my, hasIn);
+      // a skill chord: the first J/K/L press opens a short window in which the other keys can join it
+      const keys = (inp.j ? 1 : 0) | (inp.k ? 2 : 0) | (inp.l ? 4 : 0);
+      let fired = 0;
+      if (p.chord) { p.chord.t += dt; p.chord.mask |= keys; if (p.chord.t >= 0.07) { fired = p.chord.mask; p.chord = null; } }
+      else if (keys && !(p.prev.j || p.prev.k || p.prev.l)) p.chord = { t: 0, mask: keys };
+      if (fired && b.owner === p && p.skillCd <= 0 && !p.charge) startSkill(G, p, inp, mx, my, hasIn, fired);
       else handleCharge(G, p, inp, mx, my, hasIn, dt);
-    }
+    } else p.chord = null;
     if (p.state === 'free') {
       const owner = b.owner === p;
       const jock = !!inp.jockey;
@@ -480,12 +491,12 @@
     if (p.x > FW - 5 && p.y > GY0 - 10 && p.y < GY1 + 10) {   // the goal is solid: slide along it
       if (oy <= GY0 - 10) p.y = GY0 - 10; else if (oy >= GY1 + 10) p.y = GY1 + 10; else p.x = FW - 5;
     }
-    p.prev = { shoot: inp.shoot, finesse: inp.finesse, chip: inp.chip, skill: inp.skill };
+    p.prev = { shoot: inp.shoot, finesse: inp.finesse, chip: inp.chip, skill: inp.skill, j: inp.j, k: inp.k, l: inp.l };
   }
 
   function collideBodies(G) {
     const [A, B] = G.players, b = G.ball;
-    if (A.state !== 'celebrate' && B.state !== 'celebrate') {
+    if (!G.solo && A.state !== 'celebrate' && B.state !== 'celebrate') {
       let dx = B.x - A.x, dy = B.y - A.y, d = hyp(dx, dy);
       const min = PR * 2 - 2;
       if (d < min) {
@@ -707,11 +718,12 @@
     const b = G.ball;
     // the scorer is whoever last touched it; a keeper deflection into the net still counts for the shooter
     const t = isPlayerTeam(b.lastTouch) ? b.lastTouch : b.shotTeam >= 0 ? b.shotTeam : G.attacker;
+    if (b.shot && b.shot.type === 'power' && b.shot.team === t) G.stats.powerGoals[t]++;
     G.score[t]++; G.phase = 'goal'; G.phaseT = C.GOAL_T; G.concede = 1 - t; G.own = false;
     b.inNet = 1; b.owner = null; b.shot = null; b.spin = 0;
     for (const p of G.players) { p.charge = null; if (p.state === 'skill') { p.skill = null; setState(p, 'free'); } }
     setState(G.players[t], 'celebrate');
-    if (G.score[t] >= C.WIN) G.winner = t;
+    if (G.score[t] >= G.win) G.winner = t;
     G.goals.push({ team: t, time: G.time, own: false });
     ev(G, 'goal', { team: t, own: false });
   }
@@ -754,12 +766,14 @@
 
   // The attacker starts on the spot 10 yards outside the box, centred on the goal, with the ball. The defender stands in front.
   function setupRep(G, atk, first) {
+    if (G.solo) atk = 0;
     const b = G.ball, def = 1 - atk, A = G.players[atk], D = G.players[def];
     resetBall(b);
     for (const p of G.players) { resetPlayer(p); p.stam = first ? 100 : Math.min(100, p.stam + 30); p.exhausted = false; p.face = 0; p.vx = p.vy = 0; }
     resetKeeper(G.keeper);
     A.x = SPOTX; A.y = GCY; D.x = SPOTX + 46; D.y = GCY; D.face = Math.PI;     // the defender starts in front of the attacker
     b.x = SPOTX + 12; b.y = GCY; b.owner = A; b.lastTouch = atk;
+    if (G.solo) { D.x = D.y = -900; D.state = 'away'; }       // testing arena: nobody else on the pitch
     G.attacker = atk; G.guard = null; G.shotTaken = false; G.armed = false; G.rep++;
     G.phase = 'countdown'; G.cdTick = first ? 1 : 0.5; G.phaseT = 3 * G.cdTick; G.lastCount = 4;
     G.msg = null; G.outInfo = null;
@@ -785,10 +799,11 @@
   function distribute(G, k) {
     const b = G.ball;
     b.x = k.x - 16; b.y = k.y;
-    const tx = FW - BOXD - 40 - G.rand() * 50, ty = clamp(GCY + (G.rand() - 0.5) * 420, 60, FH - 60);
+    const tx = FW - BOXD - 35 - G.rand() * 30, ty = clamp(GCY + (G.rand() - 0.5) * 360, 100, FH - 100);
     const dx = tx - b.x, dy = ty - b.y, d = hyp(dx, dy) || 1;
-    const sp = clamp(d * 0.95 + 110, 260, 640), T = d / (sp * 0.92);
-    b.holder = null; b.vx = (dx / d) * sp; b.vy = (dy / d) * sp; b.z = 14; b.vz = Math.max(120, (C.GRAV * T) / 2 - 12);
+    // a high, slow lob: it goes up rather than far, lands where it was aimed and cannot run out of play
+    const T = 1.15 + d / 700, sp = d / (T * 0.88);
+    b.holder = null; b.vx = (dx / d) * sp; b.vy = (dy / d) * sp; b.z = 14; b.vz = (C.GRAV * T) / 2 - 14 / T;
     b.lastKicker = k; b.kickT = 0; b.lastTouch = 2; k.state = 'set'; k.cd = 0.5; mark(G);
     ev(G, 'kick', { power: 0.3 });
   }
@@ -802,7 +817,7 @@
       const cy = clamp(b.y, Math.min(k.y, y2), Math.max(k.y, y2));
       d = hyp(b.x - k.x, b.y - cy); r = 11; zmax = 50;
     } else if (k.state === 'ground') { d = hyp(b.x - k.x, b.y - k.y); r = 11; zmax = 18; }
-    else { d = hyp(b.x - k.x, b.y - k.y); r = 11; zmax = k.chip ? 68 : 50; }
+    else { d = hyp(b.x - k.x, b.y - k.y); r = 12; zmax = k.chip ? 68 : 50; }
     if (d > r + BR || b.z > zmax) return;
     const o = b.owner;
     if (o) {      // smothering a dribbler: a contest, not a guaranteed claim
@@ -822,7 +837,7 @@
     }
     if (sp < 190) { keeperHold(G, k); ev(G, 'claim', { k }); return; }
     const dive = k.state === 'dive';
-    const pThrough = clamp((sp - 560) / 900, 0, 0.5) * (1.15 - 0.65 * q(a.han)) * (dive ? 1 : 0.6);
+    const pThrough = clamp((sp - 560) / 900, 0, 0.5) * (1.15 - 0.65 * q(a.han)) * (dive ? 1 : 0.6) * ((b.shot && b.shot.type === 'power') ? 0.45 : 1);
     if (G.rand() < pThrough) {        // too hot to handle: only slowed
       const j = (G.rand() - 0.5) * 0.5, c = Math.cos(j), s = Math.sin(j), vx = b.vx * 0.6, vy = b.vy * 0.6;
       b.vx = vx * c - vy * s; b.vy = vx * s + vy * c; b.spin = 0; k.cd = 0.4; b.lastTouch = 2; mark(G);
@@ -852,14 +867,20 @@
     }
     k.rushCd = Math.max(0, k.rushCd - dt); k.slideCd = Math.max(0, k.slideCd - dt);
     if (k.state === 'slide') {          // sliding tackle at the dribbler's feet
+      if (k.stT < 0.32 && !b.holder) {     // the keeper tracks the ball while sliding, so it is not a blind lunge
+        const px = b.x + b.vx * 0.12 - k.x, py = b.y + b.vy * 0.12 - k.y, pd = hyp(px, py) || 1, ks = hyp(k.vx, k.vy);
+        const bl = Math.min(1, 9 * dt);
+        k.vx += ((px / pd) * ks - k.vx) * bl; k.vy += ((py / pd) * ks - k.vy) * bl;
+        k.face = Math.atan2(k.vy, k.vx);
+      }
       const f = Math.exp(-2.4 * dt);
       k.vx *= f; k.vy *= f;
       k.x = clamp(k.x + k.vx * dt, FW - BOXD + 10, FW - 6); k.y = clamp(k.y + k.vy * dt, BOXY0 + 10, BOXY1 - 10);
       const o = b.owner;
-      if (live && !k.slideHit && k.stT > 0.04 && !b.holder && b.z < 30 && hyp(b.x - k.x, b.y - k.y) < 26) {
+      if (live && !k.slideHit && k.stT > 0.04 && !b.holder && b.z < 30 && hyp(b.x - k.x, b.y - k.y) < 36) {
         k.slideHit = true;
         if (o) {
-          let P = 0.42 + 0.4 * q(a.ooo) - 0.25 * q(o.a.dri) - 0.1 * q(o.a.bal);
+          let P = 0.5 + 0.4 * q(a.ooo) - 0.25 * q(o.a.dri) - 0.1 * q(o.a.bal);
           if (o.state === 'skill' && o.skill) P *= 0.5;
           if (G.rand() < P) { G.stats.saves[o.team]++; keeperHold(G, k); o.noCtrl = 0.5; o.charge = null; ev(G, 'save', { k, smother: true }); }
           else { b.owner = null; o.noCtrl = 0.3; o.charge = null; b.vx = k.vx * 0.5 + (G.rand() - 0.5) * 120; b.vy = k.vy * 0.5 + (G.rand() - 0.5) * 120; b.lastTouch = 2; mark(G); ev(G, 'save', { k, slide: true }); }
@@ -890,7 +911,7 @@
       if (k.seen !== b.seq) {
         k.seen = b.seq;
         const dist = hyp(b.x - k.x, b.y - k.y);
-        k.reactT = Math.max(0.07, lerp(0.5, 0.26, q(a.ref)) * (dist < 190 ? lerp(1, C.K_CLOSE, q(a.ooo)) : 1) + G.rand() * 0.04 - k.antic);
+        k.reactT = Math.max(0.07, ((b.shot && b.shot.type === 'power') ? 0.72 : 1) * lerp(0.44, 0.22, q(a.ref)) * (dist < 190 ? lerp(1, C.K_CLOSE, q(a.ooo)) : 1) + G.rand() * 0.04 - k.antic);
       }
       k.reactT -= dt;
       if (k.reactT <= 0) {
@@ -907,7 +928,7 @@
             else if (ady < 30 && ady < C.K_STEP * pr.t + 8) {     // close to the body: quick step across, stay on the feet
               k.stepY = k.y + dy; k.stepT = pr.t + 0.12; k.reactT = pr.t + 0.05;
             } else {
-              const t = Math.max(pr.t, 0.07), mxs = C.K_DIVE0 + C.K_DIVE1 * q(a.div);
+              const t = Math.max(pr.t, 0.07), mxs = (C.K_DIVE0 + C.K_DIVE1 * q(a.div)) * ((b.shot && b.shot.type === 'power') ? 1.25 : 1);
               k.state = 'dive'; k.slid = false; k.stT = 0; k.diveDir = Math.sign(dy);
               k.vy = k.diveDir * Math.min((Math.abs(dy) / t) * 1.05, mxs); k.vx = 0;
               k.stDur = clamp(t + 0.12, 0.3, 0.6); k.chip = false; k.stepT = 0; k.diveT = k.stDur;
@@ -927,7 +948,8 @@
       const blocked = tp > 0 && hyp(rv.x - (o.x + gdx * tp), rv.y - (o.y + gdy * tp)) < 42;
       if (k.slideCd <= 0 && !blocked && dk < 150 && dk > 55 && G.rand() < dt * 3) {
         k.state = 'slide'; k.stT = 0; k.slideHit = false; k.slid = true; k.slideCd = 2.5; k.rush = 0;
-        k.vx = ((b.x - k.x) / dk) * 440; k.vy = ((b.y - k.y) / dk) * 440; k.face = Math.atan2(k.vy, k.vx);
+        { const lx = b.x + b.vx * 0.25 - k.x, ly = b.y + b.vy * 0.25 - k.y, ld = hyp(lx, ly) || 1; k.vx = (lx / ld) * 440; k.vy = (ly / ld) * 440; }      // aim where the dribbler will be
+        k.face = Math.atan2(k.vy, k.vx);
         ev(G, 'lunge', { p: k, slide: true });
         return;
       }
@@ -975,8 +997,8 @@
       players: [makePlayer(opts.home, 0), makePlayer(opts.away, 1)],
       keeper: makeKeeper(1, (opts.keepers || ISO.KEEPERS)[1]),
       ball: { x: SPOTX, y: GCY, z: 0, vx: 0, vy: 0, vz: 0, spin: 0, rot: 0, seq: 0, lastTouch: 0 },
-      stats: { poss: [0, 0], shots: [0, 0], onTarget: [0, 0], saves: [0, 0], tackles: [0, 0], skills: [0, 0], clears: [0, 0] },
-      attacker: opts.kickoff || 0, next: 0, rep: 0, shotTaken: false, armed: false,
+      stats: { poss: [0, 0], shots: [0, 0], onTarget: [0, 0], saves: [0, 0], tackles: [0, 0], skills: [0, 0], clears: [0, 0], powerGoals: [0, 0] },
+      solo: !!opts.solo, win: opts.solo ? 1e9 : opts.win || C.WIN, attacker: opts.kickoff || 0, next: 0, rep: 0, shotTaken: false, armed: false,
     };
     G.keepers = [G.keeper];
     G.gauss = () => { let u = 0; for (let i = 0; i < 4; i++) u += G.rand(); return (u - 2) * 1.732; };
@@ -993,7 +1015,7 @@
       for (const p of G.players) {
         const inp = inputs[p.team] || ZERO;
         p.stam = Math.min(100, p.stam + 4 * dt);
-        p.prev = { shoot: inp.shoot, finesse: inp.finesse, chip: inp.chip, skill: inp.skill };
+        p.prev = { shoot: inp.shoot, finesse: inp.finesse, chip: inp.chip, skill: inp.skill, j: inp.j, k: inp.k, l: inp.l };
       }
       if (ph === 'countdown') {
         const c = Math.ceil(G.phaseT / G.cdTick);
@@ -1003,7 +1025,7 @@
       return;
     }
     const live = ph === 'play';
-    for (const p of G.players) updatePlayer(G, p, live ? inputs[p.team] || ZERO : ZERO, dt);
+    for (const p of G.players) if (!(G.solo && p.team === 1)) updatePlayer(G, p, live ? inputs[p.team] || ZERO : ZERO, dt);
     for (const k of G.keepers) updateKeeper(G, k, dt);
     collideBodies(G);
     for (const p of G.players) {      // nobody ends up inside a goal, even when shoved

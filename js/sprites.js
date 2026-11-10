@@ -20,15 +20,32 @@
     const c = (v) => Math.max(0, Math.min(255, v + amt));
     return 'rgb(' + c((n >> 16) & 255) + ',' + c((n >> 8) & 255) + ',' + c(n & 255) + ')';
   }
+  // Flat, angular "blueprint poster" look: coral / slate / navy / white, hard chamfers, no soft curves,
+  // diagonal hatching and crisp ink outlines.
+  const INK = '#1f2433', CORAL = '#f1735f', SLATE = '#4b5a74';
   function limb(c, x1, y1, x2, y2, w, col) {
-    c.strokeStyle = col; c.lineWidth = w; c.lineCap = 'round';
+    c.strokeStyle = col; c.lineWidth = w; c.lineCap = 'square';
     c.beginPath(); c.moveTo(x1, y1); c.lineTo(x2, y2); c.stroke();
   }
+  // chamfered rectangle: r is the size of the cut corners
   function rr(c, x, y, w, h, r) {
-    c.beginPath(); c.moveTo(x + r, y); c.arcTo(x + w, y, x + w, y + h, r); c.arcTo(x + w, y + h, x, y + h, r);
-    c.arcTo(x, y + h, x, y, r); c.arcTo(x, y, x + w, y, r); c.closePath();
+    r = Math.min(r * 0.9, w / 2, h / 2);
+    c.beginPath(); c.moveTo(x + r, y); c.lineTo(x + w - r, y); c.lineTo(x + w, y + r); c.lineTo(x + w, y + h - r); c.lineTo(x + w - r, y + h);
+    c.lineTo(x + r, y + h); c.lineTo(x, y + h - r); c.lineTo(x, y + r); c.closePath();
   }
-  function ell(c, x, y, rx, ry, col) { c.fillStyle = col; c.beginPath(); c.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2); c.fill(); }
+  // faceted ellipse (octagon)
+  function poly(c, x, y, rx, ry) {
+    c.beginPath();
+    for (let i = 0; i < 8; i++) { const a = (i / 8) * Math.PI * 2 + Math.PI / 8; c.lineTo(x + Math.cos(a) * rx * 1.08, y + Math.sin(a) * ry * 1.08); }
+    c.closePath();
+  }
+  function ell(c, x, y, rx, ry, col) { c.fillStyle = col; poly(c, x, y, rx, ry); c.fill(); }
+  // diagonal hatching clipped to the current path
+  function hatch(c, x, y, w, h, col, gap, lw) {
+    c.save(); c.clip(); c.strokeStyle = col; c.lineWidth = lw || 0.8; c.lineCap = 'butt'; c.beginPath();
+    for (let i = -h; i < w; i += gap) { c.moveTo(x + i, y + h); c.lineTo(x + i + h, y); }
+    c.stroke(); c.restore();
+  }
 
   function shirt(c, kit, x, y, w, h, r) {
     c.save(); rr(c, x, y, w, h, r); c.clip();
@@ -38,8 +55,12 @@
     else if (kit.pat === 'hoops') { for (let i = 0, sy = y; sy < y + h; sy += 2.4, i++) if (i % 2) c.fillRect(x, sy, w, 2.4); }
     else if (kit.pat === 'cstripe') c.fillRect(x + w / 2 - w * 0.17, y, w * 0.34, h);
     else c.fillRect(x, y, w, 1.5);     // collar trim
+    // hard-edged shadow plane and a hatched panel, like the poster's overlapping slabs
+    c.fillStyle = 'rgba(31,36,51,.32)'; c.beginPath(); c.moveTo(x + w * 0.62, y); c.lineTo(x + w, y); c.lineTo(x + w, y + h); c.lineTo(x + w * 0.3, y + h); c.closePath(); c.fill();
+    c.save(); c.beginPath(); c.moveTo(x, y + h * 0.55); c.lineTo(x + w * 0.4, y + h * 0.55); c.lineTo(x + w * 0.22, y + h); c.lineTo(x, y + h); c.closePath();
+    hatch(c, x, y, w, h, 'rgba(255,255,255,.55)', 1.7, 0.6); c.restore();
     c.restore();
-    c.strokeStyle = 'rgba(0,0,0,.28)'; c.lineWidth = 0.7; rr(c, x, y, w, h, r); c.stroke();
+    c.strokeStyle = INK; c.lineWidth = 0.9; c.lineJoin = 'miter'; rr(c, x, y, w, h, r); c.stroke();
   }
 
   // ---- hair ---------------------------------------------------------------
@@ -63,7 +84,7 @@
     }
     if (!side) { ell(c, hx - R, hy + 0.5, 1.4, 1.9, skinD); ell(c, hx + R, hy + 0.5, 1.4, 1.9, skinD); }
     ell(c, hx, hy, R, R, L.skin);
-    c.strokeStyle = 'rgba(0,0,0,.3)'; c.lineWidth = 0.6; c.beginPath(); c.arc(hx, hy, R, 0, 7); c.stroke();
+    c.strokeStyle = INK; c.lineWidth = 0.8; poly(c, hx, hy, R, R); c.stroke();
     // beard
     if (L.beard && !up) {
       c.save(); c.globalAlpha = L.beard === 'stubble' ? 0.38 : 1; c.fillStyle = L.beardColor || col;
@@ -135,7 +156,7 @@
   // rot (whole-body rotation, used for slides and dives), armsUp, spread, squash.
   function drawChar(c, L, kit, dir, P, keeper) {
     const w = L.w || 1, h = L.h || 1, skin = L.skin, skinD = shade(skin, -30);
-    const sock = kit.socks, sockD = shade(sock.length === 7 ? sock : '#888888', -35), boot = L.boot || '#16161a';
+    const sock = kit.socks, sockD = shade(sock.length === 7 ? sock : '#888888', -35), boot = L.boot || CORAL;
     const sleeve = kit.pat === 'sleeves' ? kit.b : kit.a, glove = '#f4f4f4';
     const l1 = P.l1 || 0, l2 = P.l2 || 0, a1 = P.a1 || 0, a2 = P.a2 || 0, bob = P.bob || 0, lean = P.lean || 0, spr = P.spread || 0;
     const lw = 4.3 * Math.sqrt(w);
@@ -165,7 +186,8 @@
       c.translate(0, hipY); c.rotate(lean); c.translate(0, -hipY);
       arm(a2, true); leg(l2, true); leg(l1, false);
       c.fillStyle = kit.shorts; rr(c, -tw / 2 - 0.3, hipY - 4.5, tw + 0.6, 7, 2); c.fill();
-      c.strokeStyle = 'rgba(0,0,0,.25)'; c.lineWidth = 0.6; c.stroke();
+      hatch(c, -tw / 2, hipY - 4.5, tw, 7, ISO.lum(kit.shorts) > 0.5 ? 'rgba(31,36,51,.35)' : 'rgba(255,255,255,.4)', 2.2, 0.7);
+      c.strokeStyle = INK; c.lineWidth = 0.8; rr(c, -tw / 2 - 0.3, hipY - 4.5, tw + 0.6, 7, 2); c.stroke();
       shirt(c, kit, -tw / 2, hipY - 15, tw, 11.5, 3);
       arm(a1, false);
       head(c, L, 'side', 1.2, hipY - 21.3);
@@ -179,7 +201,8 @@
       };
       if ((up ? -l1 : l1) <= (up ? -l2 : l2)) { leg(-1, l1); leg(1, l2); } else { leg(1, l2); leg(-1, l1); }
       c.fillStyle = kit.shorts; rr(c, -tw / 2, hipY - 5, tw, 7.2, 2); c.fill();
-      c.strokeStyle = 'rgba(0,0,0,.25)'; c.lineWidth = 0.6; c.stroke();
+      hatch(c, -tw / 2, hipY - 5, tw, 7.2, ISO.lum(kit.shorts) > 0.5 ? 'rgba(31,36,51,.35)' : 'rgba(255,255,255,.4)', 2.2, 0.7);
+      c.strokeStyle = INK; c.lineWidth = 0.8; rr(c, -tw / 2, hipY - 5, tw, 7.2, 2); c.stroke();
       shirt(c, kit, -tw / 2, hipY - 14.6, tw, 11.6, 3.2);
       if (up && L.num != null) {
         c.fillStyle = ISO.lum(kit.a) > 0.55 ? '#16161a' : '#ffffff';
@@ -293,14 +316,17 @@
       c.save(); c.translate(f * BALL_PX + BALL_PX / 2, BALL_PX / 2);
       c.beginPath(); c.arc(0, 0, r, 0, 7); c.clip();
       const g = c.createRadialGradient(-r * 0.3, -r * 0.4, 1, 0, 0, r * 1.2);
-      g.addColorStop(0, '#ffffff'); g.addColorStop(1, '#c9ced6');
+      g.addColorStop(0, '#ffffff'); g.addColorStop(1, '#e6e9ee');
       c.fillStyle = g; c.fillRect(-r, -r, r * 2, r * 2);
-      c.fillStyle = '#1a1c22';
+      c.fillStyle = CORAL;       // a coral slab that sweeps across as the ball rolls
+      const sw = ((f / BALL_FRAMES) * 2 - 1) * r * 1.6;
+      c.beginPath(); c.moveTo(sw - r * 0.5, -r); c.lineTo(sw + r * 0.1, -r); c.lineTo(sw + r * 0.1 - r * 0.9, r); c.lineTo(sw - r * 0.5 - r * 0.9, r); c.closePath(); c.fill();
+      c.fillStyle = INK;
       const off = (f / BALL_FRAMES) * r * 2.2;
       const pent = (px, py, s) => { c.beginPath(); for (let i = 0; i < 5; i++) { const a = (i / 5) * Math.PI * 2 - Math.PI / 2 + f * 0.25; c.lineTo(px + Math.cos(a) * s, py + Math.sin(a) * s); } c.closePath(); c.fill(); };
       for (let i = -2; i <= 2; i++) { pent(i * r * 1.1 + off - r * 1.1, (i % 2 ? -1 : 1) * r * 0.45, r * 0.36); }
       c.restore();
-      c.strokeStyle = '#11131a'; c.lineWidth = 2; c.beginPath(); c.arc(f * BALL_PX + BALL_PX / 2, BALL_PX / 2, r, 0, 7); c.stroke();
+      c.strokeStyle = INK; c.lineWidth = 2; c.beginPath(); c.arc(f * BALL_PX + BALL_PX / 2, BALL_PX / 2, r, 0, 7); c.stroke();
     }
     return ballSheet;
   }

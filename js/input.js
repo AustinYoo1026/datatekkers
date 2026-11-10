@@ -3,15 +3,11 @@
   'use strict';
   const ISO = (globalThis.ISO = globalThis.ISO || {});
 
-  const MAPS = {
-    p1: { up: ['KeyW'], down: ['KeyS'], left: ['KeyA'], right: ['KeyD'], sprint: ['ShiftLeft'], shoot: ['Space'],
-      finesse: ['KeyF'], chip: ['KeyQ'], skill: ['KeyE'], jockey: ['ControlLeft', 'KeyC'] },
-    p2: { up: ['ArrowUp'], down: ['ArrowDown'], left: ['ArrowLeft'], right: ['ArrowRight'], sprint: ['ShiftRight', 'KeyL'], shoot: ['KeyM'],
-      finesse: ['Comma'], chip: ['KeyN'], skill: ['Period'], jockey: ['KeyK'] },
-  };
-  // 1-player mode: the arrow keys and right-hand modifiers also drive player 1
+  // One player. Skill moves are chords of J / K / L.
+  const MAPS = {};
   MAPS.solo = { up: ['KeyW', 'ArrowUp'], down: ['KeyS', 'ArrowDown'], left: ['KeyA', 'ArrowLeft'], right: ['KeyD', 'ArrowRight'],
-    sprint: ['ShiftLeft', 'ShiftRight'], shoot: ['Space'], finesse: ['KeyF'], chip: ['KeyQ'], skill: ['KeyE'], jockey: ['ControlLeft', 'ControlRight', 'KeyC'] };
+    sprint: ['ShiftLeft', 'ShiftRight'], shoot: ['Space', 'Mouse0'], finesse: ['KeyF'], chip: ['KeyQ', 'Mouse2'], j: ['KeyJ'], k: ['KeyK'], l: ['KeyL'],
+    jockey: ['ControlLeft', 'ControlRight', 'KeyC'] };
 
   const GAME_KEYS = new Set(['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Tab']);
   for (const m of Object.values(MAPS)) for (const list of Object.values(m)) for (const k of list) GAME_KEYS.add(k);
@@ -25,6 +21,12 @@
     held.add(e.code); latched.add(e.code);
   });
   window.addEventListener('keyup', (e) => held.delete(e.code));
+  // mouse: the cursor aims, left button shoots, right button is the power shot (only while a match is on screen)
+  const mouse = { x: 0, y: 0, moved: false };
+  window.addEventListener('mousemove', (e) => { mouse.x = e.clientX; mouse.y = e.clientY; if (capture) mouse.moved = true; });
+  window.addEventListener('mousedown', (e) => { if (!capture) return; const k = 'Mouse' + e.button; held.add(k); latched.add(k); });
+  window.addEventListener('mouseup', (e) => held.delete('Mouse' + e.button));
+  window.addEventListener('contextmenu', (e) => { if (capture) e.preventDefault(); });
   window.addEventListener('blur', () => { held.clear(); latched.clear(); });
 
   const on = (list) => { for (const k of list) if (held.has(k) || latched.has(k)) return true; return false; };
@@ -35,24 +37,27 @@
     if (!g || !g.connected) return null;
     const b = (n) => !!(g.buttons[n] && g.buttons[n].pressed), dz = (v) => (Math.abs(v) < 0.22 ? 0 : v);
     return { mx: dz(g.axes[0] || 0) + (b(15) ? 1 : 0) - (b(14) ? 1 : 0), my: dz(g.axes[1] || 0) + (b(13) ? 1 : 0) - (b(12) ? 1 : 0),
-      shoot: b(0), finesse: b(1), skill: b(2), chip: b(3), sprint: b(7) || b(5), jockey: b(6) || b(4) };
+      shoot: b(0), finesse: b(1), j: b(2), chip: b(3), sprint: b(7) || b(5), jockey: b(6) || b(4) };
   }
 
   function get(mapName, padIndex) {
     const m = MAPS[mapName];
     const o = { mx: (on(m.right) ? 1 : 0) - (on(m.left) ? 1 : 0), my: (on(m.down) ? 1 : 0) - (on(m.up) ? 1 : 0),
-      sprint: on(m.sprint), jockey: on(m.jockey), shoot: on(m.shoot), finesse: on(m.finesse), chip: on(m.chip), skill: on(m.skill) };
+      sprint: on(m.sprint), jockey: on(m.jockey), shoot: on(m.shoot), finesse: on(m.finesse), chip: on(m.chip), j: on(m.j), k: on(m.k), l: on(m.l) };
+    o.skill = o.j || o.k || o.l;
     const g = pad(padIndex);
     if (g) {
       if (!o.mx && !o.my) { o.mx = g.mx; o.my = g.my; }
-      for (const k of ['sprint', 'jockey', 'shoot', 'finesse', 'chip', 'skill']) o[k] = o[k] || g[k];
+      for (const k of ['sprint', 'jockey', 'shoot', 'finesse', 'chip', 'j']) o[k] = o[k] || g[k];
+      o.skill = o.j || o.k || o.l;
     }
     return o;
   }
 
   ISO.Input = {
-    get, MAPS,
+    get, MAPS, mouse,
     consume() { latched.clear(); },      // call once the simulation has seen this frame's taps
     setCapture(v) { capture = v; if (!v) { held.clear(); latched.clear(); } },
+    resetMouse() { mouse.moved = false; },
   };
 })();

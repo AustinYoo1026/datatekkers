@@ -272,6 +272,7 @@
 
     if (fx.flash > 0) { c.fillStyle = 'rgba(255,255,255,' + fx.flash * 0.35 + ')'; c.fillRect(0, 0, VW, VH); fx.flash -= dt * 3; }
     if (V.quiet) return;
+    drawAim(c, G, V);
     // overlays
     if (G.phase === 'countdown') {
       const n = Math.ceil(G.phaseT / G.cdTick), frac = (G.phaseT / G.cdTick) % 1;
@@ -297,5 +298,17 @@
 
   function reset() { fx.parts = []; fx.texts = []; fx.trail = []; fx.shake = 0; fx.flash = 0; }
 
-  ISO.Render = { draw, onEvent, reset, VW, VH, TEAM_COL };
+  // mouse aim reticle (screen coords) with a guide from the human player
+  function drawAim(c, G, V) {
+    if (!V.aim || G.phase !== 'play') return;
+    const p = G.players[0], px = OX + Z * p.y, py = OY + Z * (FW - p.x), live = !!p.charge;
+    c.save();
+    c.strokeStyle = live ? 'rgba(241,115,95,.85)' : 'rgba(255,255,255,.35)'; c.lineWidth = live ? 2 : 1.2; c.setLineDash([6, 6]);
+    c.beginPath(); c.moveTo(px, py - 10); c.lineTo(V.aim.x, V.aim.y); c.stroke(); c.setLineDash([]);
+    c.strokeStyle = live ? '#f1735f' : 'rgba(255,255,255,.85)'; c.lineWidth = 2;
+    c.beginPath(); c.arc(V.aim.x, V.aim.y, 9, 0, TAU); c.stroke();
+    c.beginPath(); for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { c.moveTo(V.aim.x + dx * 5, V.aim.y + dy * 5); c.lineTo(V.aim.x + dx * 14, V.aim.y + dy * 14); } c.stroke();
+    c.restore();
+  }
+  ISO.Render = { draw, onEvent, reset, VW, VH, TEAM_COL, Z, OX, OY, drawAim };
 })();

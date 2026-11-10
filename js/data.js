@@ -107,6 +107,116 @@
       kit('#da291c', '#ffffff', 'solid', '#ffffff', '#17171b')),
   ];
 
+  // ---- extended roster: lower-rated squad players, more stars, more icons ------------------
+  // Attributes come from an archetype offset around the overall, with a little per-player variation.
+  const PROF = {
+    //          pac acc dri agi bal bct fin sho lng cur  wf  skl str  tck sta
+    winger:    [  5,  6,  3,  4,  1,  1, -4, -4, -5, -1, -10,  2, -12, -38,  0],
+    striker:   [  1,  0, -3, -4, -4,  0,  5,  4, -3, -7,  -8, -10,  4, -40, -2],
+    playmaker: [ -8, -6,  2,  0,  1,  4, -5,  0,  4,  5,   0,  0, -8, -20,  2],
+    target:    [ -6, -8, -8,-10, -6, -3,  3,  5, -4,-10, -10, -20, 10, -35, -2],
+    box2box:   [ -2, -2,  0, -4,  0,  1, -4,  0,  0, -3,  -6, -8,  3,   0,  8],
+  };
+  function gen(id, ovr, prof) {
+    let h = 7; for (const ch of id) h = (h * 31 + ch.charCodeAt(0)) | 0;
+    const rnd = () => { h = (Math.imul(h, 1103515245) + 12345) | 0; return ((h >>> 16) & 0x7fff) / 0x7fff; };
+    return PROF[prof].map((o) => Math.max(25, Math.min(99, Math.round(ovr + o + (rnd() - 0.5) * 6))));
+  }
+  const CLUB = {
+    'Tottenham': kit('#f4f4f4', '#132257', 'solid', '#132257', '#f4f4f4'),
+    'LAFC': kit('#17171b', '#c39e6d', 'solid', '#17171b', '#17171b'),
+    'Arsenal': kit('#ef0107', '#ffffff', 'sleeves', '#ffffff', '#ffffff'),
+    'Manchester City': kit('#6cabdd', '#ffffff', 'solid', '#ffffff', '#6cabdd'),
+    'Manchester United': kit('#da291c', '#ffffff', 'solid', '#ffffff', '#17171b'),
+    'Chelsea': kit('#034694', '#ffffff', 'solid', '#034694', '#ffffff'),
+    'Liverpool': kit('#c8102e', '#f6eb61', 'solid', '#c8102e', '#c8102e'),
+    'Aston Villa': kit('#670e36', '#95bfe5', 'sleeves', '#ffffff', '#670e36'),
+    'West Ham': kit('#7a263a', '#1bb1e7', 'sleeves', '#ffffff', '#7a263a'),
+    'Brighton': kit('#0057b8', '#ffffff', 'vstripes', '#0057b8', '#ffffff'),
+    'Nottingham Forest': kit('#dd0000', '#ffffff', 'solid', '#ffffff', '#dd0000'),
+    'Leicester': kit('#003090', '#fdbe11', 'solid', '#003090', '#003090'),
+    'Everton': kit('#003399', '#ffffff', 'solid', '#ffffff', '#003399'),
+    'Southampton': kit('#d71920', '#ffffff', 'vstripes', '#17171b', '#d71920'),
+    'Leeds': kit('#ffffff', '#1d428a', 'solid', '#ffffff', '#ffffff'),
+    'Torino': kit('#8b1a1a', '#ffffff', 'solid', '#ffffff', '#8b1a1a'),
+    'Ajax': kit('#ffffff', '#d2122e', 'cstripe', '#ffffff', '#ffffff'),
+    'FC Seoul': kit('#c8102e', '#17171b', 'vstripes', '#17171b', '#17171b'),
+    'Barcelona': kit('#a50044', '#004d98', 'vstripes', '#004d98', '#004d98'),
+    'Inter': kit('#0a2fa0', '#17171b', 'vstripes', '#17171b', '#17171b'),
+    'AC Milan': kit('#fb090b', '#17171b', 'vstripes', '#ffffff', '#17171b'),
+    'Paris Saint-Germain': kit('#0a1f44', '#e30613', 'cstripe', '#0a1f44', '#0a1f44'),
+    'Juventus': kit('#ffffff', '#17171b', 'vstripes', '#17171b', '#ffffff'),
+    'Roma': kit('#8e1f2f', '#f0bc42', 'solid', '#ffffff', '#17171b'),
+    'Benfica': kit('#e83030', '#ffffff', 'solid', '#ffffff', '#e83030'),
+  };
+  const look = (skin, hair, hairColor, x) => Object.assign({ skin, hair, hairColor, h: 1, w: 1 }, x || {});
+  const SK = { pale: '#f6d7bd', fair: '#f1c9a5', light: '#e8bd95', tan: '#c98f62', brown: '#9a6a44', dark: '#6b4226', deep: '#4e2f1c' };
+  const X = (id, name, short, nat, flag, club, era, ovr, foot, num, prof, lk) =>
+    P(id, name, short, nat, flag, club, era, ovr, foot, num, gen(id, ovr, prof), lk, CLUB[club] || kit('#f4f4f4', '#17171b', 'solid', '#17171b', '#f4f4f4'));
+  ISO.PLAYERS.push(
+    // common
+    X('cheadams', 'Che Adams', 'C. ADAMS', 'SCO', '🏴󠁧󠁢󠁳󠁣󠁴󠁿', 'Torino', 'modern', 70, 'R', 18, 'striker', look(SK.brown, 'buzz', '#17100c', { beard: 'stubble', beardColor: '#17100c' })),
+    X('armstrong', 'Adam Armstrong', 'ARMSTRONG', 'ENG', '🏴󠁧󠁢󠁥󠁮󠁧󠁿', 'Southampton', 'modern', 68, 'R', 9, 'striker', look(SK.fair, 'short', '#5a3a22')),
+    X('ings', 'Danny Ings', 'INGS', 'ENG', '🏴󠁧󠁢󠁥󠁮󠁧󠁿', 'West Ham', 'modern', 66, 'R', 18, 'striker', look(SK.fair, 'short', '#3a2a1c', { beard: 'stubble', beardColor: '#3a2a1c', h: 0.95 })),
+    X('antonio', 'Michail Antonio', 'ANTONIO', 'JAM', '🇯🇲', 'West Ham', 'modern', 69, 'R', 9, 'target', look(SK.dark, 'bald', '#120d0a', { beard: 'full', beardColor: '#120d0a', h: 1.06, w: 1.1 })),
+    X('weghorst', 'Wout Weghorst', 'WEGHORST', 'NED', '🇳🇱', 'Ajax', 'modern', 68, 'R', 25, 'target', look(SK.pale, 'short', '#c9a46a', { beard: 'stubble', beardColor: '#c9a46a', h: 1.14, w: 1.05 })),
+    X('lingard', 'Jesse Lingard', 'LINGARD', 'ENG', '🏴󠁧󠁢󠁥󠁮󠁧󠁿', 'FC Seoul', 'modern', 69, 'R', 10, 'playmaker', look(SK.tan, 'fade', '#17100c', { beard: 'goatee', beardColor: '#17100c', h: 0.95 })),
+    X('carroll', 'Andy Carroll', 'CARROLL', 'ENG', '🏴󠁧󠁢󠁥󠁮󠁧󠁿', 'Leeds', 'modern', 62, 'L', 9, 'target', look(SK.fair, 'bun', '#5a3a22', { beard: 'full', beardColor: '#5a3a22', h: 1.12, w: 1.1 })),
+    X('barkley', 'Ross Barkley', 'BARKLEY', 'ENG', '🏴󠁧󠁢󠁥󠁮󠁧󠁿', 'Aston Villa', 'modern', 70, 'R', 6, 'box2box', look(SK.light, 'short', '#2a1e16', { w: 1.06 })),
+    X('ayew', 'Jordan Ayew', 'J. AYEW', 'GHA', '🇬🇭', 'Leicester', 'modern', 68, 'R', 9, 'winger', look(SK.dark, 'buzz', '#120d0a', { beard: 'stubble', beardColor: '#120d0a' })),
+    X('djames', 'Daniel James', 'D. JAMES', 'WAL', '🏴󠁧󠁢󠁷󠁬󠁳󠁿', 'Leeds', 'modern', 69, 'L', 7, 'winger', look(SK.fair, 'short', '#3a2a1c', { h: 0.92, w: 0.9 })),
+    // rare
+    X('wood', 'Chris Wood', 'WOOD', 'NZL', '🇳🇿', 'Nottingham Forest', 'modern', 75, 'R', 11, 'target', look(SK.fair, 'short', '#5a3a22', { beard: 'stubble', beardColor: '#5a3a22', h: 1.1, w: 1.08 })),
+    X('vardy', 'Jamie Vardy', 'VARDY', 'ENG', '🏴󠁧󠁢󠁥󠁮󠁧󠁿', 'Leicester', 'modern', 74, 'R', 9, 'striker', look(SK.fair, 'short', '#8a6a44', { beard: 'stubble', beardColor: '#8a6a44', w: 0.92 })),
+    X('solanke', 'Dominic Solanke', 'SOLANKE', 'ENG', '🏴󠁧󠁢󠁥󠁮󠁧󠁿', 'Tottenham', 'modern', 77, 'R', 19, 'striker', look(SK.brown, 'curly', '#17100c', { h: 1.05 })),
+    X('bjohnson', 'Brennan Johnson', 'B. JOHNSON', 'WAL', '🏴󠁧󠁢󠁷󠁬󠁳󠁿', 'Tottenham', 'modern', 76, 'R', 22, 'winger', look(SK.tan, 'fade', '#17100c', { w: 0.92 })),
+    X('bowen', 'Jarrod Bowen', 'BOWEN', 'ENG', '🏴󠁧󠁢󠁥󠁮󠁧󠁿', 'West Ham', 'modern', 79, 'L', 20, 'winger', look(SK.fair, 'short', '#3a2a1c', { beard: 'stubble', beardColor: '#3a2a1c' })),
+    X('cwilson', 'Callum Wilson', 'C. WILSON', 'ENG', '🏴󠁧󠁢󠁥󠁮󠁧󠁿', 'West Ham', 'modern', 74, 'R', 9, 'striker', look(SK.brown, 'buzz', '#17100c', { beard: 'goatee', beardColor: '#17100c' })),
+    X('maddison', 'James Maddison', 'MADDISON', 'ENG', '🏴󠁧󠁢󠁥󠁮󠁧󠁿', 'Tottenham', 'modern', 79, 'R', 10, 'playmaker', look(SK.fair, 'quiff', '#3a2a1c', { beard: 'stubble', beardColor: '#3a2a1c' })),
+    X('welbeck', 'Danny Welbeck', 'WELBECK', 'ENG', '🏴󠁧󠁢󠁥󠁮󠁧󠁿', 'Brighton', 'modern', 75, 'R', 18, 'striker', look(SK.dark, 'buzz', '#120d0a', { beard: 'stubble', beardColor: '#120d0a', h: 1.06 })),
+    X('richarlison', 'Richarlison', 'RICHARLISON', 'BRA', '🇧🇷', 'Tottenham', 'modern', 77, 'R', 9, 'striker', look(SK.brown, 'mohawk', '#d8b45a', { h: 0.98 })),
+    X('grealish', 'Jack Grealish', 'GREALISH', 'ENG', '🏴󠁧󠁢󠁥󠁮󠁧󠁿', 'Everton', 'modern', 79, 'R', 18, 'winger', look(SK.fair, 'long', '#3a2a1c', { band: '#f4f4f4' })),
+    X('rashford', 'Marcus Rashford', 'RASHFORD', 'ENG', '🏴󠁧󠁢󠁥󠁮󠁧󠁿', 'Barcelona', 'modern', 79, 'R', 14, 'winger', look(SK.dark, 'fade', '#120d0a', { beard: 'stubble', beardColor: '#120d0a' })),
+    // epic
+    X('watkins', 'Ollie Watkins', 'WATKINS', 'ENG', '🏴󠁧󠁢󠁥󠁮󠁧󠁿', 'Aston Villa', 'modern', 82, 'R', 11, 'striker', look(SK.brown, 'buzz', '#17100c')),
+    X('son', 'Heung-min Son', 'SON', 'KOR', '🇰🇷', 'LAFC', 'modern', 86, 'R', 7, 'winger', look(SK.light, 'short', '#17100c', { h: 1.0, w: 0.98 })),
+    X('saka', 'Bukayo Saka', 'SAKA', 'ENG', '🏴󠁧󠁢󠁥󠁮󠁧󠁿', 'Arsenal', 'modern', 87, 'L', 7, 'winger', look(SK.dark, 'fade', '#120d0a', { w: 0.95 })),
+    X('foden', 'Phil Foden', 'FODEN', 'ENG', '🏴󠁧󠁢󠁥󠁮󠁧󠁿', 'Manchester City', 'modern', 85, 'L', 47, 'playmaker', look(SK.fair, 'buzz', '#c9a46a', { h: 0.93, w: 0.9 })),
+    X('palmer', 'Cole Palmer', 'PALMER', 'ENG', '🏴󠁧󠁢󠁥󠁮󠁧󠁿', 'Chelsea', 'modern', 86, 'L', 10, 'playmaker', look(SK.fair, 'short', '#d9843a', { w: 0.9 })),
+    X('odegaard', 'Martin Ødegaard', 'ØDEGAARD', 'NOR', '🇳🇴', 'Arsenal', 'modern', 86, 'L', 8, 'playmaker', look(SK.pale, 'short', '#5a3a22', { w: 0.92 })),
+    X('isak', 'Alexander Isak', 'ISAK', 'SWE', '🇸🇪', 'Liverpool', 'modern', 86, 'R', 9, 'striker', look(SK.brown, 'curly', '#17100c', { h: 1.1, w: 0.9 })),
+    X('kvara', 'Khvicha Kvaratskhelia', 'KVARA', 'GEO', '🇬🇪', 'Paris Saint-Germain', 'modern', 86, 'R', 7, 'winger', look(SK.fair, 'mop', '#3a2a1c', { h: 1.04, w: 0.92 })),
+    X('lautaro', 'Lautaro Martínez', 'LAUTARO', 'ARG', '🇦🇷', 'Inter', 'modern', 86, 'R', 10, 'striker', look(SK.tan, 'short', '#17100c', { beard: 'full', beardColor: '#17100c' })),
+    X('leao', 'Rafael Leão', 'LEÃO', 'POR', '🇵🇹', 'AC Milan', 'modern', 84, 'R', 10, 'winger', look(SK.dark, 'curly', '#120d0a', { h: 1.06, w: 0.92 })),
+    X('pedri', 'Pedri', 'PEDRI', 'ESP', '🇪🇸', 'Barcelona', 'modern', 86, 'R', 8, 'playmaker', look(SK.light, 'short', '#17100c', { w: 0.88 })),
+    // icons
+    X('kaka', 'Kaká', 'KAKÁ', 'BRA', '🇧🇷', 'AC Milan', 'legend', 92, 'R', 22, 'playmaker', look(SK.light, 'short', '#3a2a1c', { h: 1.05 })),
+    X('pirlo', 'Andrea Pirlo', 'PIRLO', 'ITA', '🇮🇹', 'Juventus', 'legend', 90, 'R', 21, 'playmaker', look(SK.light, 'long', '#2a1e16', { beard: 'full', beardColor: '#2a1e16' })),
+    X('totti', 'Francesco Totti', 'TOTTI', 'ITA', '🇮🇹', 'Roma', 'legend', 90, 'R', 10, 'striker', look(SK.light, 'short', '#c9a46a', { beard: 'stubble', beardColor: '#8a6a44' })),
+    X('rooney', 'Wayne Rooney', 'ROONEY', 'ENG', '🏴󠁧󠁢󠁥󠁮󠁧󠁿', 'Manchester United', 'legend', 90, 'R', 10, 'striker', look(SK.fair, 'buzz', '#8a6a44', { h: 0.95, w: 1.1 })),
+    X('zlatan', 'Zlatan Ibrahimović', 'ZLATAN', 'SWE', '🇸🇪', 'AC Milan', 'legend', 92, 'R', 11, 'target', look(SK.light, 'bun', '#17100c', { beard: 'stubble', beardColor: '#17100c', h: 1.14 })),
+    X('drogba', 'Didier Drogba', 'DROGBA', 'CIV', '🇨🇮', 'Chelsea', 'legend', 90, 'R', 11, 'target', look(SK.deep, 'buzz', '#120d0a', { h: 1.08, w: 1.12 })),
+    X('gerrard', 'Steven Gerrard', 'GERRARD', 'ENG', '🏴󠁧󠁢󠁥󠁮󠁧󠁿', 'Liverpool', 'legend', 90, 'R', 8, 'box2box', look(SK.fair, 'short', '#8a6a44', { h: 1.04 })),
+    X('iniesta', 'Andrés Iniesta', 'INIESTA', 'ESP', '🇪🇸', 'Barcelona', 'legend', 91, 'R', 8, 'playmaker', look(SK.fair, 'balding', '#5a3a22', { w: 0.9 })),
+    X('cantona', 'Eric Cantona', 'CANTONA', 'FRA', '🇫🇷', 'Manchester United', 'legend', 89, 'R', 7, 'striker', look(SK.light, 'short', '#17100c', { h: 1.07 })),
+    X('vanbasten', 'Marco van Basten', 'VAN BASTEN', 'NED', '🇳🇱', 'AC Milan', 'legend', 93, 'R', 9, 'striker', look(SK.fair, 'mop', '#8a6a44', { h: 1.07 })),
+    X('eusebio', 'Eusébio', 'EUSÉBIO', 'POR', '🇵🇹', 'Benfica', 'legend', 92, 'R', 10, 'striker', look(SK.deep, 'short', '#120d0a')),
+    X('rivaldo', 'Rivaldo', 'RIVALDO', 'BRA', '🇧🇷', 'Barcelona', 'legend', 91, 'L', 10, 'winger', look(SK.tan, 'long', '#17100c', { h: 1.05, w: 0.92 })),
+    X('parkjisung', 'Park Ji-sung', 'PARK', 'KOR', '🇰🇷', 'Manchester United', 'legend', 86, 'R', 13, 'box2box', look(SK.light, 'short', '#17100c', { h: 0.97 })),
+  );
+
+  ISO.PLAYERS.find((p) => p.id === 'son').attr.wf = 95;      // two-footed
+
+  // Rarity tiers drive the box draw.
+  ISO.RARITY = {
+    common: { name: 'COMMON', col: '#9aa3b2', dup: 50 },
+    rare: { name: 'RARE', col: '#4fa3ff', dup: 120 },
+    epic: { name: 'EPIC', col: '#b06bff', dup: 300 },
+    legend: { name: 'LEGENDARY', col: '#ffb23d', dup: 700 },
+    icon: { name: 'ICON', col: '#f1735f', dup: 1500 },
+  };
+  ISO.rarityOf = (d) => (d.era === 'legend' ? 'icon' : d.ovr >= 87 ? 'legend' : d.ovr >= 80 ? 'epic' : d.ovr >= 71 ? 'rare' : 'common');
+
   ISO.playerById = (id) => ISO.PLAYERS.find((p) => p.id === id);
 
   // Goalkeepers are AI-only. Ratings: reflexes, positioning, diving, handling, one-on-one.

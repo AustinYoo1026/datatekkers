@@ -15,14 +15,14 @@
 
   function create(diff) {
     return { diff: diff || 'normal', t: 0, laneY: GCY, shot: null, shotCd: 0, tackleCd: 0, skillCd: 1, fool: null,
-      out: { mx: 0, my: 0, sprint: false, jockey: false, shoot: false, finesse: false, chip: false, skill: false } };
+      out: { mx: 0, my: 0, sprint: false, jockey: false, shoot: false, finesse: false, chip: false, skill: false, j: false, k: false, l: false } };
   }
 
   function update(G, me, m, dt) {
     const D = DIFFS[m.diff], o = m.out, b = G.ball, opp = G.players[1 - me.team], dir = me.dir;
     const R = G.rand;
     m.tackleCd -= dt; m.skillCd -= dt; m.shotCd -= dt;
-    o.skill = false; o.jockey = false; o.sprint = false; o.mx = 0; o.my = 0;
+    o.skill = false; o.j = o.k = o.l = false; o.jockey = false; o.sprint = false; o.mx = 0; o.my = 0;
     o.shoot = o.finesse = o.chip = false;
     if (G.phase !== 'play') { m.shot = null; m.aimHold = 0; m.fool = null; return o; }
 
@@ -75,6 +75,7 @@
       if (m.skillCd <= 0 && ahead && od < 92 && od > 38 && R() < D.skillP * dt * 6) {
         m.skillCd = 1.2 + R() * 1.6;
         o.skill = true;
+        { const mask = [1, 2, 4, 3, 5, 6][(R() * 6) | 0]; o.j = !!(mask & 1); o.k = !!(mask & 2); o.l = !!(mask & 4); }       // a random J/K/L chord
         const r = R(), fx = Math.cos(me.face), fy = Math.sin(me.face);
         const side = fx * oy - fy * ox > 0 ? -1 : 1;
         o.sprint = R() < 0.45;

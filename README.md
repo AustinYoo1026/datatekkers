@@ -4,6 +4,16 @@
 
 A 2D, top-down, 1v1 football game for the browser. Rebound drill with the goal at the top: the attacker starts 10 yards outside the 18-yard box, in the centre, with the defender in front; a keeper catch is thrown back out for either player to win. After a shot, win the rebound and clear it outside the box. First to five goals wins.
 
+## Modes & progression
+
+- **MyCareer** — build your own player (look + kit) and climb a 12-opponent ladder from the weakest squad players to the greatest icons (first to 3, CPU difficulty rises as you climb). Wins earn upgrade points to spend on your attributes; losses still earn one.
+- **Box Draw** — most players are locked. Spend credits on Bronze / Silver / Gold / Icon boxes (each tier unlocks by completing an achievement), watch the reel spin, and pull a random player. Rarer tiers have better odds, duplicates refund credits, and a pity counter guarantees a Legendary or better every 10 boxes.
+- **Achievements** — 21 goals (goals, wins, skills, power-shot goals, career progress, collection…) that pay out credits and unlock box tiers.
+- **Credits** — earned from every match (more for goals, wins, clean sheets and career wins), from achievements, and a trickle from Testing Arena goals.
+- Progress is saved in the browser (localStorage).
+
+Mouse aiming: move the mouse during a match and your shots go toward the cursor; left click shoots, right click is the power shot.
+
 ## Play
 
 Open `index.html` in a desktop browser (no build step, no dependencies), or serve the folder:
@@ -12,19 +22,19 @@ Open `index.html` in a desktop browser (no build step, no dependencies), or serv
 python3 -m http.server 8000   # then visit http://localhost:8000
 ```
 
-Modes: **1 Player vs CPU** (easy / normal / hard) and **2 Players** on one keyboard. The full controls guide is in the main menu and the pause menu (`Esc`).
+Modes: **1 Player vs CPU** (easy / normal / hard) and the **Testing Arena** (one player, the ball and the keeper, every skill move unlocked, no score limit). The full controls guide is in the main menu and the pause menu (`Esc`).
 
-| Action | Player 1 | Player 2 |
-| --- | --- | --- |
-| Move | WASD (arrows too in 1P) | Arrow keys |
-| Sprint | Left Shift | Right Shift / L |
-| Shoot (hold to charge) · Tackle | Space | M |
-| Finesse shot | F | , |
-| Power shot (long wind-up) | Q | N |
-| Skill move | E | . |
-| Jockey · Shield | Left Ctrl / C | K |
+| Action | Keys |
+| --- | --- |
+| Move | WASD / arrows |
+| Sprint | Shift |
+| Shoot (hold to charge) · Tackle | Space |
+| Finesse shot | F |
+| Power shot (long wind-up) | Q |
+| Skill moves | J / K / L, alone or as chords |
+| Jockey · Shield | Ctrl / C |
 
-Sliding tackle: Sprint + direction + tackle. Skill moves are chosen by the direction held relative to where the player faces, with Sprint selecting the advanced move.
+Sliding tackle: Sprint + direction + tackle. Skill moves are chords of J, K and L: J stepovers, K body feint, L ball roll, J+K La Croqueta, J+L roulette, K+L elastico, J+K+L rainbow flick; Sprint + J / K / L gives heel-to-heel, drag back and nutmeg.
 
 ## Code layout
 
