@@ -440,5 +440,12 @@ kbd { display: inline-block; font: 700 12px/1 ui-monospace, Menlo, monospace; ba
 .on-code { font-size: 120px; font-weight: 900; font-style: italic; letter-spacing: .12em; line-height: 1; padding-left: .12em; }
 .on-wait { font-size: 16px; font-weight: 900; letter-spacing: .18em; color: var(--mute); }
 .on-wait.live { color: var(--green); }
-.on-vs { font-size: 22px; font-weight: 900; min-height: 28px; }
+.on-roster { display: flex; gap: 22px; min-height: 28px; }
+.on-team { display: flex; flex-direction: column; gap: 6px; min-width: 200px; }
+.on-team > i { font-style: normal; font-size: 11px; font-weight: 900; letter-spacing: .2em; color: var(--green); }
+.on-team.opp > i { color: var(--amber); }
+.on-slot { display: flex; flex-direction: column; padding: 8px 12px; border-radius: 6px; border: 1px solid var(--line); background: rgba(255,255,255,.03); font-size: 18px; font-weight: 900; }
+.on-slot span { font-size: 11px; letter-spacing: .12em; color: var(--mute); font-weight: 800; }
+.on-slot.me { border-color: var(--green); }
+.on-slot.empty { color: var(--mute); font-size: 13px; letter-spacing: .15em; justify-content: center; min-height: 44px; }
 .on-btns { display: flex; gap: 12px; margin-top: 8px; }

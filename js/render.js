@@ -356,9 +356,9 @@
     // overlays
     if (G.phase === 'countdown') {
       const n = Math.ceil(G.phaseT / G.cdTick), frac = (G.phaseT / G.cdTick) % 1;
-      if (n > 0) banner(c, String(n), G.drill ? G.drill.name + ' · ' + (G.drill.kind === 'target' ? 'HIT ' + ISO.TARGETS[G.drill.target].name : G.drill.kind === 'chip' ? 'LOB THE KEEPER' : 'KICK ' + (G.drill.n + 1) + ' OF ' + G.drill.total) : V.labels[G.attacker] + ' ATTACKS', '#ffffff', 1 - frac, OY + 120);
+      if (n > 0) banner(c, String(n), G.drill ? G.drill.name + ' · ' + (G.drill.kind === 'target' ? 'HIT ' + ISO.TARGETS[G.drill.target].name : G.drill.kind === 'chip' ? 'LOB THE KEEPER' : 'KICK ' + (G.drill.n + 1) + ' OF ' + G.drill.total) : (V.teams || V.labels)[G.attacker] + ' ATTACKS', '#ffffff', 1 - frac, OY + 120);
     } else if (G.phase === 'goal') {
-      const t = C.GOAL_T - G.phaseT, name = G.players[1 - G.concede].def.short;
+      const t = C.GOAL_T - G.phaseT, lg = G.goals[G.goals.length - 1], name = G.players[lg && lg.by != null ? lg.by : 1 - G.concede].def.short;
       if (G.drill) banner(c, G.drill.msg, G.drill.sub, '#35e08a', t, OY + 130); else
       banner(c, 'GOAL!', (G.own ? 'OWN GOAL · ' : '') + name + '  ' + G.score[0] + ' – ' + G.score[1], TEAM_COL[1 - G.concede], t);
     } else if ((G.phase === 'ready' || G.phase === 'out') && (G.msg || G.outInfo || G.drill)) {
@@ -382,7 +382,7 @@
   // mouse aim reticle (screen coords) with a guide from the human player
   function drawAim(c, G, V) {
     if (!V.aim || G.phase !== 'play') return;
-    const p = G.players[0], px = OX + Z * p.y, py = OY + Z * (FW - p.x), live = !!p.charge;
+    const p = G.players[V.me || 0], px = OX + Z * p.y, py = OY + Z * (FW - p.x), live = !!p.charge;
     c.save();
     c.strokeStyle = live ? 'rgba(241,115,95,.85)' : 'rgba(255,255,255,.35)'; c.lineWidth = live ? 2 : 1.2; c.setLineDash([6, 6]);
     c.beginPath(); c.moveTo(px, py - 10); c.lineTo(V.aim.x, V.aim.y); c.stroke(); c.setLineDash([]);

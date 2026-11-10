@@ -1,4 +1,4 @@
-/* ISO FOOTBALL — online 1v1 client: connection, lobby screen and snapshot playback.
+/* ISO FOOTBALL — online 1v1 / 2v2 client: connection, lobby screen and snapshot playback.
    The match itself runs on the server (server/server.js); this applies its snapshots to the local Game object
    that the renderer reads, and sends this player's inputs. */
 (function () {
@@ -10,7 +10,7 @@
   const SEND_MS = 14;                 // inputs go out at up to ~70 Hz
   const params = new URLSearchParams(location.search);
 
-  let ws = null, connecting = false, lobby = null, queued = false, rematching = false;
+  let ws = null, connecting = false, lobby = null, queued = false, qinfo = null, rematching = false, mode = '1v1';
   let pingMs = null, pingTimer = 0, retry = 0;
   let buf = [], off = null, evIdx = 0, lastSend = 0, pending = null;
 
@@ -23,6 +23,7 @@
   };
   const configured = () => !!(params.get('server') || (ISO.CONFIG && ISO.CONFIG.server));
   const status = (t, cls) => { const el = $('onStatus'); el.textContent = t; el.style.color = cls || ''; };
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => '&#' + c.charCodeAt(0) + ';');
   const send = (m) => { if (ws && ws.readyState === 1) ws.send(JSON.stringify(m)); };
 
   // ----------------------------------------------------------- connection
@@ -45,7 +46,7 @@
       clearInterval(pingTimer); connecting = false;
       if (ws !== sock) return;
       ws = null; const wasIn = lobby || App.mode === 'online' && App.screen === 'match' || App.screen === 'end';
-      lobby = null; queued = false; pingMs = null; buf = [];
+      lobby = null; queued = false; qinfo = null; pingMs = null; buf = [];
       if (wasIn && App.mode === 'online' && !App.demo) { App.toast('DISCONNECTED', 'Lost connection to the server', '#f1735f'); App.show('online'); }
       status(App.screen === 'online' ? 'DISCONNECTED' : '', '#f1735f'); render();
     };
@@ -54,8 +55,8 @@
 
   function onMessage(m) {
     if (m.t === 'pong') { pingMs = Math.round(performance.now() - m.c); if (App.screen === 'online') status('CONNECTED · ' + pingMs + ' MS'); }
-    else if (m.t === 'room') { lobby = m; queued = false; render(); if (params.get('room')) { params.delete('room'); history.replaceState(null, '', location.pathname); } }
-    else if (m.t === 'queued') { queued = true; render(); }
+    else if (m.t === 'room') { lobby = m; queued = false; mode = m.size === 4 ? '2v2' : '1v1'; render(); if (params.get('room')) { params.delete('room'); history.replaceState(null, '', location.pathname); } }
+    else if (m.t === 'queued') { queued = true; qinfo = m; mode = m.mode; render(); }
     else if (m.t === 'error') { queued = false; App.toast('ONLINE', m.msg, '#f1735f'); render(); }
     else if (m.t === 'out') { lobby = null; queued = false; render(); }
     else if (m.t === 'start') {
@@ -63,9 +64,11 @@
       App.startOnline(m.picks, m.names, m.kickoff, lobby ? lobby.you : 0);
     }
     else if (m.t === 's') { if (App.mode === 'online' && App.G && (App.screen === 'match' || App.screen === 'end')) addSnapshot(m); }
-    else if (m.t === 'rematch') { if (lobby && m.who[1 - lobby.you]) { const b = $('endRematch'); if (!rematching) b.textContent = 'OPPONENT WANTS A REMATCH'; } }
+    else if (m.t === 'rematch') {
+      if (lobby && !rematching) { const n = m.who.filter(Boolean).length; if (n) $('endRematch').textContent = n + ' / ' + m.who.length + ' WANT A REMATCH'; }
+    }
     else if (m.t === 'left') {
-      App.toast('OPPONENT LEFT', m.forfeit ? 'The match was ended' : 'Your room is open again', '#ffcf4d');
+      App.toast('PLAYER LEFT', m.forfeit ? 'The match was ended' : 'Your room is open again', '#ffcf4d');
       if (App.mode === 'online' && !App.demo) App.show('online');
       render();
     }
@@ -112,7 +115,7 @@
     return { id: d.id, prime: P.isPrime(d.id), skin: P.skinOf(d.id) };
   }
   const myName = () => ($('onName').value || '').trim() || 'Player';
-  const payload = (t, extra) => Object.assign({ t, name: myName(), pick: myPick(), moves: Array.from(P.moveSet()) }, extra);
+  const payload = (t, extra) => Object.assign({ t, mode, name: myName(), pick: myPick(), moves: Array.from(P.moveSet()) }, extra);
 
   function render() {
     if (!$('onMenu')) return;
@@ -121,16 +124,27 @@
     $('onNm').textContent = d.name; $('onOvr').textContent = d.ovr;
     const inRoom = !!lobby || queued;
     $('onMenu').classList.toggle('hidden', inRoom); $('onLobby').classList.toggle('hidden', !inRoom);
-    if (!inRoom) return;
-    const other = lobby && lobby.players[1 - lobby.you];
-    $('onLobbyK').textContent = lobby ? 'ROOM CODE' : 'QUICK MATCH';
+    if (!inRoom) { $('onModeSeg').classList.remove('hidden'); for (const m of ['1v1', '2v2']) $('onMode' + m[0]).classList.toggle('on', mode === m); return; }
+    $('onModeSeg').classList.add('hidden');
+    $('onLobbyK').textContent = lobby ? 'ROOM CODE · ' + mode.toUpperCase() : 'QUICK MATCH · ' + mode.toUpperCase();
     $('onRoomCode').textContent = lobby ? lobby.code : '· · · ·';
     $('onRoomCode').style.display = lobby ? '' : 'none';
     $('onCopy').classList.toggle('hidden', !lobby);
-    $('onWait').textContent = other ? 'OPPONENT FOUND' : queued ? 'SEARCHING FOR AN OPPONENT…' : 'WAITING FOR AN OPPONENT…';
-    $('onWait').classList.toggle('live', !!other);
-    $('onVs').textContent = other ? other.name.toUpperCase() + ' · ' + ISO.playerById(other.pick.id).short.toUpperCase() : '';
-    $('onLeave').textContent = other ? 'LEAVE' : 'CANCEL';
+    const missing = lobby ? lobby.players.filter((x) => !x).length : qinfo ? qinfo.need - qinfo.have : 1;
+    const word = mode === '2v2' ? (missing === 1 ? 'PLAYER' : 'PLAYERS') : 'OPPONENT';
+    $('onWait').textContent = lobby ? (missing ? 'WAITING FOR ' + (mode === '2v2' ? missing + ' MORE ' : 'AN ') + word + '…' : 'STARTING…')
+      : 'SEARCHING FOR ' + (mode === '2v2' ? missing + ' MORE ' : 'AN ') + word + '…';
+    $('onWait').classList.toggle('live', !!lobby && !missing);
+    // the teams: yours first
+    const roster = (t) => {
+      const rows = [];
+      lobby.players.forEach((p, i) => { if (i % 2 === t) rows.push(p ? '<div class="on-slot' + (i === lobby.you ? ' me' : '') + '"><b>' + esc(p.name.toUpperCase()) + '</b><span>' + esc(ISO.playerById(p.pick.id).short.toUpperCase()) + '</span></div>' : '<div class="on-slot empty">WAITING…</div>'); });
+      return rows.join('');
+    };
+    const mine = lobby ? lobby.you % 2 : 0;
+    $('onRoster').innerHTML = lobby ? '<div class="on-team"><i>YOUR TEAM</i>' + roster(mine) + '</div><div class="on-team opp"><i>' + (mode === '2v2' ? 'OPPONENTS' : 'OPPONENT') + '</i>' + roster(1 - mine) + '</div>' : '';
+    $('onTeam').classList.toggle('hidden', !(lobby && mode === '2v2'));
+    $('onLeave').textContent = lobby && lobby.players.filter(Boolean).length > 1 ? 'LEAVE' : 'CANCEL';
   }
 
   function start() {
@@ -142,7 +156,9 @@
     $('onJoin').addEventListener('click', join);
     $('onCode').addEventListener('keydown', (e) => { if (e.key === 'Enter') join(); });
     $('onCode').addEventListener('input', (e) => { e.target.value = e.target.value.toUpperCase().replace(/[^A-Z]/g, ''); });
-    $('onLeave').addEventListener('click', () => { send({ t: 'leave' }); lobby = null; queued = false; render(); });
+    $('onLeave').addEventListener('click', () => { send({ t: 'leave' }); lobby = null; queued = false; qinfo = null; render(); });
+    $('onTeam').addEventListener('click', () => send({ t: 'team' }));
+    for (const m of ['1v1', '2v2']) $('onMode' + m[0]).addEventListener('click', () => { mode = m; render(); });
     $('onCopy').addEventListener('click', () => {
       if (!lobby) return;
       const u = new URL(location.href); u.search = ''; u.searchParams.set('room', lobby.code);
@@ -161,7 +177,7 @@
     frame,
     onShow() { render(); if (!ws || ws.readyState > 1) connect(); else status('CONNECTED' + (pingMs != null ? ' · ' + pingMs + ' MS' : '')); },
     rematch() { rematching = true; $('endRematch').textContent = 'WAITING FOR OPPONENT…'; $('endRematch').disabled = true; send({ t: 'rematch' }); },
-    leave() { send({ t: 'leave' }); lobby = null; queued = false; buf = []; },
+    leave() { send({ t: 'leave' }); lobby = null; queued = false; qinfo = null; buf = []; },
   };
   start();
 })();

@@ -30,17 +30,19 @@
   window.addEventListener('resize', fit);
 
   // ------------------------------------------------------------- matches
-  function buildMatch(home, away, ctrl, labels, quiet) {
-    const kits = ISO.resolveKits(home, away);
+  // `roster` (online 2v2): four footballers, player i on team i % 2; a team shares one kit
+  function buildMatch(home, away, ctrl, labels, quiet, roster) {
+    const defs = roster || [home, away];
+    const kits = ISO.resolveKits(defs[0], defs[1]);
     App.kits = kits;
-    App.G = ISO.Game.create({ home, away, kickoff: App.kickoffFlip, solo: !quiet && App.mode === 'drill', drill: !quiet && App.mode === 'drill' ? App.drill : null, win: quiet ? 0 : App.matchWin,
+    App.G = ISO.Game.create({ home, away, roster: defs, kickoff: App.kickoffFlip, solo: !quiet && App.mode === 'drill', drill: !quiet && App.mode === 'drill' ? App.drill : null, win: quiet ? 0 : App.matchWin,
       keeperNerf: quiet ? 0 : ({ easy: 24, normal: 10, hard: 0 }[App.matchDiff] || 0),
       moves: ctrl.map((c) => (c === 'human' ? ISO.Profile.moveSet() : null)) });      // you can only use the skill moves you have unlocked
     App.ctrl = ctrl;
     App.ai = ctrl.map((c) => (c === 'cpu' ? ISO.AI.create(quiet ? 'normal' : App.matchDiff) : null));
-    App.matchDefs = [home, away];
+    App.matchDefs = defs; App.hudIdx = [0, 1]; App.me = 0;
     App.V = {
-      sheets: [ISO.Sprites.forPlayer(home, kits[0], 0), ISO.Sprites.forPlayer(away, kits[1], 1)],
+      sheets: defs.map((d, i) => ISO.Sprites.forPlayer(d, kits[i % 2], i)), me: 0,
       keeperSheet: ISO.Sprites.forKeeper(ISO.KEEPERS[1], 1),
       labels, quiet,
     };
@@ -72,12 +74,16 @@
     beginMatch(arena);
   }
 
-  // Online 1v1: the server runs the match; this builds the local mirror the renderer and HUD read from.
+  // Online 1v1 / 2v2: the server runs the match; this builds the local mirror the renderer and HUD read from.
+  // Player i is seat i and plays for team i % 2.
+  const teamName = (t) => App.names.filter((_, i) => i % 2 === t).map((n) => String(n || 'Player').toUpperCase().slice(0, 9)).join(' + ');
   App.startOnline = (picks, names, kickoff, me) => {
     const defs = picks.map((p) => ISO.outfit(ISO.playerById(p.id), p.prime, p.skin));
-    App.mode = 'online'; App.demo = false; App.paused = false; App.me = me; App.names = names;
+    App.mode = 'online'; App.demo = false; App.paused = false; App.names = names;
     App.matchDiff = 'normal'; App.matchWin = 0; App.kickoffFlip = kickoff;
-    buildMatch(defs[0], defs[1], ['none', 'none'], [0, 1].map((i) => (i === me ? 'YOU' : String(names[i] || 'P' + (i + 1)).toUpperCase().slice(0, 8))), false);
+    buildMatch(defs[0], defs[1], defs.map(() => 'none'), defs.map((_, i) => (i === me ? 'YOU' : String(names[i] || 'P' + (i + 1)).toUpperCase().slice(0, 8))), false, defs);
+    App.me = me; App.V.me = me; App.hudIdx = [0, 1].map((t) => (me % 2 === t ? me : t));
+    App.V.teams = [teamName(0), teamName(1)];
     $('pRestart').classList.add('hidden'); $('pQuit').textContent = 'LEAVE MATCH'; $('pQuitMenu').classList.add('hidden');
     beginMatch(false);
   };
@@ -86,11 +92,12 @@
     if (App.mode !== 'online') { $('pRestart').classList.remove('hidden'); $('pQuit').textContent = 'CHANGE PLAYERS'; $('pQuitMenu').classList.remove('hidden'); }
     ISO.Input.resetMouse();
     $('hud').classList.toggle('arena', arena);
+    const team2 = App.matchDefs.length > 2;
     for (const i of [0, 1]) {
-      const d = App.matchDefs[i], f = $('hudFace' + i).getContext('2d');
+      const d = App.matchDefs[App.hudIdx[i]], f = $('hudFace' + i).getContext('2d');
       f.clearRect(0, 0, 88, 88); f.drawImage(ISO.Sprites.portrait(d, 80, App.kits[i]), 0, 0, 88, 88);
-      $('hudName' + i).textContent = d.short; $('hudOvr' + i).textContent = d.ovr;
-      $('hudTag' + i).textContent = App.V.labels[i]; $('hudScore' + i).textContent = '0';
+      $('hudName' + i).textContent = team2 ? App.V.teams[i] : d.short; $('hudOvr' + i).textContent = team2 ? '' : d.ovr;
+      $('hudTag' + i).textContent = team2 ? (App.me % 2 === i ? 'YOUR TEAM' : 'OPPONENTS') : App.V.labels[i]; $('hudScore' + i).textContent = '0';
     }
     App.hud = { s: [-1, -1], t: -1 };
     App.hintT = ISO.Profile.data.settings.hint ? 8 : 0;
@@ -197,7 +204,7 @@
 
   function renderSelect() {
     const online = App.mode === 'online', arena = App.mode === 'drill' || online, two = false, P = ISO.Profile;
-    $('selMode').textContent = (online ? 'ONLINE 1V1 · PICK YOUR PLAYER' : arena ? (DRILL_NAMES[App.drill] || 'DRILL') + ' · 1 PLAYER' : '1 PLAYER · VS CPU') + '  ·  COLLECTION ' + P.ownedCount() + '/' + ISO.PLAYERS.length;
+    $('selMode').textContent = (online ? 'ONLINE · PICK YOUR PLAYER' : arena ? (DRILL_NAMES[App.drill] || 'DRILL') + ' · 1 PLAYER' : '1 PLAYER · VS CPU') + '  ·  COLLECTION ' + P.ownedCount() + '/' + ISO.PLAYERS.length;
     // what a win is worth with this match-up: tougher opponent and harder CPU pay more
     const me = P.owns(App.pick[0].id) ? P.outfit(App.pick[0]) : App.pick[0], wm = P.winMult(App.diff, me, App.pick[1]);
     $('selReward').className = 'sel-reward' + (arena ? ' hidden' : '') + (wm.total > 1 ? ' up' : wm.total < 1 ? ' down' : '');
@@ -241,14 +248,15 @@
   // ------------------------------------------------------------- end screen
   function showEnd() {
     const G = App.G, w = G.winner, s = G.stats;
+    const team2 = App.matchDefs.length > 2;
     for (const i of [0, 1]) {
-      const d = App.matchDefs[i], c = $('endFace' + i).getContext('2d');
+      const d = App.matchDefs[App.hudIdx[i]], c = $('endFace' + i).getContext('2d');
       c.clearRect(0, 0, 160, 160); c.drawImage(ISO.Sprites.portrait(d, 80, App.kits[i]), 0, 0);
-      $('endName' + i).textContent = d.short; $('endScore' + i).textContent = G.score[i];
+      $('endName' + i).textContent = team2 ? App.V.teams[i] : d.short; $('endScore' + i).textContent = G.score[i];
       $('endFace' + i).parentElement.classList.toggle('win', w === i);
     }
     const online = App.mode === 'online', me = App.me;
-    if (online) $('endTitle').textContent = w === me ? 'YOU WIN!' : String(App.names[w] || App.matchDefs[w].short).toUpperCase() + ' WINS';
+    if (online) $('endTitle').textContent = w === me % 2 ? 'YOU WIN!' : team2 ? 'OPPONENTS WIN' : String(App.names[w] || App.matchDefs[w].short).toUpperCase() + ' WINS';
     else $('endTitle').textContent = App.mode === 'career' ? (w === 0 ? 'YOU WIN!' : App.matchDefs[1].short + ' WINS') : App.matchDefs[w].short + ' WINS' + (w === 0 ? ' — YOU WIN!' : ' — CPU WINS');
     $('endTitle').style.color = R.TEAM_COL[w];
     const tot = s.poss[0] + s.poss[1] || 1, pp = Math.round((s.poss[0] / tot) * 100);
@@ -259,7 +267,7 @@
     $('endStats').innerHTML = rows.map((r) => '<tr><td>' + r[0] + '</td><td>' + r[1] + '</td><td>' + r[2] + '</td></tr>').join('');
     $('endRematch').textContent = 'REMATCH'; $('endRematch').disabled = false;
     if (online) {          // friendly matches: no credits, no career progress
-      $('endRewards').innerHTML = '<span>ONLINE 1V1 · FRIENDLY</span>';
+      $('endRewards').innerHTML = '<span>ONLINE ' + (team2 ? '2V2' : '1V1') + ' · FRIENDLY</span>';
       $('endRematch').classList.remove('hidden'); $('endContinue').classList.add('hidden'); $('endChange').classList.add('hidden');
       $('endMenu').textContent = 'LEAVE'; show('end'); return;
     }
@@ -384,7 +392,7 @@
         if (H.s[i] >= 0) { el.classList.remove('pop'); void el.offsetWidth; el.classList.add('pop'); }
         H.s[i] = G.score[i];
       }
-      const st = $('hudStam' + i), p = G.players[i];
+      const st = $('hudStam' + i), p = G.players[App.hudIdx[i]];
       st.style.width = p.stam.toFixed(0) + '%'; st.classList.toggle('low', p.exhausted || p.stam < 20);
     }
     const t = G.drill ? 'SHOT ' + Math.min(G.drill.n + 1, G.drill.total) + ' / ' + G.drill.total : Math.floor(G.time);

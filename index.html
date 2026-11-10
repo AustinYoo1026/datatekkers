@@ -107,11 +107,12 @@
     </div>
   </section>
 
-  <!-- online 1v1 -->
+  <!-- online 1v1 / 2v2 -->
   <section id="online" class="screen meta hidden">
     <header class="sel-head">
       <button class="btn small ghost" data-act="play">‹ PLAY</button>
-      <h2>ONLINE 1V1</h2>
+      <h2>ONLINE</h2>
+      <div class="seg" id="onModeSeg"><span class="seg-label">MODE</span><button class="segb on" id="onMode1">1V1</button><button class="segb" id="onMode2">2V2</button></div>
       <div class="sel-mode" id="onStatus">CONNECTING…</div>
     </header>
     <div class="on-body">
@@ -127,7 +128,7 @@
         <div id="onMenu" class="on-cards">
           <div class="on-card">
             <div class="pc-k">INVITE A FRIEND</div><div class="on-t">CREATE ROOM</div>
-            <p>You get a four-letter code and a link to send. The match starts when they join.</p>
+            <p>You get a four-letter code and a link to send. The match starts when the room is full: 2 players, or 4 in 2V2.</p>
             <button class="btn primary" id="onCreate">CREATE ROOM</button>
           </div>
           <div class="on-card">
@@ -137,7 +138,7 @@
           </div>
           <div class="on-card">
             <div class="pc-k">ANYONE ONLINE</div><div class="on-t">QUICK MATCH</div>
-            <p>Get paired with the next player who is looking for a game.</p>
+            <p>Get matched with the next players who are looking for a game of the same mode.</p>
             <button class="btn primary" id="onQuick">FIND MATCH</button>
           </div>
         </div>
@@ -145,8 +146,8 @@
           <div class="pc-k" id="onLobbyK">ROOM CODE</div>
           <div class="on-code" id="onRoomCode">····</div>
           <div class="on-wait" id="onWait">WAITING FOR AN OPPONENT…</div>
-          <div class="on-vs" id="onVs"></div>
-          <div class="on-btns"><button class="btn" id="onCopy">COPY INVITE LINK</button><button class="btn ghost" id="onLeave">CANCEL</button></div>
+          <div class="on-roster" id="onRoster"></div>
+          <div class="on-btns"><button class="btn" id="onCopy">COPY INVITE LINK</button><button class="btn hidden" id="onTeam">SWITCH TEAM</button><button class="btn ghost" id="onLeave">CANCEL</button></div>
         </div>
       </div>
     </div>

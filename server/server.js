@@ -1,5 +1,5 @@
 /* ISO FOOTBALL — online server.
-   Serves the game (static files) and runs 1v1 matches: players join a room by code (or the quick-match queue),
+   Serves the game (static files) and runs 1v1 and 2v2 matches: players join a room by code (or the quick-match queue),
    send their inputs over a WebSocket, and the server runs the same deterministic simulation as the single-player
    game at 120 Hz, broadcasting snapshots that the clients render.
 
@@ -56,9 +56,10 @@ function sanitizePick(p) {
   return { id: base.id, prime: !!(p && p.prime), skin };
 }
 const defOf = (p) => ISO.outfit(ISO.playerById(p.id), p.prime, p.skin);
-function sanitizeMoves(list) {
-  if (!Array.isArray(list)) return null;
-  return new Set(list.filter((id) => typeof id === 'string' && ISO.Game.SKILLS[id]));
+const FREE_MOVES = Object.keys(ISO.Game.SKILLS).filter((id) => !(ISO.MOVE_COST[id] > 0));
+function sanitizeMoves(list) {          // a client that sends nothing valid gets only the free moves, never all of them
+  if (!Array.isArray(list)) return new Set(FREE_MOVES);
+  return new Set(list.filter((id) => typeof id === 'string' && ISO.Game.SKILLS[id]).concat(FREE_MOVES));
 }
 const BOOLS = Object.keys(ISO.Game.ZERO).filter((k) => typeof ISO.Game.ZERO[k] === 'boolean');      // every button the sim reads
 function sanitizeInput(i) {
@@ -72,35 +73,55 @@ function sanitizeInput(i) {
 
 // ------------------------------------------------------------------ rooms
 const rooms = new Map();
-let queue = null;           // a socket waiting for a quick match
+const queues = { '1v1': [], '2v2': [] };     // sockets waiting for a quick match
+const sizeOf = (mode) => (mode === '2v2' ? 4 : 2);
 
+// Seat i is player i of the simulation and plays for team i % 2 (2v2: seats 0 and 2 against seats 1 and 3).
 class Room {
-  constructor(code, host) {
-    this.code = code; this.seats = [host, null]; this.G = null; this.state = 'lobby';     // lobby | match | over
-    this.kickoff = 0; this.rematch = [false, false]; this.touched = Date.now();
-    this.inp = [null, null]; this.tap = [{}, {}]; this.events = []; this.steps = 0;
+  constructor(code, size) {
+    this.code = code; this.size = size; this.seats = new Array(size).fill(null); this.G = null; this.state = 'lobby';     // lobby | match | over
+    this.kickoff = 0; this.rematch = new Array(size).fill(false); this.touched = Date.now();
+    this.inp = []; this.tap = []; this.events = []; this.steps = 0;
   }
-  get full() { return !!(this.seats[0] && this.seats[1]); }
+  get count() { return this.seats.filter(Boolean).length; }
+  get full() { return this.count === this.size; }
   info(forSeat) {
-    return { t: 'room', code: this.code, you: forSeat, state: this.state,
+    return { t: 'room', code: this.code, you: forSeat, state: this.state, size: this.size,
       players: this.seats.map((s) => s && { name: s.name, pick: s.pick }) };
   }
   broadcast(m) { for (const s of this.seats) if (s) send(s.ws, m); }
   sync() { this.seats.forEach((s, i) => s && send(s.ws, this.info(i))); }
+  // a new arrival goes to the team with fewer players, so friends who join one after another end up split 2 v 2 by default
+  freeSeat() {
+    const n = [0, 0];
+    this.seats.forEach((s, i) => { if (s) n[i % 2]++; });
+    const first = n[1] < n[0] ? 1 : 0;
+    for (const t of [first, 1 - first]) for (let i = t; i < this.size; i += 2) if (!this.seats[i]) return i;
+    return -1;
+  }
   join(seat) {
-    const i = this.seats[0] ? 1 : 0;
+    const i = this.freeSeat();
+    if (i < 0) return false;
     this.seats[i] = seat; seat.room = this; seat.team = i;
     this.touched = Date.now();
     this.sync();
     if (this.full && this.state === 'lobby') this.start();
+    return true;
+  }
+  // lobby only: move to the other team if it has a free seat
+  switchTeam(seat) {
+    if (this.state === 'match' || this.size < 4) return;
+    const from = this.seats.indexOf(seat);
+    for (let i = 1 - (from % 2); i < this.size; i += 2) if (!this.seats[i]) {
+      this.seats[from] = null; this.seats[i] = seat; seat.team = i; this.sync(); return;
+    }
   }
   start() {
-    this.state = 'match'; this.rematch = [false, false];
-    const [a, b] = this.seats;
-    const home = defOf(a.pick), away = defOf(b.pick);
-    this.G = ISO.Game.create({ home, away, kickoff: this.kickoff, moves: [a.moves, b.moves] });
-    this.inp = [null, null]; this.tap = [{}, {}]; this.events = []; this.steps = 0; this.acc = 0; this.last = performance.now();
-    this.broadcast({ t: 'start', picks: [a.pick, b.pick], names: [a.name, b.name], kickoff: this.kickoff });
+    this.state = 'match'; this.rematch.fill(false);
+    const defs = this.seats.map((s) => defOf(s.pick));
+    this.G = ISO.Game.create({ roster: defs, kickoff: this.kickoff, moves: this.seats.map((s) => s.moves) });
+    this.inp = this.seats.map(() => null); this.tap = this.seats.map(() => ({})); this.events = []; this.steps = 0; this.acc = 0; this.last = performance.now();
+    this.broadcast({ t: 'start', size: this.size, picks: this.seats.map((s) => s.pick), names: this.seats.map((s) => s.name), kickoff: this.kickoff });
     this.sync();
   }
   input(team, raw) {
@@ -122,7 +143,7 @@ class Room {
     this.acc += Math.min(0.1, (now - this.last) / 1000); this.last = now;
     const G = this.G;
     while (this.acc >= C.STEP) {
-      ISO.Game.step(G, [this.frameInput(0), this.frameInput(1)]);
+      ISO.Game.step(G, this.seats.map((_, i) => this.frameInput(i)));
       this.acc -= C.STEP;
       for (const e of G.events) this.events.push(e);
       G.events.length = 0;
@@ -135,23 +156,21 @@ class Room {
     this.events = [];
     this.broadcast({ t: 's', at: Date.now(), n: snap });
   }
-  wantRematch(team) {
+  wantRematch(i) {
     if (this.state !== 'over') return;
-    this.rematch[team] = true;
+    this.rematch[i] = true;
     this.broadcast({ t: 'rematch', who: this.rematch });
-    if (this.rematch[0] && this.rematch[1]) { this.kickoff = 1 - this.kickoff; this.start(); }
+    if (this.seats.every((s, k) => s && this.rematch[k])) { this.kickoff = 1 - this.kickoff; this.start(); }
   }
   leave(seat) {
     const i = this.seats.indexOf(seat);
     if (i < 0) return;
     this.seats[i] = null; seat.room = null; this.touched = Date.now();
-    const other = this.seats[1 - i];
-    if (!other) { rooms.delete(this.code); return; }
-    // the opponent walked away: the match is over, the room stays open for someone else to join
+    if (!this.count) { rooms.delete(this.code); return; }
+    // somebody walked away: the match is over, the room stays open for someone else to join
     const wasMatch = this.state === 'match';
-    this.state = 'lobby'; this.G = null; this.rematch = [false, false];
-    this.seats = [other, null]; other.team = 0;
-    send(other.ws, { t: 'left', forfeit: wasMatch });
+    this.state = 'lobby'; this.G = null; this.rematch.fill(false);
+    this.broadcast({ t: 'left', forfeit: wasMatch });
     this.sync();
   }
 }
@@ -165,9 +184,10 @@ const wss = new WebSocketServer({
 });
 
 function leave(seat) {
-  if (queue === seat) queue = null;
+  for (const q of Object.values(queues)) { const k = q.indexOf(seat); if (k >= 0) q.splice(k, 1); }
   if (seat.room) seat.room.leave(seat);
 }
+const queued = (seat) => Object.values(queues).some((q) => q.includes(seat));
 function makeSeat(ws, m) {
   return { ws, name: cleanName(m.name), pick: sanitizePick(m.pick), moves: sanitizeMoves(m.moves), room: null, team: 0 };
 }
@@ -188,24 +208,31 @@ wss.on('connection', (ws) => {
     if (m.t === 'in') { if (seat.room && seat.room.state === 'match' && m.i && typeof m.i === 'object') seat.room.input(seat.team, m.i); return; }
     if (m.t === 'ping') { send(ws, { t: 'pong', c: m.c, at: Date.now() }); return; }
     if (m.t === 'rematch') { if (seat.room) seat.room.wantRematch(seat.team); return; }
+    if (m.t === 'team') { if (seat.room) seat.room.switchTeam(seat); return; }
     if (m.t === 'leave') { leave(seat); send(ws, { t: 'out' }); return; }
 
     if (m.t === 'create' || m.t === 'join' || m.t === 'quick') {
-      if (seat.room || queue === seat) leave(seat);
+      if (seat.room || queued(seat)) leave(seat);
       const s = makeSeat(ws, m); Object.assign(seat, s, { room: null });
+      const mode = m.mode === '2v2' ? '2v2' : '1v1';
       if (m.t === 'create') {
         if (rooms.size >= MAX_ROOMS) { send(ws, { t: 'error', msg: 'Server is full, try again in a minute.' }); return; }
-        const r = new Room(newCode(), null); rooms.set(r.code, r); r.join(seat);
+        const r = new Room(newCode(), sizeOf(mode)); rooms.set(r.code, r); r.join(seat);
       } else if (m.t === 'join') {
         const r = rooms.get(String(m.code || '').toUpperCase().trim());
         if (!r) send(ws, { t: 'error', msg: 'No room with that code.' });
         else if (r.full) send(ws, { t: 'error', msg: 'That room is full.' });
         else r.join(seat);
       } else {
-        if (queue && queue.ws.readyState === 1 && queue !== seat) {
-          const other = queue; queue = null;
-          const r = new Room(newCode(), null); rooms.set(r.code, r); r.join(other); r.join(seat);
-        } else { queue = seat; send(ws, { t: 'queued' }); }
+        const q = queues[mode];
+        for (let k = q.length - 1; k >= 0; k--) if (q[k].ws.readyState !== 1) q.splice(k, 1);       // drop stale sockets
+        q.push(seat);
+        if (q.length >= sizeOf(mode)) {
+          if (rooms.size >= MAX_ROOMS) { q.pop(); send(ws, { t: 'error', msg: 'Server is full, try again in a minute.' }); return; }
+          const group = q.splice(0, sizeOf(mode));
+          const r = new Room(newCode(), sizeOf(mode)); rooms.set(r.code, r);
+          for (const g of group) r.join(g);
+        } else send(ws, { t: 'queued', mode, have: q.length, need: sizeOf(mode) });
       }
       return;
     }
@@ -226,7 +253,7 @@ setInterval(() => {
 setInterval(() => {                                       // drop dead sockets and abandoned rooms
   for (const ws of wss.clients) { if (!ws.alive) { ws.terminate(); continue; } ws.alive = false; ws.ping(); }
   const now = Date.now();
-  for (const [code, r] of rooms) if (now - r.touched > IDLE_MS && r.state !== 'match' && !r.full) { for (const s of r.seats) if (s) { send(s.ws, { t: 'out' }); s.room = null; } rooms.delete(code); }
+  for (const [code, r] of rooms) if (now - r.touched > IDLE_MS && r.state === 'lobby') { for (const s of r.seats) if (s) { send(s.ws, { t: 'out' }); s.room = null; } rooms.delete(code); }
 }, 15000);
 
 httpServer.listen(PORT, HOST, () => {

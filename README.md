@@ -39,6 +39,14 @@ The main menu has four buttons: **Play**, **Store**, **Settings** and **Controls
 - **Keyboard** — every action has two rebindable keys. Click a slot and press a key; `Esc` cancels, `Backspace` clears, and a key already in use swaps places. **Reset to default** restores the original layout.
 - **Reset all progress** — wipes credits, players, skins, Primes, skill moves, maps, achievements and MyCareer. Settings and key bindings are kept.
 
+## Online 1v1 and 2v2
+
+Play > Online (needs the server in `server/`, see `render.yaml`). Create a room and share the four-letter code, or use Quick Match. Pick **1V1** or **2V2** at the top of the lobby.
+
+- **2V2** needs four players. Seats alternate between teams (players 1 and 3 against 2 and 4); new arrivals fill the smaller team, and **Switch Team** in the lobby moves you across if the other team has a free seat. Each team shares one kit.
+- **Pass** (default `R`, rebindable in Settings, Gamepad back button) sends a ground pass to the teammate you are pointing at (the nearest with no direction held). The ball carrier alternates between teammates at each restart.
+- If anyone leaves mid-match the match ends and the room reopens. Online matches are friendlies: no credits or career progress.
+
 ## Credits
 
 - Every match pays credits, with more for goals, wins, clean sheets and career wins. Achievements pay out too, and Testing Arena goals earn a trickle.
@@ -69,9 +77,9 @@ The full controls guide is in the main menu and the pause menu (`Esc`), and show
 
 Sliding tackle: Sprint + direction + tackle. Skill moves are chords of J, K and L: J stepovers, K body feint, L ball roll, J+K La Croqueta, J+L roulette, K+L elastico, J+K+L rainbow flick; Sprint + J / K / L gives heel-to-heel, drag back and nutmeg.
 
-## Online 1v1
+## Running the online server
 
-**Play → Online 1v1** lets two people play each other. The match runs on a small Node server (`server/`) so neither player can cheat and both see the same game; browsers just send their keys and draw what the server sends back.
+**Play → Online** lets two or four people play each other. The match runs on a small Node server (`server/`) so neither player can cheat and both see the same game; browsers just send their keys and draw what the server sends back.
 
 ```sh
 cd server && npm install && npm start      # http://localhost:8080  (PORT=… HOST=… to change)

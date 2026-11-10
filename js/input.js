@@ -7,10 +7,10 @@
   // the mouse buttons ride along on shoot and power shot.
   const ACTIONS = [['up', 'Move up'], ['down', 'Move down'], ['left', 'Move left'], ['right', 'Move right'], ['sprint', 'Sprint'],
     ['shoot', 'Shoot · Tackle'], ['finesse', 'Finesse shot'], ['chip', 'Power shot'], ['lob', 'Chip shot'], ['j', 'Skill key 1'], ['k', 'Skill key 2'], ['l', 'Skill key 3'],
-    ['jockey', 'Jockey · Shield']];
+    ['jockey', 'Jockey · Shield'], ['pass', 'Pass (2v2)']];
   const DEFAULT_KEYS = { up: ['KeyW', 'ArrowUp'], down: ['KeyS', 'ArrowDown'], left: ['KeyA', 'ArrowLeft'], right: ['KeyD', 'ArrowRight'],
     sprint: ['ShiftLeft', 'ShiftRight'], shoot: ['Space', null], finesse: ['KeyF', null], chip: ['KeyQ', null], lob: ['KeyE', null], j: ['KeyJ', null], k: ['KeyK', null], l: ['KeyL', null],
-    jockey: ['ControlLeft', 'KeyC'] };
+    jockey: ['ControlLeft', 'KeyC'], pass: ['KeyR', null] };
   const MOUSE_KEYS = { shoot: ['Mouse0'], chip: ['Mouse2'] };
   const MAPS = {};
   let binds = null, combos = [];      // a binding can be one key or a combination written 'ShiftLeft+KeyQ'
@@ -77,18 +77,18 @@
     if (!g || !g.connected) return null;
     const b = (n) => !!(g.buttons[n] && g.buttons[n].pressed), dz = (v) => (Math.abs(v) < 0.22 ? 0 : v);
     return { mx: dz(g.axes[0] || 0) + (b(15) ? 1 : 0) - (b(14) ? 1 : 0), my: dz(g.axes[1] || 0) + (b(13) ? 1 : 0) - (b(12) ? 1 : 0),
-      shoot: b(0), finesse: b(1), j: b(2), chip: b(3), lob: b(9) || b(10), sprint: b(7) || b(5), jockey: b(6) || b(4) };
+      shoot: b(0), finesse: b(1), j: b(2), chip: b(3), lob: b(9) || b(10), sprint: b(7) || b(5), jockey: b(6) || b(4), pass: b(8) };
   }
 
   function get(mapName, padIndex) {
     const m = MAPS[mapName];
     const o = { mx: (on(m.right) ? 1 : 0) - (on(m.left) ? 1 : 0), my: (on(m.down) ? 1 : 0) - (on(m.up) ? 1 : 0),
-      sprint: on(m.sprint), jockey: on(m.jockey), shoot: on(m.shoot), finesse: on(m.finesse), chip: on(m.chip), lob: on(m.lob), j: on(m.j), k: on(m.k), l: on(m.l) };
+      sprint: on(m.sprint), jockey: on(m.jockey), shoot: on(m.shoot), finesse: on(m.finesse), chip: on(m.chip), lob: on(m.lob), j: on(m.j), k: on(m.k), l: on(m.l), pass: on(m.pass) };
     o.skill = o.j || o.k || o.l;
     const g = pad(padIndex);
     if (g) {
       if (!o.mx && !o.my) { o.mx = g.mx; o.my = g.my; }
-      for (const k of ['sprint', 'jockey', 'shoot', 'finesse', 'chip', 'lob', 'j']) o[k] = o[k] || g[k];
+      for (const k of ['sprint', 'jockey', 'shoot', 'finesse', 'chip', 'lob', 'j', 'pass']) o[k] = o[k] || g[k];
       o.skill = o.j || o.k || o.l;
     }
     return o;

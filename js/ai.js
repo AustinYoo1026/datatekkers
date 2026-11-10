@@ -15,7 +15,7 @@
 
   function create(diff) {
     return { diff: diff || 'normal', t: 0, laneY: GCY, shot: null, shotCd: 0, tackleCd: 0, skillCd: 1, fool: null,
-      out: { mx: 0, my: 0, sprint: false, jockey: false, shoot: false, finesse: false, chip: false, lob: false, skill: false, j: false, k: false, l: false } };
+      out: { mx: 0, my: 0, sprint: false, jockey: false, shoot: false, finesse: false, chip: false, lob: false, skill: false, j: false, k: false, l: false, pass: false } };
   }
 
   function update(G, me, m, dt) {

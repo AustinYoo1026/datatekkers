@@ -5,12 +5,12 @@
   'use strict';
   const ISO = (globalThis.ISO = globalThis.ISO || {});
 
-  const SKIP = new Set(['def', 'a', 'moves', 'rand', 'gauss', 'keepers', 'events', 'players', 'keeper', 'ball']);
+  const SKIP = new Set(['def', 'a', 'moves', 'rand', 'gauss', 'keepers', 'events', 'players', 'keeper', 'ball', 'pairs']);
   const LERP = ['x', 'y', 'z'];                  // blended between snapshots on the client; everything else is taken from the earlier one
 
   function enc(v) {
     if (v && typeof v === 'object') {
-      if (v.kind === 'p') return { $p: v.team };
+      if (v.kind === 'p') return { $p: v.idx };
       if (v.kind === 'k') return { $k: v.team };
       if (Array.isArray(v)) return v.map(enc);
       const o = {};

@@ -55,11 +55,21 @@
     };
   }
 
-  const ZERO = { mx: 0, my: 0, sprint: false, jockey: false, shoot: false, finesse: false, chip: false, lob: false, skill: false, j: false, k: false, l: false };
+  const ZERO = { mx: 0, my: 0, sprint: false, jockey: false, shoot: false, finesse: false, chip: false, lob: false, skill: false, j: false, k: false, l: false, pass: false };
   const ev = (G, type, d) => { const e = d || {}; e.type = type; G.events.push(e); };
   const mark = (G) => { G.ball.seq = ++G.seq; };
   const setState = (p, s, dur) => { p.state = s; p.stT = 0; p.stDur = dur || 0; };
-  const other = (G, p) => G.players[1 - p.team];
+  // the nearest opponent (in 1v1 simply the other player)
+  const other = (G, p) => {
+    let best = null, bd = 1e12;
+    for (const o of G.players) {
+      if (o.team === p.team || o.state === 'away') continue;
+      const d = (o.x - p.x) * (o.x - p.x) + (o.y - p.y) * (o.y - p.y);
+      if (d < bd) { bd = d; best = o; }
+    }
+    return best || G.players[1 - p.team];
+  };
+  const snapPrev = (inp) => ({ shoot: inp.shoot, finesse: inp.finesse, chip: inp.chip, lob: inp.lob, skill: inp.skill, j: inp.j, k: inp.k, l: inp.l, pass: inp.pass });
 
   // ------------------------------------------------------------------ skills
   // star: minimum skill-move stars. prot: [from,to] fraction of the move during
@@ -344,6 +354,38 @@
     } else if (!inp[c.key] || c.t > C.CHG[c.type].max) shoot(G, p, c.type, clamp(c.t / C.CHG[c.type].full, 0.3, 1), false, mx, my, hasIn);
   }
 
+  // ------------------------------------------------------------------ passing (2v2)
+  // A ground pass to a teammate: the one closest to where you are pointing (the nearest, with no input), led by their run.
+  function passSpeed(d) {       // launch speed that carries a rolling ball d pixels and leaves it arriving at ~170 px/s
+    for (let v = 200; v < 1000; v += 10) {
+      const t = Math.log((v + 40) / (170 + 40)) / 0.7;       // drag: k1 = 0.7, k0 = 28, so k0 / k1 = 40
+      if ((v - 170) / 0.7 - 40 * t >= d) return v;
+    }
+    return 1000;
+  }
+  function doPass(G, p, mx, my, hasIn) {
+    const b = G.ball;
+    let best = null, bs = -1e9;
+    for (const t of G.players) {
+      if (t === p || t.team !== p.team || t.state === 'away') continue;
+      const dx = t.x - p.x, dy = t.y - p.y, d = hyp(dx, dy) || 1;
+      let sc = -d * 0.01;
+      if (hasIn) sc += ((dx * mx + dy * my) / (d * (hyp(mx, my) || 1))) * 3;
+      if (sc > bs) { bs = sc; best = t; }
+    }
+    if (!best) return;
+    let d = hyp(best.x - p.x, best.y - p.y);
+    const lead = Math.min(0.55, d / 450);
+    const tx = clamp(best.x + best.vx * lead, 4, FW - 4), ty = clamp(best.y + best.vy * lead, 4, FH - 4);
+    d = hyp(tx - b.x, ty - b.y) || 1;
+    const v = passSpeed(d) * (0.94 + 0.06 * q(p.a.lng)), ang = Math.atan2(ty - b.y, tx - b.x), err = G.gauss() * lerp(0.07, 0.015, q(p.a.lng));
+    b.owner = null; b.shot = null; b.spin = 0; b.z = 0; b.vz = 0;
+    b.vx = Math.cos(ang + err) * v; b.vy = Math.sin(ang + err) * v;
+    b.lastKicker = p; b.kickT = 0; b.lastTouch = p.team; mark(G);
+    p.noCtrl = 0.15; p.kickT = 0.25; p.face = ang; p.stam = Math.max(0, p.stam - 1);
+    ev(G, 'kick', { power: 0.3, p });
+  }
+
   // ----------------------------------------------------------------- tackles
   function startTackle(G, p, inp, mx, my, hasIn) {
     const b = G.ball;
@@ -430,11 +472,11 @@
   }
 
   // ----------------------------------------------------------------- players
-  function makePlayer(def, team) {
+  function makePlayer(def, team, idx) {
     const a = def.attr;
     const top = 178 + 92 * q2(a.pac);
     return {
-      kind: 'p', def, a, team, dir: 1, x: 0, y: 0, vx: 0, vy: 0, face: 0,
+      kind: 'p', def, a, team, idx: idx || 0, dir: 1, x: 0, y: 0, vx: 0, vy: 0, face: 0,
       top, jog: top * 0.66, state: 'free', stT: 0, stDur: 0, stam: 100, exhausted: false,
       charge: null, skill: null, chord: null, noCtrl: 0, kickT: 0, fakeT: 0, jostle: 0, skillCd: 0, boost: 0, wasJockey: 0,
       animDist: 0, dribPh: 0, prev: {}, sprinting: false, shield: false, jock: false, contact: false,
@@ -459,6 +501,7 @@
     const spd = hyp(p.vx, p.vy);
     p.sprinting = false; p.shield = false; p.jock = false;
 
+    if (p.state === 'free' && inp.pass && !p.prev.pass && b.owner === p && !p.charge && !G.drill) doPass(G, p, mx, my, hasIn);
     if (p.state === 'free') {
       // a skill chord: the first J/K/L press opens a short window in which the other keys can join it
       const keys = (inp.j ? 1 : 0) | (inp.k ? 2 : 0) | (inp.l ? 4 : 0);
@@ -524,12 +567,14 @@
     if (p.x > FW - 5 && p.y > GY0 - 10 && p.y < GY1 + 10) {   // the goal is solid: slide along it
       if (oy <= GY0 - 10) p.y = GY0 - 10; else if (oy >= GY1 + 10) p.y = GY1 + 10; else p.x = FW - 5;
     }
-    p.prev = { shoot: inp.shoot, finesse: inp.finesse, chip: inp.chip, lob: inp.lob, skill: inp.skill, j: inp.j, k: inp.k, l: inp.l };
+    p.prev = snapPrev(inp);
   }
 
   function collideBodies(G) {
-    const [A, B] = G.players, b = G.ball;
-    if (!G.solo && A.state !== 'celebrate' && B.state !== 'celebrate') {
+    const P = G.players, b = G.ball;
+    for (let i = 0; i < P.length; i++) for (let j = i + 1; j < P.length; j++) {
+      const A = P[i], B = P[j], key = i * 8 + j;
+      if (G.solo || A.state === 'celebrate' || B.state === 'celebrate') continue;
       let dx = B.x - A.x, dy = B.y - A.y, d = hyp(dx, dy);
       const min = PR * 2 - 2;
       if (d < min) {
@@ -544,12 +589,12 @@
           A.vx -= nx * closing * 0.5 * (mB / tot); A.vy -= ny * closing * 0.5 * (mB / tot);
           B.vx += nx * closing * 0.5 * (mA / tot); B.vy += ny * closing * 0.5 * (mA / tot);
         }
-        if (!A.contact) {       // shoulder challenge on first contact
+        if (!G.pairs[key]) {       // shoulder challenge on first contact (between opponents only)
           const o = b.owner, df = o === A ? B : o === B ? A : null;
-          if (df && o.state === 'free' && df.state === 'free' && closing > 110 && G.phase === 'play') {
-            let P = clamp(0.1 + 0.55 * (q(df.a.str) - (0.6 * q(o.a.bal) + 0.4 * q(o.a.str))), 0.02, 0.45);
-            if (o.shield) P *= 0.5;
-            if (G.rand() < P) {
+          if (df && df.team !== o.team && o.state === 'free' && df.state === 'free' && closing > 110 && G.phase === 'play') {
+            let Pb = clamp(0.1 + 0.55 * (q(df.a.str) - (0.6 * q(o.a.bal) + 0.4 * q(o.a.str))), 0.02, 0.45);
+            if (o.shield) Pb *= 0.5;
+            if (G.rand() < Pb) {
               b.owner = null; o.noCtrl = 0.35; setState(o, 'stumble', 0.22);
               const s = o === A ? -1 : 1;
               b.vx += nx * s * 120; b.vy += ny * s * 120; b.lastTouch = df.team; mark(G);
@@ -557,8 +602,8 @@
             } else o.jostle = 0.35;
           }
         }
-        A.contact = B.contact = true;
-      } else if (d > min + 4) A.contact = B.contact = false;
+        G.pairs[key] = true;
+      } else if (d > min + 4) G.pairs[key] = false;
     }
     for (const p of G.players) for (const k of G.keepers) {
       const dx = p.x - k.x, dy = p.y - k.y, d = hyp(dx, dy), min = PR * 2;
@@ -705,10 +750,13 @@
         }
       } else {
         // a long touch can be nicked by a defender who gets to the ball first
-        const p = b.owner, o = other(G, p);
-        if (p.state === 'free' && o.state === 'free' && o.noCtrl <= 0 &&
-          hyp(b.x - o.x, b.y - o.y) < PR + BR + 3 && hyp(b.x - p.x, b.y - p.y) > 27) {
-          p.noCtrl = 0.4; b.owner = o; b.lastTouch = o.team; ev(G, 'steal', { p: o, on: p });
+        const p = b.owner;
+        if (p.state === 'free' && hyp(b.x - p.x, b.y - p.y) > 27) {
+          for (const o of G.players) {
+            if (o.team === p.team || o.state !== 'free' || o.noCtrl > 0 || hyp(b.x - o.x, b.y - o.y) >= PR + BR + 3) continue;
+            p.noCtrl = 0.4; b.owner = o; b.lastTouch = o.team; ev(G, 'steal', { p: o, on: p });
+            break;
+          }
         }
       }
     }
@@ -756,9 +804,10 @@
     G.score[t]++; G.phase = 'goal'; G.phaseT = C.GOAL_T; G.concede = 1 - t; G.own = false;
     b.inNet = 1; b.owner = null; b.shot = null; b.spin = 0;
     for (const p of G.players) { p.charge = null; if (p.state === 'skill') { p.skill = null; setState(p, 'free'); } }
-    setState(G.players[t], 'celebrate');
+    const kk = b.lastKicker, sc = kk && kk.kind === 'p' && kk.team === t ? kk : G.players.find((p) => p.team === t);
+    setState(sc, 'celebrate');
     if (G.score[t] >= G.win) G.winner = t;
-    G.goals.push({ team: t, time: G.time, own: false });
+    G.goals.push({ team: t, time: G.time, own: false, by: sc.idx });
     ev(G, 'goal', { team: t, own: false });
   }
 
@@ -844,7 +893,7 @@
     drillFinish(G, 'goal', 1.5);
     b.inNet = 1;
     setState(G.players[0], 'celebrate');
-    G.goals.push({ team: 0, time: G.time, own: false });
+    G.goals.push({ team: 0, time: G.time, own: false, by: 0 });
     ev(G, 'goal', { team: 0, own: false });
   }
   function drillResolve(G, res) {
@@ -874,11 +923,15 @@
   // The attacker starts on the spot 10 yards outside the box, centred on the goal, with the ball. The defender stands in front.
   function setupRep(G, atk, first) {
     if (G.solo) atk = 0;
-    const b = G.ball, def = 1 - atk, A = G.players[atk], D = G.players[def];
+    const b = G.ball, def = 1 - atk, As = G.players.filter((p) => p.team === atk), Ds = G.players.filter((p) => p.team === def);
+    const A = As[G.rep % As.length], D = Ds[0];       // with two a side, the ball carrier alternates
     resetBall(b);
     for (const p of G.players) { resetPlayer(p); p.stam = first ? 100 : Math.min(100, p.stam + 30); p.exhausted = false; p.face = 0; p.vx = p.vy = 0; }
     resetKeeper(G.keeper);
     A.x = SPOTX; A.y = GCY; D.x = SPOTX + 46; D.y = GCY; D.face = Math.PI;     // the defender starts in front of the attacker
+    const A2 = As.find((p) => p !== A), D2 = Ds[1];
+    if (A2) { A2.x = SPOTX; A2.y = GCY - 150; }
+    if (D2) { D2.x = SPOTX + 46; D2.y = GCY - 150; D2.face = Math.PI; }
     b.x = SPOTX + 12; b.y = GCY; b.owner = A; b.lastTouch = atk;
     if (G.solo) { D.x = D.y = -900; D.state = 'away'; }       // testing arena: nobody else on the pitch
     G.attacker = atk; G.guard = null; G.shotTaken = false; G.armed = false; G.rep++;
@@ -1064,9 +1117,12 @@
     if (live && k.state === 'set' && b.owner && !b.holder) {      // close to the dribbler: slide in, or rush out at them
       const dk = hyp(b.x - k.x, b.y - k.y);
       // no sliding in if the other player is standing between the dribbler and the goal
-      const o = b.owner, rv = G.players[1 - o.team], gdx = FW - o.x, gdy = GCY - o.y, gl2 = gdx * gdx + gdy * gdy || 1;
-      const tp = clamp(((rv.x - o.x) * gdx + (rv.y - o.y) * gdy) / gl2, 0, 1);
-      const blocked = tp > 0 && hyp(rv.x - (o.x + gdx * tp), rv.y - (o.y + gdy * tp)) < 42;
+      const o = b.owner, gdx = FW - o.x, gdy = GCY - o.y, gl2 = gdx * gdx + gdy * gdy || 1;
+      const blocked = G.players.some((rv) => {
+        if (rv.team === o.team) return false;
+        const tp = clamp(((rv.x - o.x) * gdx + (rv.y - o.y) * gdy) / gl2, 0, 1);
+        return tp > 0 && hyp(rv.x - (o.x + gdx * tp), rv.y - (o.y + gdy * tp)) < 42;
+      });
       if (k.slideCd <= 0 && !blocked && dk < 150 && dk > 55 && G.rand() < dt * 3) {
         k.state = 'slide'; k.stT = 0; k.slideHit = false; k.slid = true; k.slideCd = 2.5; k.rush = 0;
         { const lx = b.x + b.vx * 0.25 - k.x, ly = b.y + b.vy * 0.25 - k.y, ld = hyp(lx, ly) || 1; k.vx = (lx / ld) * 440; k.vy = (ly / ld) * 440; }      // aim where the dribbler will be
@@ -1086,7 +1142,7 @@
       const inBox = sg * (b.x - gx) < BOXD && b.y > BOXY0 && b.y < BOXY1;
       const dk = hyp(b.x - k.x, b.y - k.y);
       if (live && !b.owner && !b.holder && inBox && hyp(b.vx, b.vy) < 260 && b.z < 30 &&
-        dk < Math.min(hyp(b.x - G.players[0].x, b.y - G.players[0].y), hyp(b.x - G.players[1].x, b.y - G.players[1].y)) * 1.1 + 15) { tx = b.x; ty = b.y; spd = 230; }     // come and claim it
+        dk < Math.min(...G.players.map((p) => hyp(b.x - p.x, b.y - p.y))) * 1.1 + 15) { tx = b.x; ty = b.y; spd = 230; }     // come and claim it
       else {
         const dx = b.x - gx, dy = b.y - GCY, d = hyp(dx, dy) || 1;
         let out = 16 + 26 * q(a.pos) * clamp(1 - d / 650, 0, 1);
@@ -1115,7 +1171,8 @@
       rand: rng(opts.seed || ((Math.random() * 1e9) | 0)),
       t: 0, time: 0, phase: 'countdown', phaseT: 3, cdTick: 1, lastCount: 4, score: [0, 0], events: [],
       seq: 0, shotSeq: 0, winner: -1, concede: 0, own: false, msg: null, outInfo: null, goals: [],
-      players: [makePlayer(opts.home, 0), makePlayer(opts.away, 1)],
+      players: (opts.roster || [opts.home, opts.away]).map((d, i) => makePlayer(d, i % 2, i)),      // player i is on team i % 2 (2v2: four players)
+      pairs: {},
       keeper: makeKeeper(1, nerfKeeper((opts.keepers || ISO.KEEPERS)[1], opts.keeperNerf || 0)),
       ball: { x: SPOTX, y: GCY, z: 0, vx: 0, vy: 0, vz: 0, spin: 0, rot: 0, seq: 0, lastTouch: 0 },
       stats: { poss: [0, 0], shots: [0, 0], onTarget: [0, 0], saves: [0, 0], tackles: [0, 0], skills: [0, 0], clears: [0, 0], powerGoals: [0, 0] },
@@ -1135,9 +1192,9 @@
     if (ph === 'countdown' || ph === 'ready') {
       G.phaseT -= dt;
       for (const p of G.players) {
-        const inp = inputs[p.team] || ZERO;
+        const inp = inputs[p.idx] || ZERO;
         p.stam = Math.min(100, p.stam + 4 * dt);
-        p.prev = { shoot: inp.shoot, finesse: inp.finesse, chip: inp.chip, lob: inp.lob, skill: inp.skill, j: inp.j, k: inp.k, l: inp.l };
+        p.prev = snapPrev(inp);
       }
       if (ph === 'countdown') {
         const c = Math.ceil(G.phaseT / G.cdTick);
@@ -1147,7 +1204,7 @@
       return;
     }
     const live = ph === 'play';
-    for (const p of G.players) if (!(G.solo && p.team === 1)) updatePlayer(G, p, live ? inputs[p.team] || ZERO : ZERO, dt);
+    for (const p of G.players) if (!(G.solo && p.team === 1)) updatePlayer(G, p, live ? inputs[p.idx] || ZERO : ZERO, dt);
     for (const k of G.keepers) updateKeeper(G, k, dt);
     collideBodies(G);
     for (const p of G.players) {      // nobody ends up inside a goal, even when shoved
