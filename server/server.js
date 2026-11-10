@@ -60,7 +60,7 @@ function sanitizeMoves(list) {
   if (!Array.isArray(list)) return null;
   return new Set(list.filter((id) => typeof id === 'string' && ISO.Game.SKILLS[id]));
 }
-const BOOLS = ['sprint', 'jockey', 'shoot', 'finesse', 'chip', 'skill', 'j', 'k', 'l'];
+const BOOLS = Object.keys(ISO.Game.ZERO).filter((k) => typeof ISO.Game.ZERO[k] === 'boolean');      // every button the sim reads
 function sanitizeInput(i) {
   const o = {};
   const num = (v) => (typeof v === 'number' && isFinite(v) ? Math.max(-1, Math.min(1, v)) : 0);

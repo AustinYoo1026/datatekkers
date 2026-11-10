@@ -99,7 +99,7 @@
       lastSend = now;
       const inp = App.paused ? { mx: 0, my: 0 } : App.humanInput();
       const o = { mx: +inp.mx.toFixed(2), my: +inp.my.toFixed(2) };
-      for (const k of ['sprint', 'jockey', 'shoot', 'finesse', 'chip', 'skill', 'j', 'k', 'l']) if (inp[k]) o[k] = 1;
+      for (const k in ISO.Game.ZERO) if (typeof ISO.Game.ZERO[k] === 'boolean' && inp[k]) o[k] = 1;
       if (inp.ax != null) { o.ax = Math.round(inp.ax); o.ay = Math.round(inp.ay); }
       send({ t: 'in', i: o });
       ISO.Input.consume();

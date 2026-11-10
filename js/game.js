@@ -19,7 +19,10 @@
     TEN: 105,                     // 10 yards (the box is 18)
     K_CATCH: 0.7,                // keepers hold shots less often than they spill them: rebounds are the point
     SPEED: 0.75,                  // game speed vs real time (1 = original pace); slows players, ball, keeper and timers together
-    CR: 100, WIN: 5, STEP: 1 / 120, GRAV: 900, GOAL_T: 2.2, OUT_T: 0.9,
+    // shot charge timing (seconds held): full = full power, over = starts to sail over the bar, max = auto-release
+    CHG: { normal: { full: 0.5, over: 0.7, max: 1.05 }, finesse: { full: 0.55, over: 0.78, max: 1.15 },
+      power: { full: 0.9, over: 1.15, max: 1.5 }, chip: { full: 0.45, over: 0.65, max: 0.95 } },
+    CR: 100, WIN: 3, STEP: 1 / 120, GRAV: 900, GOAL_T: 2.2, OUT_T: 0.9,
   });
   const { FW, FH, GY0, GY1, GD, BAR, PR, BR, BOXD, BOXY0, BOXY1 } = C;
   const SPOTX = FW - BOXD - C.TEN;       // both players start here, 10 yards outside the box
@@ -52,7 +55,7 @@
     };
   }
 
-  const ZERO = { mx: 0, my: 0, sprint: false, jockey: false, shoot: false, finesse: false, chip: false, skill: false, j: false, k: false, l: false };
+  const ZERO = { mx: 0, my: 0, sprint: false, jockey: false, shoot: false, finesse: false, chip: false, lob: false, skill: false, j: false, k: false, l: false };
   const ev = (G, type, d) => { const e = d || {}; e.type = type; G.events.push(e); };
   const mark = (G) => { G.ball.seq = ++G.seq; };
   const setState = (p, s, dur) => { p.state = s; p.stT = 0; p.stDur = dur || 0; };
@@ -156,12 +159,29 @@
       if (opp.jock) P -= 0.2;
       if (opp.state !== 'free' || opp.sprinting) P += 0.15;
       b.owner = null; b.shot = null;
-      const v = 330 + Math.min(pk.od, 160) * 1.5;
+      const v = 215 + Math.min(pk.od, 120) * 0.8;      // a short poke through the legs, not a long punt
       b.vx = fx * v; b.vy = fy * v; b.lastKicker = p; b.kickT = 0; b.lastTouch = p.team;
       if (!G.solo && G.rand() < clamp(P, 0.1, 0.92)) { b.pass = opp; b.ptT = 0.5; }
       mark(G);
     }
     ev(G, 'skill', { p, name: def.name, id });
+  }
+
+  // A move that lands on a defender close enough to bite breaks their ankles: they go down for a moment.
+  const ANKLE = { stepover: 0.12, feint: 0.1, roll: 0.08, croqueta: 0.16, roulette: 0.2, elastico: 0.3, heel: 0.1, rainbow: 0.14, dragback: 0.12 };
+  function tryAnkles(G, p, s) {
+    const o = other(G, p);
+    if (G.solo || !ANKLE[s.id] || o.state === 'down' || o.state === 'ankle' || o.state === 'celebrate' || o.state === 'slide') return;
+    const dx = o.x - p.x, dy = o.y - p.y, d = hyp(dx, dy);
+    if (d > 58) return;
+    let P = ANKLE[s.id] + 0.5 * q(p.a.skl) + 0.15 * q(p.a.agi) - 0.4 * q(o.a.agi) - (o.jock ? 0.25 : 0) + (o.state === 'tackle' || o.state === 'recover' ? 0.25 : 0);
+    if (d < 34) P += 0.08;
+    if (G.rand() >= clamp(P, 0.04, 0.8)) return;
+    o.charge = null; o.skill = null; o.noCtrl = 1.1;
+    o.vx *= 0.15; o.vy *= 0.15; o.fallDir = Math.atan2(dy, dx);
+    setState(o, 'ankle', 1.1);
+    G.stats.ankles = (G.stats.ankles || 0) + 1;
+    ev(G, 'ankles', { p, on: o, name: s.def.name });
   }
 
   function updateSkill(G, p, dt) {
@@ -173,6 +193,7 @@
     p.vy = s.d0y * P.vf + s.sy * P.vs;
     if (P.face !== undefined) p.face = P.face;
     s.lean = (P.lean || 0) * s.sd;
+    if (!s.ankleDone && u >= 0.5 && !s.botch) { s.ankleDone = true; tryAnkles(G, p, s); }
     if (b.owner === p && P.bf !== undefined) {
       if (s.botch && !s.botched && u >= 0.5) {
         s.botched = true; b.owner = null;
@@ -239,6 +260,7 @@
     if (p.jostle > 0) err *= 1.5 - 0.4 * q(a.bal);
     err *= 1 + (1 - p.stam / 100) * 0.35;
     if (weak) err *= 1 + (1 - wf) * 0.9;
+    if (G.drill && G.drill.kind === 'penalty' && type === 'power') err *= 1.8;      // a blast from the spot is a gamble
     if (ft) err *= 1.3 - 0.25 * q(a.fin) + hyp(b.vx, b.vy) / 1600;
 
     const sp = q(a.sho);
@@ -246,6 +268,14 @@
     if (type === 'finesse') {
       v = (430 + 250 * power) * (0.85 + 0.2 * sp); vz = 40 + 230 * power;       // holding longer lifts every shot type
       spin = (0.5 + 0.5 * q(a.cur)) * (atGoal ? Math.sign(GCY - tgtY) || 1 : 1) * p.dir;
+    } else if (type === 'chip') {
+      // a lofted scoop over the keeper: it flies on a steep arc and drops toward the goal line. Hit it too hard
+      // and it sails over the bar, too soft and the keeper plucks it down. Aim is generous, the power is the skill.
+      vz = 470 + 40 * power;
+      const T = 2 * vz / C.GRAV, tc = lerp(0.97, 0.86, power) * T;       // time to cross the line
+      v = clamp(dGoal, 70, 700) / (tc * 0.97) * (0.96 + 0.08 * sp);
+      if (!atGoal) v = 260 + 200 * power;
+      err *= 0.8;
     } else if (type === 'power') {      // long wind-up, but hard and flat: can score from outside the box
       v = (540 + 640 * power) * (0.85 + 0.3 * sp); vz = 30 + 170 * power + Math.abs(G.gauss()) * 15;
     } else {
@@ -253,8 +283,9 @@
       vz = 40 + 260 * power + Math.abs(G.gauss()) * 25;
     }
     // hold it too long and it sails over the bar
-    const over = p.charge && !ft ? clamp((p.charge.t - (type === 'power' ? 1.6 : 1.0)) / (type === 'power' ? 0.5 : 0.4), 0, 1) : 0;
-    vz += over * 420;
+    const CG = C.CHG[type] || C.CHG.normal;
+    const over = p.charge && !ft ? clamp((p.charge.t - CG.over) / ((CG.max - CG.over) * 0.8), 0, 1) : 0;
+    vz += over * (type === 'chip' ? 330 : 420);
     if (weak) v *= 0.85 + 0.15 * wf;
     v *= 0.92 + 0.08 * (p.stam / 100);
     if (ft) v *= 1.06;
@@ -272,7 +303,7 @@
     p.noCtrl = 0.3; p.kickT = 0.3; p.charge = null;
     p.stam = Math.max(0, p.stam - 1.5);
     p.face += clamp(turn, -1.2, 1.2);
-    G.stats.shots[p.team]++; G.shotTaken = true;
+    G.stats.shots[p.team]++; G.shotTaken = true; if (G.drill) G.drill.shot = true;
     if (atGoal) {
       const pr = predict(b, gx, 1);
       if (pr && pr.y > GY0 && pr.y < GY1 && pr.z < BAR) G.stats.onTarget[p.team]++;
@@ -282,7 +313,7 @@
 
   function handleCharge(G, p, inp, mx, my, hasIn, dt) {
     const b = G.ball, pr = p.prev, owner = b.owner === p;
-    const TYPES = [['shoot', 'normal'], ['finesse', 'finesse'], ['chip', 'power']];     // the 'chip' input key now fires the power shot
+    const TYPES = [['shoot', 'normal'], ['finesse', 'finesse'], ['chip', 'power'], ['lob', 'chip']];     // the 'chip' input key fires the power shot; 'lob' is the chip shot
     if (!p.charge) {
       for (const [key, type] of TYPES) {
         if (inp[key] && !pr[key]) {
@@ -299,7 +330,7 @@
     if (c.ft) {
       const d = hyp(b.x - p.x, b.y - p.y);
       const reach = !b.holder && (owner || (!b.owner && d < PR + BR + 10 && b.z < 26));
-      if (reach) shoot(G, p, c.type, clamp(0.5 + c.t * 0.5, 0.5, 0.85), true, mx, my, hasIn);
+      if (reach) shoot(G, p, c.type, clamp(0.5 + c.t * 0.7, 0.5, 0.85), true, mx, my, hasIn);
       else if (!inp[c.key] || c.t > 1.1 || (b.owner && b.owner !== p) || b.holder) {
         const tap = !inp[c.key] && c.key === 'shoot' && c.t < 0.25 && !b.holder;
         p.charge = null;
@@ -310,7 +341,7 @@
     else if (!inp[c.key] && c.t < 0.18) {         // a quick tap is a fake shot: the swing without the strike
       p.charge = null; p.kickT = 0.3; p.fakeT = 0.4; p.vx *= 0.6; p.vy *= 0.6; p.stam = Math.max(0, p.stam - 1);
       ev(G, 'fake', { p });
-    } else if (!inp[c.key] || c.t > (c.type === 'power' ? 2.2 : 1.6)) shoot(G, p, c.type, clamp(c.t / (c.type === 'power' ? 1.3 : 0.75), 0.3, 1), false, mx, my, hasIn);
+    } else if (!inp[c.key] || c.t > C.CHG[c.type].max) shoot(G, p, c.type, clamp(c.t / C.CHG[c.type].full, 0.3, 1), false, mx, my, hasIn);
   }
 
   // ----------------------------------------------------------------- tackles
@@ -354,7 +385,7 @@
       bonus = 0.18;
     }
     let ch = (slide ? 0.62 : 0.5) + 0.34 * q(t.a.tck)
-      - 0.24 * (0.5 * q(o.a.bal) + 0.3 * q(o.a.bct) + 0.2 * q(o.a.dri)) + (t.wasJockey > 0 ? 0.1 : 0) + bonus;
+      - 0.24 * (0.5 * q(o.a.bal) + 0.3 * q(o.a.bct) + 0.2 * q(o.a.dri)) + (t.wasJockey > 0 ? 0.18 : 0) + bonus;
     // shielding: is the owner's body between the tackler and the ball?
     const bx = b.x - o.x, by = b.y - o.y, tx = t.x - o.x, ty = t.y - o.y;
     const dot = (bx * tx + by * ty) / ((hyp(bx, by) || 1) * (hyp(tx, ty) || 1));
@@ -434,7 +465,7 @@
       let fired = 0;
       if (p.chord) { p.chord.t += dt; p.chord.mask |= keys; if (p.chord.t >= 0.07) { fired = p.chord.mask; p.chord = null; } }
       else if (keys && !(p.prev.j || p.prev.k || p.prev.l)) p.chord = { t: 0, mask: keys };
-      if (fired && b.owner === p && p.skillCd <= 0 && !p.charge) startSkill(G, p, inp, mx, my, hasIn, fired);
+      if (fired && b.owner === p && p.skillCd <= 0 && !p.charge && !G.drill) startSkill(G, p, inp, mx, my, hasIn, fired);
       else handleCharge(G, p, inp, mx, my, hasIn, dt);
     } else p.chord = null;
     if (p.state === 'free') {
@@ -442,19 +473,20 @@
       const jock = !!inp.jockey;
       let maxV;
       if (jock) {
-        maxV = p.jog * (owner ? 0.6 : 0.78);
+        maxV = p.jog * (owner ? 0.6 : 0.92);      // a jockeying defender backs off almost as fast as they jog
         if (owner) p.shield = true; else { p.jock = true; p.wasJockey = 0.4; }
       } else if (inp.sprint && hasIn && !p.exhausted) { maxV = p.top; p.sprinting = true; }
       else maxV = p.jog;
       maxV *= 0.86 + 0.14 * clamp(p.stam / 40, 0, 1);
       if (owner) maxV *= 0.9 + 0.08 * q(a.dri);
       if (p.charge) {      // the more it is wound up, the slower you move: no walking around at full power
-        const f = p.charge.ft ? 0 : clamp(p.charge.t / (p.charge.type === 'power' ? 1.3 : 0.75), 0, 1);
+        const f = p.charge.ft ? 0 : clamp(p.charge.t / C.CHG[p.charge.type].full, 0, 1);
         maxV *= 0.8 - 0.55 * f;
       }
+      if (G.drill && owner) maxV = 0;       // drills are taken from the spot: you aim, you don't dribble
       if (p.boost > 0) maxV *= 1.1;
       if (p.jostle > 0) maxV *= 0.85;
-      let acc = (540 + 640 * q2(a.acc)) * (p.boost > 0 ? 1.4 : 1) * (jock ? 1.35 : 1);
+      let acc = (540 + 640 * q2(a.acc)) * (p.boost > 0 ? 1.4 : 1) * (jock ? 1.9 : 1);
       if (hasIn) {
         if (spd > 50 && (p.vx * mx + p.vy * my) / (spd * ml) < 0.5) acc *= 0.7 + 0.9 * q(a.agi);  // cutting / turning
       } else acc = 760;
@@ -474,7 +506,7 @@
       if (p.jock) want = Math.atan2(b.y - p.y, b.x - p.x);
       else if (hasIn) want = Math.atan2(my, mx);
       if (want !== null) {
-        const tr = (7 + 9 * q(a.agi)) * (owner ? 0.75 + 0.25 * q(a.dri) : 1) * dt;
+        const tr = (7 + 9 * q(a.agi)) * (owner ? 0.75 + 0.25 * q(a.dri) : p.jock ? 1.6 : 1) * dt;
         p.face += clamp(angDiff(p.face, want), -tr, tr);
       }
     } else if (p.state === 'tackle' || p.state === 'slide') updateTackle(G, p, dt);
@@ -492,7 +524,7 @@
     if (p.x > FW - 5 && p.y > GY0 - 10 && p.y < GY1 + 10) {   // the goal is solid: slide along it
       if (oy <= GY0 - 10) p.y = GY0 - 10; else if (oy >= GY1 + 10) p.y = GY1 + 10; else p.x = FW - 5;
     }
-    p.prev = { shoot: inp.shoot, finesse: inp.finesse, chip: inp.chip, skill: inp.skill, j: inp.j, k: inp.k, l: inp.l };
+    p.prev = { shoot: inp.shoot, finesse: inp.finesse, chip: inp.chip, lob: inp.lob, skill: inp.skill, j: inp.j, k: inp.k, l: inp.l };
   }
 
   function collideBodies(G) {
@@ -716,6 +748,7 @@
   const isPlayerTeam = (t) => t === 0 || t === 1;
 
   function goal(G) {
+    if (G.drill) return drillGoal(G);
     const b = G.ball;
     // the scorer is whoever last touched it; a keeper deflection into the net still counts for the shooter
     const t = isPlayerTeam(b.lastTouch) ? b.lastTouch : b.shotTeam >= 0 ? b.shotTeam : G.attacker;
@@ -731,6 +764,7 @@
 
   // End the rep without a goal. `next` attacks the next rep.
   function endRep(G, kind, next) {
+    if (G.drill) return drillResolve(G, 'miss');
     const b = G.ball;
     G.phase = 'out'; G.phaseT = C.OUT_T;
     G.outInfo = { kind, team: next };
@@ -760,6 +794,78 @@
     }
   }
 
+  // ----------------------------------------------------------------- drills
+  // One player against a keeper, in a fixed number of attempts. Each attempt ends with a goal, a save or a miss: there are no rebounds.
+  //   penalty: 5 penalties against a live keeper.   target: 10 shots at a lit corner of the goal (3 points, any other goal 1).
+  //   chip:    6 chances to lob a keeper who has come off his line (only a chip shot scores).
+  const DRILLS = {
+    penalty: { name: 'PENALTY SHOOTOUT', total: 5, max: 5 },
+    target:  { name: 'TARGET PRACTICE', total: 10, max: 30 },
+    chip:    { name: 'CHIP CHALLENGE', total: 6, max: 6 },
+  };
+  // the four target boxes in the goal mouth: y range along the line and ball-height range
+  const TARGETS = [
+    { y0: GY0, y1: GY0 + 50, z0: 30, z1: BAR, name: 'TOP LEFT' }, { y0: GY1 - 50, y1: GY1, z0: 30, z1: BAR, name: 'TOP RIGHT' },
+    { y0: GY0, y1: GY0 + 50, z0: 0, z1: 30, name: 'BOTTOM LEFT' }, { y0: GY1 - 50, y1: GY1, z0: 0, z1: 30, name: 'BOTTOM RIGHT' },
+  ];
+  ISO.DRILLS = DRILLS; ISO.TARGETS = TARGETS;
+  function makeDrill(kind) {
+    const d = DRILLS[kind];
+    return { kind, name: d.name, total: d.total, max: d.max, n: 0, goals: 0, points: 0, results: [], target: -1, t: 0, still: 0, msg: '', sub: '' };
+  }
+  function setupDrill(G) {
+    const D = G.drill, A = G.players[0], b = G.ball, k = G.keeper;
+    k.dummy = false;
+    let x, y = GCY;
+    if (D.kind === 'penalty') x = FW - C.PEN;
+    else if (D.kind === 'target') { x = FW - (175 + G.rand() * 55); y = GCY + (G.rand() - 0.5) * 220; k.dummy = true; D.target = (G.rand() * 4) | 0; }
+    else { x = FW - (150 + G.rand() * 70); y = GCY + (G.rand() - 0.5) * 160; k.dummy = true; k.x = FW - (58 + G.rand() * 22); k.y = GCY + (G.rand() - 0.5) * 36; }
+    A.x = x - 12; A.y = y; A.face = 0;
+    b.x = x; b.y = y;
+    D.t = 0; D.still = 0; D.msg = ''; D.shot = false;
+  }
+  function drillFinish(G, phase, t) {
+    const b = G.ball;
+    G.phase = phase; G.phaseT = t; G.concede = 1;
+    b.owner = null; b.shot = null; b.spin = 0;
+    for (const p of G.players) p.charge = null;
+  }
+  function drillGoal(G) {
+    const D = G.drill, b = G.ball, st = b.shot && b.shot.type;
+    if (G.phase !== 'play') return;
+    let pts = 1, msg = 'GOAL!', sub = '';
+    if (D.kind === 'target') {
+      const T = TARGETS[D.target], hit = b.y >= T.y0 && b.y <= T.y1 && b.z >= T.z0 && b.z <= T.z1;
+      if (hit) { pts = 3; msg = 'BULLSEYE!'; sub = '+3'; } else { sub = '+1'; }
+    } else if (D.kind === 'chip' && st !== 'chip') { pts = 0; msg = 'GOAL — BUT USE THE CHIP'; }
+    else if (D.kind === 'chip') { msg = 'CHEEKY CHIP!'; }
+    D.goals++; D.points += pts; D.n++; G.score[0] = D.points; D.msg = msg; D.sub = sub;
+    D.results.push({ res: 'goal', pts });
+    drillFinish(G, 'goal', 1.5);
+    b.inNet = 1;
+    setState(G.players[0], 'celebrate');
+    G.goals.push({ team: 0, time: G.time, own: false });
+    ev(G, 'goal', { team: 0, own: false });
+  }
+  function drillResolve(G, res) {
+    const D = G.drill;
+    if (G.phase !== 'play') return;
+    D.n++; D.results.push({ res, pts: 0 });
+    D.msg = res === 'saved' ? 'SAVED!' : 'MISSED'; D.sub = '';
+    drillFinish(G, 'out', 1.3);
+    ev(G, 'out', { kind: res });
+  }
+  function drillStep(G, dt) {
+    const D = G.drill, b = G.ball;
+    if (G.phase !== 'play' || !D.shot) return;
+    D.t += dt;
+    for (const e of G.events) if (e.type === 'save' && !e.weak && !e.slide) return drillResolve(G, 'saved');
+    if (b.holder) return drillResolve(G, 'saved');
+    if (b.inNet !== null) return;
+    D.still = hyp(b.vx, b.vy) < 14 && b.z < 2 ? D.still + dt : 0;
+    if (D.still > 0.8 || D.t > 7) drillResolve(G, 'miss');
+  }
+
   function resetBall(b) {
     b.z = 0; b.vx = b.vy = b.vz = 0; b.spin = 0; b.owner = null; b.holder = null; b.shot = null;
     b.lastKicker = null; b.kickT = 9; b.pass = null; b.ptT = 0; b.inNet = null; b.driven = false; b.zDriven = false; b.shotTeam = -1; b.shotT = 0;
@@ -778,9 +884,17 @@
     G.attacker = atk; G.guard = null; G.shotTaken = false; G.armed = false; G.rep++;
     G.phase = 'countdown'; G.cdTick = first ? 1 : 0.5; G.phaseT = 3 * G.cdTick; G.lastCount = 4;
     G.msg = null; G.outInfo = null;
+    if (G.drill) setupDrill(G);
   }
 
   // ------------------------------------------------------------- goalkeepers
+  // Lower-level opponents get a weaker keeper: every rating drops by `nerf` points.
+  function nerfKeeper(def, nerf) {
+    if (!nerf) return def;
+    const a = {};
+    for (const k in def.a) a[k] = Math.max(30, def.a[k] - nerf);
+    return { ...def, a };
+  }
   function makeKeeper(team, def) {
     return { kind: 'k', team, def, a: def.a, x: 0, y: GCY, vx: 0, vy: 0, face: team ? Math.PI : 0, state: 'set', stT: 0, stDur: 0,
       cd: 0, smCd: 0, reactT: 0, seen: -1, antic: 0, stepT: 0, stepY: 0, diveT: 0, chip: false, diveDir: 1, holdT: 0, animDist: 0, rush: 0, rushCd: 1.5, slideCd: 0, slideHit: false };
@@ -858,12 +972,18 @@
     const b = G.ball, a = k.a, left = k.team === 0, gx = left ? 0 : FW, sg = left ? 1 : -1;
     const live = G.phase === 'play';
     k.stT += dt; k.cd = Math.max(0, k.cd - dt); k.smCd = Math.max(0, k.smCd - dt);
+    if (G.drill) { k.slideCd = 99; k.rushCd = 99; }       // drill keepers stay on their line
     if (k.state === 'hold') {
       k.vx = k.vy = 0;
       if (b.holder !== k) { k.state = 'set'; return; }
       b.x = k.x + sg * 9; b.y = k.y; b.z = 12; b.vx = b.vy = b.vz = 0;
       k.face = left ? 0 : Math.PI;
-      if (live) { k.holdT -= dt; if (k.holdT <= 0) distribute(G, k); }
+      if (live && !G.drill) { k.holdT -= dt; if (k.holdT <= 0) distribute(G, k); }
+      return;
+    }
+    if (k.dummy) {          // a mannequin: stands where it is placed and only blocks what hits it
+      k.vx = k.vy = 0; k.state = 'set'; k.face = left ? 0 : Math.PI;
+      if (live) keeperBall(G, k);
       return;
     }
     k.rushCd = Math.max(0, k.rushCd - dt); k.slideCd = Math.max(0, k.slideCd - dt);
@@ -912,7 +1032,7 @@
       if (k.seen !== b.seq) {
         k.seen = b.seq;
         const dist = hyp(b.x - k.x, b.y - k.y);
-        k.reactT = Math.max(0.07, ((b.shot && b.shot.type === 'power') ? 0.72 : 1) * lerp(0.44, 0.22, q(a.ref)) * (dist < 190 ? lerp(1, C.K_CLOSE, q(a.ooo)) : 1) + G.rand() * 0.04 - k.antic);
+        k.reactT = Math.max(0.07, (G.drill && G.drill.kind === 'penalty' ? 0.8 : 1) * ((b.shot && b.shot.type === 'power') ? 0.72 : 1) * lerp(0.44, 0.22, q(a.ref)) * (dist < 190 ? lerp(1, C.K_CLOSE, q(a.ooo)) : 1) + G.rand() * 0.04 - k.antic);
       }
       k.reactT -= dt;
       if (k.reactT <= 0) {
@@ -996,10 +1116,10 @@
       t: 0, time: 0, phase: 'countdown', phaseT: 3, cdTick: 1, lastCount: 4, score: [0, 0], events: [],
       seq: 0, shotSeq: 0, winner: -1, concede: 0, own: false, msg: null, outInfo: null, goals: [],
       players: [makePlayer(opts.home, 0), makePlayer(opts.away, 1)],
-      keeper: makeKeeper(1, (opts.keepers || ISO.KEEPERS)[1]),
+      keeper: makeKeeper(1, nerfKeeper((opts.keepers || ISO.KEEPERS)[1], opts.keeperNerf || 0)),
       ball: { x: SPOTX, y: GCY, z: 0, vx: 0, vy: 0, vz: 0, spin: 0, rot: 0, seq: 0, lastTouch: 0 },
       stats: { poss: [0, 0], shots: [0, 0], onTarget: [0, 0], saves: [0, 0], tackles: [0, 0], skills: [0, 0], clears: [0, 0], powerGoals: [0, 0] },
-      solo: !!opts.solo, win: opts.solo ? 1e9 : opts.win || C.WIN, attacker: opts.kickoff || 0, next: 0, rep: 0, shotTaken: false, armed: false,
+      drill: opts.drill && DRILLS[opts.drill] ? makeDrill(opts.drill) : null, solo: !!opts.solo, win: opts.solo ? 1e9 : opts.win || C.WIN, attacker: opts.kickoff || 0, next: 0, rep: 0, shotTaken: false, armed: false,
     };
     if (opts.moves) G.players.forEach((p, i) => { p.moves = opts.moves[i] || null; });
     G.keepers = [G.keeper];
@@ -1017,7 +1137,7 @@
       for (const p of G.players) {
         const inp = inputs[p.team] || ZERO;
         p.stam = Math.min(100, p.stam + 4 * dt);
-        p.prev = { shoot: inp.shoot, finesse: inp.finesse, chip: inp.chip, skill: inp.skill, j: inp.j, k: inp.k, l: inp.l };
+        p.prev = { shoot: inp.shoot, finesse: inp.finesse, chip: inp.chip, lob: inp.lob, skill: inp.skill, j: inp.j, k: inp.k, l: inp.l };
       }
       if (ph === 'countdown') {
         const c = Math.ceil(G.phaseT / G.cdTick);
@@ -1037,14 +1157,17 @@
       }
     }
     updateBall(G, dt);
-    drillCheck(G);
+    if (G.drill) drillStep(G, dt); else drillCheck(G);
     if (live) {
       G.time += dt;
       if (G.ball.owner) G.stats.poss[G.ball.owner.team] += dt;
     } else if (G.phase === ph) {
       G.phaseT -= dt;
       if (G.phaseT <= 0) {
-        if (ph === 'goal') {
+        if (G.drill) {
+          if (G.drill.n >= G.drill.total) { G.phase = 'end'; G.winner = 0; ev(G, 'final', { team: 0 }); }
+          else setupRep(G, 0, false);
+        } else if (ph === 'goal') {
           if (G.winner >= 0) { G.phase = 'end'; ev(G, 'final', { team: G.winner }); }
           else setupRep(G, 1 - G.concede, false);       // the scorer starts with the ball
         } else if (ph === 'out') setupRep(G, G.next, false);

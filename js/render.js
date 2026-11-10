@@ -13,7 +13,7 @@
   const TEAM_COL = ['#35e08a', '#ffb23d'];
 
   // ---- maps: every pitch is painted from a theme (ISO.MAPS lists them for the store) ----
-  const ADS = [['ISO FOOTBALL', '#0f1a14', '#35e08a'], ['FIRST TO FIVE', '#f4f4f4', '#10151c'], ['DATATEKKERS', '#132033', '#7fc4ff'],
+  const ADS = [['ISO FOOTBALL', '#0f1a14', '#35e08a'], ['FIRST TO THREE', '#f4f4f4', '#10151c'], ['DATATEKKERS', '#132033', '#7fc4ff'],
     ['ONE BALL · ONE GOAL', '#35e08a', '#06140c'], ['1 v 1', '#1b1b22', '#ffb23d'], ['ISO FOOTBALL', '#0f1a14', '#35e08a'], ['PLAY THE ISO', '#f4f4f4', '#10151c']];
   const THEMES = {
     stadium: { bg: '#0c1016', around: 'crowd', crowd: ['#2b3442', '#3a4658', '#566377', '#7a2f3a', '#2f5d7a', '#8a7a3a', '#444c5c', '#30394a', '#9aa3b2'],
@@ -151,6 +151,18 @@
     c.strokeStyle = TH.post; c.lineWidth = 3.2; c.lineJoin = 'round';
     c.beginPath(); c.moveTo(GY0, 0); c.lineTo(GY0, -GD); c.lineTo(GY1, -GD); c.lineTo(GY1, 0); c.stroke();
   }
+  // Target Practice: four boxes in the goal mouth, the lit one is worth 3 points
+  function drawTargets(c, G) {
+    const lit = G.drill.target, pulse = 0.5 + 0.5 * Math.sin(fx.t * 7);
+    ISO.TARGETS.forEach((t, i) => {
+      const x = t.y0, w = t.y1 - t.y0, y = -t.z1 * 0.55, h = (t.z1 - t.z0) * 0.55;
+      if (i === lit) {
+        c.fillStyle = 'rgba(255,207,77,' + (0.28 + 0.3 * pulse) + ')'; c.fillRect(x, y, w, h);
+        c.strokeStyle = '#ffcf4d'; c.lineWidth = 1.6; c.strokeRect(x, y, w, h);
+        c.beginPath(); c.moveTo(x + w / 2 - 5, y + h / 2); c.lineTo(x + w / 2 + 5, y + h / 2); c.moveTo(x + w / 2, y + h / 2 - 5); c.lineTo(x + w / 2, y + h / 2 + 5); c.stroke();
+      } else { c.strokeStyle = 'rgba(255,255,255,.22)'; c.lineWidth = 1; c.strokeRect(x, y, w, h); }
+    });
+  }
   function drawPosts(c) {
     for (const x of [GY0, GY1]) { c.fillStyle = TH.post; c.beginPath(); c.arc(x, 0, 4.6, 0, TAU); c.fill(); c.strokeStyle = 'rgba(0,0,0,.4)'; c.lineWidth = 1; c.stroke(); }
   }
@@ -169,6 +181,7 @@
     let anim = 'idle', frame = 0, d = dirOf(p.face), angle = null, dx = 0, dy = 0;
     const runFrame = Math.floor(p.animDist / 7) % 6;
     if (p.state === 'celebrate') { anim = 'celebrate'; frame = Math.floor(fx.t * 9) % 4; d = { dir: 'down', flip: false }; }
+    else if (p.state === 'ankle') { anim = 'slide'; d = { dir: 'side', flip: false }; angle = p.fallDir !== undefined ? p.fallDir + Math.PI : p.face; }
     else if (p.state === 'slide' || p.state === 'down') { anim = 'slide'; d = { dir: 'side', flip: false }; angle = p.face; }
     else if (p.state === 'stumble') anim = 'stumble';
     else if (p.state === 'tackle' || p.state === 'recover') { anim = 'tackle'; frame = p.state === 'tackle' && p.stT < 0.08 ? 0 : 1; if (p.state === 'recover' && p.stT > 0.15) { anim = 'idle'; frame = 0; } }
@@ -205,13 +218,13 @@
 
     // shot power meter
     if (p.charge) {
-      const f = p.charge.ft ? Math.min(1, 0.5 + p.charge.t * 0.5) : Math.max(0.3, Math.min(1, p.charge.t / (p.charge.type === 'power' ? 1.3 : 0.75))), w = 38, x = p.x - w / 2, y = p.y + 13;
+      const f = p.charge.ft ? Math.min(1, 0.5 + p.charge.t * 0.5) : Math.max(0.3, Math.min(1, p.charge.t / ISO.C.CHG[p.charge.type].full)), w = 38, x = p.x - w / 2, y = p.y + 13;
       c.fillStyle = 'rgba(0,0,0,.65)'; c.fillRect(x - 1.5, y - 1.5, w + 3, 8);
-      const lim = p.charge.type === 'power' ? 1.6 : 1.0, cooked = !p.charge.ft && p.charge.t > lim;
+      const lim = ISO.C.CHG[p.charge.type].over, cooked = !p.charge.ft && p.charge.t > lim;
       c.fillStyle = cooked ? '#ff4d4d' : f > 0.95 ? '#ffb23d' : '#35e08a'; c.fillRect(x, y, w * f, 5);
       c.fillStyle = 'rgba(255,255,255,.75)'; c.fillRect(x + w * 0.78, y - 1.5, 1.2, 8);
       c.font = '800 8px Arial'; c.fillStyle = '#fff'; c.textBaseline = 'top';
-      c.fillText(p.charge.ft ? 'FIRST TIME' : cooked ? 'TOO LONG!' : p.charge.type === 'normal' ? '' : p.charge.type.toUpperCase(), p.x, y + 8);
+      c.fillText(p.charge.ft ? 'FIRST TIME' : cooked ? 'TOO LONG!' : p.charge.type === 'normal' ? '' : p.charge.type === 'chip' ? 'CHIP' : p.charge.type.toUpperCase(), p.x, y + 8);
     }
     if (p.exhausted) { c.font = '800 9px Arial'; c.fillStyle = '#ff6b6b'; c.textBaseline = 'top'; c.fillText('TIRED', p.x, p.y + 12); }
   }
@@ -270,6 +283,7 @@
       case 'beaten': text(P.x, P.y - 52, 'BEATEN', '#ff8a8a'); break;
       case 'skill': text(P.x, P.y - 58, e.name.toUpperCase(), '#ffffff'); break;
       case 'fake': text(P.x, P.y - 58, 'FAKE SHOT', '#ffffff'); break;
+      case 'ankles': fx.shake = Math.max(fx.shake, 4); burst(T(e.on).x, T(e.on).y, 10, ['#ffffff', '#ffe066'], 120, 0.35); text(T(e.on).x, T(e.on).y - 58, 'ANKLES BROKEN!', '#ffe066', true); break;
       case 'botch': text(P.x, P.y - 58, 'HEAVY TOUCH', '#ff8a8a'); break;
       case 'steal': text(P.x, P.y - 52, 'NICKED', TEAM_COL[e.p.team]); break;
       case 'block': burst(b.x, b.y, 6, ['#ffffff'], 100, 0.25); text(P.x, P.y - 52, 'BLOCK', TEAM_COL[e.p.team]); break;
@@ -304,6 +318,7 @@
     fx.trail = fx.trail.filter((t) => t.life > 0);
 
     drawNets(c);          // the net sits behind everything, so the keeper stands in front of the goal
+    if (G.drill && G.drill.kind === 'target') drawTargets(c, G);
     drawBallShadow(c, b);
     const ents = [];
     G.players.forEach((p0, i) => { const p = viewP(p0); ents.push({ y: p.y, f: () => drawPlayer(c, G, p, V.sheets[i], V.labels[i]) }); });
@@ -341,12 +356,13 @@
     // overlays
     if (G.phase === 'countdown') {
       const n = Math.ceil(G.phaseT / G.cdTick), frac = (G.phaseT / G.cdTick) % 1;
-      if (n > 0) banner(c, String(n), V.labels[G.attacker] + ' ATTACKS', '#ffffff', 1 - frac, OY + 120);
+      if (n > 0) banner(c, String(n), G.drill ? G.drill.name + ' · ' + (G.drill.kind === 'target' ? 'HIT ' + ISO.TARGETS[G.drill.target].name : G.drill.kind === 'chip' ? 'LOB THE KEEPER' : 'KICK ' + (G.drill.n + 1) + ' OF ' + G.drill.total) : V.labels[G.attacker] + ' ATTACKS', '#ffffff', 1 - frac, OY + 120);
     } else if (G.phase === 'goal') {
       const t = C.GOAL_T - G.phaseT, name = G.players[1 - G.concede].def.short;
+      if (G.drill) banner(c, G.drill.msg, G.drill.sub, '#35e08a', t, OY + 130); else
       banner(c, 'GOAL!', (G.own ? 'OWN GOAL · ' : '') + name + '  ' + G.score[0] + ' – ' + G.score[1], TEAM_COL[1 - G.concede], t);
-    } else if ((G.phase === 'ready' || G.phase === 'out') && (G.msg || G.outInfo)) {
-      const str = G.phase === 'ready' ? G.msg : { clear: 'CLEARED!', saved: 'SAVED', out: 'OUT' }[G.outInfo.kind];
+    } else if ((G.phase === 'ready' || G.phase === 'out') && (G.msg || G.outInfo || G.drill)) {
+      const str = G.drill ? G.drill.msg : G.phase === 'ready' ? G.msg : { clear: 'CLEARED!', saved: 'SAVED', out: 'OUT' }[G.outInfo.kind];
       c.font = '800 italic 34px "Avenir Next Condensed","Arial Narrow",Arial,sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
       c.lineWidth = 7; c.strokeStyle = 'rgba(6,10,14,.85)'; c.strokeText(str, VW / 2, OY + 60); c.fillStyle = '#fff'; c.fillText(str, VW / 2, OY + 60);
     } else if (G.phase === 'play' && (G.armed || (G.ball.owner && G.ball.owner.team !== G.attacker))) {

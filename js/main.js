@@ -7,7 +7,8 @@
 
   const App = {
     screen: 'menu',           // menu | select | match | end
-    mode: 'cpu',              // cpu | arena (testing arena: one player, no opponent) | career (MyCareer ladder) | online (1v1 on the server)
+    mode: 'cpu',              // cpu | drill (one player, no opponent: see App.drill) | career (MyCareer ladder) | online (1v1 on the server)
+    drill: 'arena',           // arena (free practice) | penalty | target | chip
     diff: 'normal',
     pick: [ISO.playerById('messi'), ISO.playerById('ronaldo')],
     side: 0,                  // which side the selection grid is picking for
@@ -32,7 +33,8 @@
   function buildMatch(home, away, ctrl, labels, quiet) {
     const kits = ISO.resolveKits(home, away);
     App.kits = kits;
-    App.G = ISO.Game.create({ home, away, kickoff: App.kickoffFlip, solo: !quiet && App.mode === 'arena', win: quiet ? 0 : App.matchWin,
+    App.G = ISO.Game.create({ home, away, kickoff: App.kickoffFlip, solo: !quiet && App.mode === 'drill', drill: !quiet && App.mode === 'drill' ? App.drill : null, win: quiet ? 0 : App.matchWin,
+      keeperNerf: quiet ? 0 : ({ easy: 24, normal: 10, hard: 0 }[App.matchDiff] || 0),
       moves: ctrl.map((c) => (c === 'human' ? ISO.Profile.moveSet() : null)) });      // you can only use the skill moves you have unlocked
     App.ctrl = ctrl;
     App.ai = ctrl.map((c) => (c === 'cpu' ? ISO.AI.create(quiet ? 'normal' : App.matchDiff) : null));
@@ -56,7 +58,7 @@
   function startMatch() {
     let [home, away] = App.pick;
     App.demo = false; App.paused = false;
-    const arena = App.mode === 'arena', career = App.mode === 'career';
+    const arena = App.mode === 'drill', career = App.mode === 'career';       // `arena`: any one-player drill
     App.matchDiff = App.diff; App.matchWin = 0;
     ISO.Profile.setSetting('diff', App.diff);
     if (career) {
@@ -98,7 +100,7 @@
   }
 
   // ------------------------------------------------------------- screens
-  const MENU_SCREENS = ['menu', 'play', 'select', 'career', 'store', 'settings', 'online'];
+  const MENU_SCREENS = ['menu', 'play', 'drills', 'select', 'career', 'store', 'settings', 'online'];
   function updateCredits() { $('creditsVal').textContent = ISO.Profile.infinite() ? '∞' : ISO.Profile.data.credits.toLocaleString(); }
   function toast(title, sub, col) {
     const el = document.createElement('div'); el.className = 'toast';
@@ -112,8 +114,9 @@
     App.screen = screen;
     for (const id of MENU_SCREENS) $(id).classList.toggle('hidden', screen !== id);
     $('credits').classList.toggle('hidden', !MENU_SCREENS.includes(screen));
-    $('hud').classList.toggle('hidden', screen !== 'match' && screen !== 'end');
+    $('hud').classList.toggle('hidden', screen !== 'match' && screen !== 'end' && screen !== 'drillend');
     $('end').classList.toggle('hidden', screen !== 'end');
+    $('drillend').classList.toggle('hidden', screen !== 'drillend');
     $('pause').classList.add('hidden');
     $('hint').classList.toggle('hidden', screen !== 'match' || !ISO.Profile.data.settings.hint);
     $('dim').classList.toggle('on', MENU_SCREENS.includes(screen));
@@ -134,7 +137,7 @@
     ISO.Profile.setSetting('mouseAim', on); ISO.Input.setMouse(on);
     $('mouseBtn').textContent = 'MOUSE AIM: ' + (on ? 'ON' : 'OFF');
     const K = (a) => ISO.Input.keyLabel(a).toUpperCase();
-    $('hint').textContent = 'ESC — pause & controls · ' + (on ? 'MOUSE aims, LEFT CLICK shoots, RIGHT CLICK power shot' : K('shoot') + ' shoots, ' + K('chip') + ' power shot, ' + K('finesse') + ' finesse');
+    $('hint').textContent = 'ESC — pause & controls · ' + (on ? 'MOUSE aims, LEFT CLICK shoots, RIGHT CLICK power shot, ' + K('lob') + ' chip' : K('shoot') + ' shoots, ' + K('chip') + ' power shot, ' + K('lob') + ' chip, ' + K('finesse') + ' finesse');
     if ($('setMouse')) $('setMouse').checked = on;
   };
   function setPaused(p) {
@@ -193,14 +196,15 @@
   }
 
   function renderSelect() {
-    const online = App.mode === 'online', arena = App.mode === 'arena' || online, two = false, P = ISO.Profile;
-    $('selMode').textContent = (online ? 'ONLINE 1V1 · PICK YOUR PLAYER' : arena ? 'TESTING ARENA · 1 PLAYER' : '1 PLAYER · VS CPU') + '  ·  COLLECTION ' + P.ownedCount() + '/' + ISO.PLAYERS.length;
+    const online = App.mode === 'online', arena = App.mode === 'drill' || online, two = false, P = ISO.Profile;
+    $('selMode').textContent = (online ? 'ONLINE 1V1 · PICK YOUR PLAYER' : arena ? (DRILL_NAMES[App.drill] || 'DRILL') + ' · 1 PLAYER' : '1 PLAYER · VS CPU') + '  ·  COLLECTION ' + P.ownedCount() + '/' + ISO.PLAYERS.length;
     // what a win is worth with this match-up: tougher opponent and harder CPU pay more
     const me = P.owns(App.pick[0].id) ? P.outfit(App.pick[0]) : App.pick[0], wm = P.winMult(App.diff, me, App.pick[1]);
     $('selReward').className = 'sel-reward' + (arena ? ' hidden' : '') + (wm.total > 1 ? ' up' : wm.total < 1 ? ' down' : '');
     $('selReward').innerHTML = 'WIN BONUS <b>×' + wm.total + '</b><small>' + (App.pick[1].ovr - me.ovr > 0 ? '+' : '') + (App.pick[1].ovr - me.ovr) + ' OVR GAP</small>';
     $('selKick').textContent = online ? 'CONFIRM ›' : 'START ›';
-    $('diffSeg').classList.toggle('hidden', arena);
+    $('diffSeg').classList.toggle('hidden', online);
+    $('diffSeg').querySelector('.seg-label').textContent = arena ? 'KEEPER' : 'CPU';
     $('sideSeg').classList.toggle('hidden', arena);
     $('panel1').style.visibility = arena ? 'hidden' : '';
     renderPanel(0); renderPanel(1);
@@ -217,6 +221,21 @@
       b.classList.toggle('sel0', s0); b.classList.toggle('sel1', s1);
       b.querySelector('.c-pick').innerHTML = (s0 ? '<span style="background:#35e08a">P1</span>' : '') + (s1 ? '<span style="background:#ffb23d">' + (two ? 'P2' : 'CPU') + '</span>' : '');
     });
+  }
+
+  const DRILL_NAMES = { arena: 'TESTING ARENA', penalty: 'PENALTY SHOOTOUT', target: 'TARGET PRACTICE', chip: 'CHIP CHALLENGE' };
+
+  // ------------------------------------------------------------- drill results
+  function showDrillEnd() {
+    const G = App.G, D = G.drill, res = ISO.Profile.recordDrill(D.kind, D.points, App.matchDiff);
+    $('deTitle').textContent = D.name;
+    $('deScore').textContent = D.points; $('deMax').textContent = '/ ' + D.max + (D.kind === 'target' ? ' POINTS' : ' GOALS');
+    $('deDots').innerHTML = D.results.map((r) => '<i class="' + (r.res === 'goal' ? (r.pts >= 3 ? 'gold' : r.pts ? 'ok' : 'meh') : 'bad') + '" title="' + r.res + '"></i>').join('');
+    const rate = D.results.length ? Math.round((D.results.filter((r) => r.res === 'goal').length / D.results.length) * 100) : 0;
+    $('deRewards').innerHTML = '<span class="cr">+' + res.credits + ' CR</span><span>' + rate + '% SCORED</span><span>' + App.matchDiff.toUpperCase() + ' KEEPER</span>' +
+      (res.newBest ? '<span class="boost">NEW BEST</span>' : '<span>BEST ' + res.best + '</span>');
+    show('drillend');
+    achToasts(res.ach);
   }
 
   // ------------------------------------------------------------- end screen
@@ -268,7 +287,9 @@
   // ------------------------------------------------------------- actions
   const ACTIONS = {
     'mode-cpu': () => { App.mode = 'cpu'; App.side = 0; App.touched = false; show('select'); },
-    'mode-arena': () => { App.mode = 'arena'; App.side = 0; App.touched = true; show('select'); },
+    'mode-drills': () => show('drills'),
+    'drills-back': () => show('drills'),
+    'select-back': () => show(App.mode === 'drill' ? 'drills' : App.mode === 'online' ? 'online' : 'play'),
     'controls': () => $('controls').classList.remove('hidden'),
     'close-controls': () => $('controls').classList.add('hidden'),
     'back-menu': () => show('menu'),
@@ -298,6 +319,7 @@
     'quit': () => { App.paused = false; if (App.mode === 'online') { ISO.Online.leave(); show('online'); return; } show(App.mode === 'career' ? 'career' : 'select'); },
     'quit-menu': () => { App.paused = false; if (App.mode === 'online') ISO.Online.leave(); show('menu'); },
   };
+  for (const id of ['arena', 'penalty', 'target', 'chip']) ACTIONS['drill-' + id] = () => { App.mode = 'drill'; App.drill = id; App.side = 0; App.touched = true; show('select'); };
   document.addEventListener('click', (e) => {
     const el = e.target.closest('[data-act]');
     if (!el) return;
@@ -312,13 +334,14 @@
     if (e.code === 'Enter' && $('controls').classList.contains('hidden') && !e.repeat) {
       if (App.screen === 'select') { e.preventDefault(); ACTIONS.kickoff(); }
       else if (App.screen === 'end') { e.preventDefault(); ACTIONS.rematch(); }
+      else if (App.screen === 'drillend') { e.preventDefault(); ACTIONS.restart(); }
       else if (App.screen === 'match' && App.paused) { e.preventDefault(); setPaused(false); }
       return;
     }
     if (e.code !== 'Escape') return;
     if (!$('controls').classList.contains('hidden')) $('controls').classList.add('hidden');
     else if (App.screen === 'match') setPaused(!App.paused);
-    else if (App.screen !== 'menu' && MENU_SCREENS.includes(App.screen) && $('opening').classList.contains('hidden')) show(App.screen === 'select' || App.screen === 'career' ? (App.mode === 'online' && App.screen === 'select' ? 'online' : 'play') : App.screen === 'online' ? 'play' : 'menu');
+    else if (App.screen !== 'menu' && MENU_SCREENS.includes(App.screen) && $('opening').classList.contains('hidden')) show(App.screen === 'select' ? (App.mode === 'drill' ? 'drills' : App.mode === 'online' ? 'online' : 'play') : App.screen === 'career' || App.screen === 'drills' || App.screen === 'online' ? 'play' : 'menu');
   });
   window.addEventListener('blur', () => { if (App.screen === 'match' && !App.paused && App.mode !== 'online' && App.G.phase !== 'end') setPaused(true); });
 
@@ -364,8 +387,8 @@
       const st = $('hudStam' + i), p = G.players[i];
       st.style.width = p.stam.toFixed(0) + '%'; st.classList.toggle('low', p.exhausted || p.stam < 20);
     }
-    const t = Math.floor(G.time);
-    if (t !== H.t) { H.t = t; $('hudTime').textContent = String(Math.floor(t / 60)).padStart(2, '0') + ':' + String(t % 60).padStart(2, '0'); }
+    const t = G.drill ? 'SHOT ' + Math.min(G.drill.n + 1, G.drill.total) + ' / ' + G.drill.total : Math.floor(G.time);
+    if (t !== H.t) { H.t = t; $('hudTime').textContent = G.drill ? t : String(Math.floor(t / 60)).padStart(2, '0') + ':' + String(t % 60).padStart(2, '0'); }
   }
 
   function frame(now) {
@@ -388,12 +411,12 @@
       for (const e of G.events) {
         R.onEvent(G, e);
         if (!App.demo) ISO.Audio.play(e.type, e);
-        if (!App.demo && App.mode === 'arena' && e.type === 'goal') achToasts(ISO.Profile.recordArenaGoal());
+        if (!App.demo && App.mode === 'drill' && App.drill === 'arena' && e.type === 'goal') achToasts(ISO.Profile.recordArenaGoal());
       }
       G.events.length = 0;
       if (G.phase === 'end') {
         if (App.demo) startDemo();
-        else if (App.screen === 'match') { App.endTimer += dt; if (App.endTimer > 0.6) showEnd(); }
+        else if (App.screen === 'match') { App.endTimer += dt; if (App.endTimer > 0.6) { if (App.mode === 'drill') showDrillEnd(); else showEnd(); } }
       }
     }
     const ST = ISO.Profile.data.settings;

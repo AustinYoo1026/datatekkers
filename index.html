@@ -40,7 +40,7 @@
   <!-- main menu -->
   <section id="menu" class="screen">
     <div class="menu-box">
-      <div class="kicker">1 v 1 · FIRST TO FIVE</div>
+      <div class="kicker">1 v 1 · FIRST TO THREE</div>
       <div class="ver">BETA 2.0</div>
       <h1>ISO <em>FOOTBALL</em></h1>
       <p class="tagline">Two footballers. One ball. One goal. Win the rebound.</p>
@@ -66,17 +66,44 @@
         <span class="pc-d">Climb a 12-opponent ladder from squad players to the greatest icons. Wins earn upgrade points for your stats.</span>
         <span class="pc-s" id="playCareer"></span></button>
       <button class="playcard quick" data-act="mode-cpu">
-        <span class="pc-k">VS CPU · FIRST TO FIVE</span><span class="pc-t">QUICK MATCH</span>
+        <span class="pc-k">VS CPU · FIRST TO THREE</span><span class="pc-t">QUICK MATCH</span>
         <span class="pc-d">Pick any footballer you own — Prime upgrades and skins included — and take on the CPU on easy, normal or hard.</span>
         <span class="pc-s" id="playQuick"></span></button>
-      <button class="playcard arena" data-act="mode-arena">
-        <span class="pc-k">PRACTICE</span><span class="pc-t">TESTING ARENA</span>
-        <span class="pc-d">Just you, the ball and the keeper. Every skill move unlocked, no score limit — drill your chords and finishing.</span>
-        <span class="pc-s">EVERY MOVE UNLOCKED</span></button>
+      <button class="playcard arena" data-act="mode-drills">
+        <span class="pc-k">TRAINING</span><span class="pc-t">DRILLS</span>
+        <span class="pc-d">Penalty shootouts, target practice, chip challenges and the free Testing Arena. Just you, the ball and the keeper.</span>
+        <span class="pc-s">4 DRILLS · EARN CREDITS</span></button>
       <button class="playcard online" data-act="mode-online">
-        <span class="pc-k">VS A FRIEND · FIRST TO FIVE</span><span class="pc-t">ONLINE 1V1</span>
+        <span class="pc-k">VS A FRIEND · FIRST TO THREE</span><span class="pc-t">ONLINE 1V1</span>
         <span class="pc-d">Create a room and send the code to a friend, or jump into quick match. The server runs the match.</span>
         <span class="pc-s" id="playOnline">PLAY OVER THE INTERNET</span></button>
+    </div>
+  </section>
+
+  <!-- drills hub -->
+  <section id="drills" class="screen meta hidden">
+    <header class="sel-head">
+      <button class="btn small ghost" data-act="play">‹ PLAY</button>
+      <h2>DRILLS</h2>
+      <div class="sel-mode">TRAINING GROUND</div>
+    </header>
+    <div class="drillgrid">
+      <button class="drillcard" style="--pc:#4fa3ff" data-act="drill-arena">
+        <span class="pc-k">FREE PRACTICE</span><span class="dc-t">TESTING ARENA</span>
+        <span class="pc-d">Just you, the ball and the keeper. Every skill move unlocked, no score limit — drill your chords and finishing.</span>
+        <span class="pc-s">NO LIMIT · +2 CR PER GOAL</span></button>
+      <button class="drillcard" style="--pc:#ffb23d" data-act="drill-penalty">
+        <span class="pc-k">5 KICKS · LIVE KEEPER</span><span class="dc-t">PENALTY SHOOTOUT</span>
+        <span class="pc-d">Five penalties from the spot. Pick your corner, pick your power — the keeper will guess. A power shot is a gamble.</span>
+        <span class="pc-s" id="drillBest-penalty"></span></button>
+      <button class="drillcard" style="--pc:#35e08a" data-act="drill-target">
+        <span class="pc-k">10 SHOTS · 30 POINTS</span><span class="dc-t">TARGET PRACTICE</span>
+        <span class="pc-d">A corner of the goal lights up. Hit it for 3 points, any other goal is 1. A mannequin keeper guards the middle.</span>
+        <span class="pc-s" id="drillBest-target"></span></button>
+      <button class="drillcard" style="--pc:#f1735f" data-act="drill-chip">
+        <span class="pc-k">6 CHANCES · CHIP SHOT</span><span class="dc-t">CHIP CHALLENGE</span>
+        <span class="pc-d">The keeper has come off his line. Scoop it over him with the chip key — too soft and he plucks it, too hard and it clears the bar.</span>
+        <span class="pc-s" id="drillBest-chip"></span></button>
     </div>
   </section>
 
@@ -128,7 +155,7 @@
   <!-- player selection -->
   <section id="select" class="screen hidden">
     <header class="sel-head">
-      <button class="btn small ghost" data-act="play">‹ PLAY</button>
+      <button class="btn small ghost" data-act="select-back">‹ BACK</button>
       <h2>SELECT FOOTBALLERS</h2>
       <div class="sel-mode" id="selMode"></div>
     </header>
@@ -209,6 +236,7 @@
     <div class="store-pane hidden" id="storeBoxes">
     <div class="pity"><span id="boxPityTxt"></span><div class="pitybar"><i id="boxPity"></i></div></div>
     <div class="boxgrid" id="boxGrid"></div>
+    <div class="boxpool" id="boxPool"></div>
     </div>
     <div class="store-pane hidden" id="storeAch"><div class="achlist" id="achList"></div></div>
   </section>
@@ -268,7 +296,7 @@
       </div>
       <div class="panel set-col">
         <h3>KEYBOARD</h3>
-        <p class="note">Click a key, then press the new one. <kbd>Esc</kbd> cancels, <kbd>Backspace</kbd> clears the slot. A key already in use swaps places.</p>
+        <p class="note">Click a slot, then press the new key. For a <b>combination</b>, hold the first key(s) and press the last — e.g. <kbd>Shift</kbd>+<kbd>Q</kbd> (up to three keys). Release a lone modifier to bind it by itself. <kbd>Esc</kbd> cancels, <kbd>Backspace</kbd> clears the slot. A binding already in use swaps places, and a combination takes priority over its single keys while held.</p>
         <div class="keybinds" id="keyBinds"></div>
         <div class="set-row"><span>Mouse buttons follow Shoot and Power shot</span><button class="btn small ghost" data-meta="keys-reset">RESET TO DEFAULT</button></div>
       </div>
@@ -310,6 +338,22 @@
     </div>
   </section>
 
+  <!-- drill results -->
+  <section id="drillend" class="overlay hidden">
+    <div class="card wide">
+      <div class="kicker">DRILL COMPLETE</div>
+      <h2 id="deTitle"></h2>
+      <div class="de-score"><b id="deScore">0</b><span id="deMax"></span></div>
+      <div class="de-dots" id="deDots"></div>
+      <div class="end-rewards" id="deRewards"></div>
+      <div class="end-btns">
+        <button class="btn primary" data-act="restart">TRY AGAIN</button>
+        <button class="btn" data-act="drills-back">CHANGE DRILL</button>
+        <button class="btn ghost" data-act="quit-menu">MAIN MENU</button>
+      </div>
+    </div>
+  </section>
+
   <!-- controls guide -->
   <section id="controls" class="overlay hidden">
     <div class="card guide">
@@ -318,10 +362,12 @@
         <div>
           <h3>KEYS</h3>
           <table class="keys" id="keysTable"></table>
-          <p class="note">Gamepads work too (stick, A shoot, B finesse, Y power shot, X stepovers, RT sprint, LT jockey).</p>
+          <p class="note">Gamepads work too (stick, A shoot, B finesse, Y power shot, right stick click chip, X stepovers, RT sprint, LT jockey).</p>
           <h3>WITH THE BALL</h3>
           <ul>
             <li><b>Hold</b> a shot key to charge, <b>release</b> to strike. The longer you hold, the higher it goes — hold too long and it sails over the bar. The <b>power shot</b> key takes longer to charge but is far harder.</li>
+            <li>The <b>chip shot</b> key scoops a lofted shot over a keeper who has come off his line. Charge it quickly: too soft and he plucks it down, too hard and it clears the bar.</li>
+            <li>Land a skill move on a defender up close and you can <b>break their ankles</b> — they hit the floor, and you're gone.</li>
             <li><b>Tap</b> a shot key with the ball for a <b>fake shot</b>: defenders may bite.</li>
             <li>Hold <b>up / down</b> while shooting to pick a corner.</li>
             <li>Hold a shot key as a loose ball arrives for a <b>first-time shot</b>.</li>
@@ -355,10 +401,10 @@
           </table>
           <h3>RULES</h3>
           <ul>
-            <li>Goal at the top. Each rep starts with the attacker (with the ball) on the spot 10 yards outside the 18-yard box, in the centre, and the defender standing in front of them. First to five goals wins.</li>
+            <li>Goal at the top. Each rep starts with the attacker (with the ball) on the spot 10 yards outside the 18-yard box, in the centre, and the defender standing in front of them. First to three goals wins.</li>
             <li>After a shot, win the rebound and clear it outside the box. Play then carries on and the clearer becomes the attacker. Only the attacker can shoot: a defender who wins the ball has to get it outside the box before shooting. If the keeper catches the ball they throw it back out of the box for either player to win. After a goal, the scorer starts with the ball.</li>
             <li>No fouls or restarts: a ball that goes out of play is given to whoever was defending.</li>
-            <li><b>Testing arena:</b> just you, the ball and the keeper, with every skill move unlocked and no score limit — a place to practise chords and shots.</li>
+            <li><b>Drills:</b> one player against the keeper. <b>Penalty Shootout</b> (5 kicks), <b>Target Practice</b> (hit the lit corner for 3 points) and <b>Chip Challenge</b> (lob a keeper who has come off his line) pay credits for your score; the <b>Testing Arena</b> is free practice with every skill move unlocked and no score limit. You take drill shots from the spot — aim with the direction keys or the mouse. The keeper level sets how good the keeper is.</li>
           </ul>
         </div>
       </div>

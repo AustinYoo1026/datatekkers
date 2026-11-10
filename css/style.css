@@ -386,6 +386,35 @@ kbd { display: inline-block; font: 700 12px/1 ui-monospace, Menlo, monospace; ba
 .sel-reward:not(.hidden) + .btn.primary { margin-left: 0; }
 .end-rewards .boost { color: #ffcf4d; border-color: #ffcf4d; }
 
+/* box draw: full pool of drawable players */
+#storeBoxes { overflow-y: auto; padding-right: 4px; }
+#storeBoxes .boxgrid { flex: none; }
+.boxpool { margin-top: 18px; display: flex; flex-direction: column; gap: 10px; padding-bottom: 10px; }
+.pool-h { margin: 0; font-size: 16px; font-weight: 900; letter-spacing: .14em; color: var(--mute); }
+.poolrow { background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--rc); border-radius: 8px; padding: 10px 12px; }
+.poolhead { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 8px; font-size: 13px; color: var(--mute); font-weight: 700; letter-spacing: .06em; }
+.poolhead b { color: var(--rc); font-size: 16px; font-weight: 900; letter-spacing: .12em; }
+.poolchips { display: flex; flex-wrap: wrap; gap: 6px; }
+.pchip { font-size: 13px; font-weight: 800; padding: 3px 8px; border-radius: 5px; background: #0b0f16; color: #8b98ab; border: 1px solid var(--line); }
+.pchip i { font-style: normal; margin-left: 6px; color: var(--rc); font-weight: 900; }
+.pchip.got { color: #fff; border-color: var(--rc); }
+
+/* ---------- drills ---------- */
+.drillgrid { flex: 1; display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin: 18px 0 8px; min-height: 0; }
+.drillcard { font-family: var(--font); color: var(--text); text-align: left; cursor: pointer; display: flex; flex-direction: column; justify-content: flex-end; gap: 10px;
+  padding: 24px 22px 22px; border-radius: 12px; border: 1px solid var(--line); border-top: 5px solid var(--pc); position: relative; overflow: hidden;
+  background: linear-gradient(180deg, transparent 30%, rgba(8,11,16,.85)), repeating-linear-gradient(135deg, rgba(255,255,255,.03) 0 14px, transparent 14px 28px), var(--panel);
+  transition: transform .12s, border-color .15s, box-shadow .15s; }
+.drillcard:hover { transform: translateY(-4px); border-color: var(--pc); box-shadow: 0 16px 40px rgba(0,0,0,.45), 0 0 0 1px var(--pc) inset; }
+.drillcard .pc-k { color: var(--pc); }
+.dc-t { font-size: 36px; font-weight: 900; font-style: italic; line-height: .95; }
+.de-score { font-size: 96px; font-weight: 900; font-style: italic; line-height: 1; display: flex; gap: 14px; align-items: baseline; justify-content: center; color: var(--green); }
+.de-score span { font-size: 24px; color: var(--mute); letter-spacing: .12em; }
+.de-dots { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin: 4px 0; }
+.de-dots i { width: 22px; height: 22px; border-radius: 50%; background: #1f2433; border: 2px solid #4b5a74; }
+.de-dots i.ok { background: #35e08a; border-color: #35e08a; } .de-dots i.gold { background: #ffcf4d; border-color: #ffcf4d; }
+.de-dots i.meh { background: #8b98ab; border-color: #8b98ab; } .de-dots i.bad { background: #f1735f; border-color: #f1735f; }
+
 /* ---------- online 1v1 ---------- */
 .playgrid { grid-template-columns: repeat(4, 1fr); }
 .playgrid .pc-t { font-size: 40px; }
