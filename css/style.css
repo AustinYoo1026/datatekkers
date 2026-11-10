@@ -385,3 +385,31 @@ kbd { display: inline-block; font: 700 12px/1 ui-monospace, Menlo, monospace; ba
 .sel-reward.up b { color: #ffcf4d; } .sel-reward.down b { color: #f1735f; }
 .sel-reward:not(.hidden) + .btn.primary { margin-left: 0; }
 .end-rewards .boost { color: #ffcf4d; border-color: #ffcf4d; }
+
+/* ---------- online 1v1 ---------- */
+.playgrid { grid-template-columns: repeat(4, 1fr); }
+.playgrid .pc-t { font-size: 40px; }
+.playcard.online { --pc: #b06bff; }
+.on-body { flex: 1; display: grid; grid-template-columns: 300px 1fr; gap: 16px; margin: 18px 0 8px; min-height: 0; }
+.on-me { cursor: default; display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center; }
+.on-me .side { color: var(--green); align-self: flex-start; }
+.on-me canvas { width: 184px; height: 184px; }
+.on-nm { font-size: 26px; font-weight: 900; line-height: 1; }
+.on-ovr b { font-size: 44px; font-weight: 900; color: var(--green); } .on-ovr span { font-size: 13px; letter-spacing: .2em; color: var(--mute); margin-left: 6px; font-weight: 800; }
+.on-lab { display: flex; flex-direction: column; gap: 6px; font-size: 12px; font-weight: 800; letter-spacing: .2em; color: var(--mute); width: 100%; margin-top: auto; text-align: left; }
+.on-lab input, .on-join input { font: 800 20px/1 var(--font); color: var(--text); background: var(--bg, #0b0f15); border: 1px solid var(--line); border-radius: 6px; padding: 11px 12px; min-width: 0; }
+.on-lab input:focus, .on-join input:focus { outline: 2px solid var(--green); outline-offset: 1px; }
+.on-main { display: flex; min-height: 0; }
+.on-cards { flex: 1; display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+.on-card { display: flex; flex-direction: column; justify-content: flex-end; gap: 12px; padding: 26px; border-radius: 12px; border: 1px solid var(--line); border-top: 5px solid #b06bff; background: var(--panel); }
+.on-card .pc-k { color: #b06bff; }
+.on-t { font-size: 40px; font-weight: 900; font-style: italic; line-height: .95; }
+.on-card p { font-size: 16px; color: #b9c4d3; line-height: 1.35; font-weight: 600; margin: 0 0 6px; flex: 1; }
+.on-join { display: flex; gap: 8px; } .on-join input { flex: 1; text-transform: uppercase; letter-spacing: .3em; text-align: center; width: 0; }
+.on-lobby { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; border: 1px solid var(--line); border-top: 5px solid #b06bff; border-radius: 12px; background: var(--panel); }
+.on-lobby .pc-k { color: #b06bff; }
+.on-code { font-size: 120px; font-weight: 900; font-style: italic; letter-spacing: .12em; line-height: 1; padding-left: .12em; }
+.on-wait { font-size: 16px; font-weight: 900; letter-spacing: .18em; color: var(--mute); }
+.on-wait.live { color: var(--green); }
+.on-vs { font-size: 22px; font-weight: 900; min-height: 28px; }
+.on-btns { display: flex; gap: 12px; margin-top: 8px; }

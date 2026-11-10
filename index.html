@@ -73,6 +73,55 @@
         <span class="pc-k">PRACTICE</span><span class="pc-t">TESTING ARENA</span>
         <span class="pc-d">Just you, the ball and the keeper. Every skill move unlocked, no score limit — drill your chords and finishing.</span>
         <span class="pc-s">EVERY MOVE UNLOCKED</span></button>
+      <button class="playcard online" data-act="mode-online">
+        <span class="pc-k">VS A FRIEND · FIRST TO FIVE</span><span class="pc-t">ONLINE 1V1</span>
+        <span class="pc-d">Create a room and send the code to a friend, or jump into quick match. The server runs the match.</span>
+        <span class="pc-s" id="playOnline">PLAY OVER THE INTERNET</span></button>
+    </div>
+  </section>
+
+  <!-- online 1v1 -->
+  <section id="online" class="screen meta hidden">
+    <header class="sel-head">
+      <button class="btn small ghost" data-act="play">‹ PLAY</button>
+      <h2>ONLINE 1V1</h2>
+      <div class="sel-mode" id="onStatus">CONNECTING…</div>
+    </header>
+    <div class="on-body">
+      <aside class="panel on-me">
+        <div class="side">YOUR PLAYER</div>
+        <canvas id="onFace" width="184" height="184"></canvas>
+        <div class="on-nm" id="onNm"></div>
+        <div class="on-ovr"><b id="onOvr">0</b><span>OVR</span></div>
+        <button class="btn small" data-act="online-pick">CHANGE PLAYER</button>
+        <label class="on-lab">DISPLAY NAME<input type="text" id="onName" maxlength="14" placeholder="Player" autocomplete="off" spellcheck="false"></label>
+      </aside>
+      <div class="on-main">
+        <div id="onMenu" class="on-cards">
+          <div class="on-card">
+            <div class="pc-k">INVITE A FRIEND</div><div class="on-t">CREATE ROOM</div>
+            <p>You get a four-letter code and a link to send. The match starts when they join.</p>
+            <button class="btn primary" id="onCreate">CREATE ROOM</button>
+          </div>
+          <div class="on-card">
+            <div class="pc-k">GOT A CODE?</div><div class="on-t">JOIN ROOM</div>
+            <p>Type the four-letter room code your friend sent you.</p>
+            <div class="on-join"><input type="text" id="onCode" maxlength="4" placeholder="ABCD" autocomplete="off" spellcheck="false"><button class="btn primary" id="onJoin">JOIN</button></div>
+          </div>
+          <div class="on-card">
+            <div class="pc-k">ANYONE ONLINE</div><div class="on-t">QUICK MATCH</div>
+            <p>Get paired with the next player who is looking for a game.</p>
+            <button class="btn primary" id="onQuick">FIND MATCH</button>
+          </div>
+        </div>
+        <div id="onLobby" class="on-lobby hidden">
+          <div class="pc-k" id="onLobbyK">ROOM CODE</div>
+          <div class="on-code" id="onRoomCode">····</div>
+          <div class="on-wait" id="onWait">WAITING FOR AN OPPONENT…</div>
+          <div class="on-vs" id="onVs"></div>
+          <div class="on-btns"><button class="btn" id="onCopy">COPY INVITE LINK</button><button class="btn ghost" id="onLeave">CANCEL</button></div>
+        </div>
+      </div>
     </div>
   </section>
 
@@ -102,7 +151,7 @@
         <button class="segb" data-act="diff-hard" id="segDiff-hard" title="Win bonus ×1">HARD <small>×1 CR</small></button>
       </div>
       <div class="sel-reward" id="selReward" title="Beating a higher-rated opponent, on a harder CPU, pays a bigger win bonus"></div>
-      <button class="btn primary" data-act="kickoff">START ›</button>
+      <button class="btn primary" data-act="kickoff" id="selKick">START ›</button>
     </footer>
   </section>
 
@@ -231,12 +280,12 @@
     <div class="card">
       <h2>PAUSED</h2>
       <button class="btn primary" data-act="resume">RESUME</button>
-      <button class="btn" data-act="restart">RESTART MATCH</button>
+      <button class="btn" data-act="restart" id="pRestart">RESTART MATCH</button>
       <button class="btn" data-act="controls">CONTROLS</button>
       <button class="btn" data-act="sound" id="soundBtn">SOUND: ON</button>
       <button class="btn" data-act="mouse" id="mouseBtn">MOUSE AIM: ON</button>
-      <button class="btn ghost" data-act="quit">CHANGE PLAYERS</button>
-      <button class="btn ghost" data-act="quit-menu">MAIN MENU</button>
+      <button class="btn ghost" data-act="quit" id="pQuit">CHANGE PLAYERS</button>
+      <button class="btn ghost" data-act="quit-menu" id="pQuitMenu">MAIN MENU</button>
     </div>
   </section>
 
@@ -256,7 +305,7 @@
         <button class="btn primary" id="endRematch" data-act="rematch">REMATCH</button>
         <button class="btn primary hidden" id="endContinue" data-act="career-continue">CONTINUE ›</button>
         <button class="btn" id="endChange" data-act="quit">CHANGE PLAYERS</button>
-        <button class="btn ghost" data-act="quit-menu">MAIN MENU</button>
+        <button class="btn ghost" data-act="quit-menu" id="endMenu">MAIN MENU</button>
       </div>
     </div>
   </section>
@@ -320,6 +369,8 @@
 
 <script src="js/data.js"></script>
 <script src="js/game.js"></script>
+<script src="js/net.js"></script>
+<script src="js/config.js"></script>
 <script src="js/ai.js"></script>
 <script src="js/sprites.js"></script>
 <script src="js/render.js"></script>
@@ -328,5 +379,6 @@
 <script src="js/profile.js"></script>
 <script src="js/main.js"></script>
 <script src="js/meta-ui.js"></script>
+<script src="js/online.js"></script>
 </body>
 </html>

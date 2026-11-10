@@ -428,6 +428,7 @@
       else if (screen === 'store') renderStore();
       else if (screen === 'play') renderPlay();
       else if (screen === 'settings') renderSettings();
+      else if (screen === 'online') ISO.Online && ISO.Online.onShow();
       else $('opening').classList.add('hidden');
       updateBadge();
     },

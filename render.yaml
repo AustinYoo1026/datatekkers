@@ -1,0 +1,12 @@
+# Render blueprint: New + > Blueprint, pick this repo. Free plan sleeps when idle; switch plan to "starter" to keep it awake.
+services:
+  - type: web
+    name: iso-football
+    runtime: node
+    plan: free
+    buildCommand: npm --prefix server install
+    startCommand: node server/server.js
+    healthCheckPath: /healthz
+    envVars:
+      - key: ALLOWED_ORIGINS        # set to your Vercel URL(s), comma separated, e.g. https://iso-football.vercel.app
+        sync: false

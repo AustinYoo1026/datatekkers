@@ -68,6 +68,30 @@ The full controls guide is in the main menu and the pause menu (`Esc`), and show
 
 Sliding tackle: Sprint + direction + tackle. Skill moves are chords of J, K and L: J stepovers, K body feint, L ball roll, J+K La Croqueta, J+L roulette, K+L elastico, J+K+L rainbow flick; Sprint + J / K / L gives heel-to-heel, drag back and nutmeg.
 
+## Online 1v1
+
+**Play → Online 1v1** lets two people play each other. The match runs on a small Node server (`server/`) so neither player can cheat and both see the same game; browsers just send their keys and draw what the server sends back.
+
+```sh
+cd server && npm install && npm start      # http://localhost:8080  (PORT=… HOST=… to change)
+```
+
+The server also serves the game, so players just open its address. It prints the LAN address on start-up.
+
+- **Create room** gives a four-letter code and an invite link (`/?room=ABCD`); **Join room** takes the code; **Quick match** pairs you with whoever else is searching. The match starts as soon as two players are in a room. Rematch needs both players to accept; the kick-off alternates.
+- Your chosen player, Prime upgrade, equipped skin and unlocked skill moves are used. Online matches are friendly: no credits or career progress.
+- **Friends over the internet:** the server must be reachable by them. Easiest options are a small host that runs Node (Render, Fly.io, Railway, a VPS: start command `node server/server.js`, install in `server/`), or a tunnel from your own machine (`cloudflared tunnel --url http://localhost:8080` or `ngrok http 8080`). Behind HTTPS the game connects with `wss://` automatically. WebSockets must be allowed through any proxy (path `/ws`).
+- The game can also be hosted elsewhere (e.g. GitHub Pages) and pointed at the server with `?server=host:port` (add `&secure=1` for `wss`).
+- **Deploy: Render (server) + Vercel (site).**
+  1. Push the repo to GitHub. On Render: **New + > Blueprint**, pick the repo (it reads `render.yaml`). Note the URL, e.g. `https://iso-football.onrender.com`. Opening that URL already works as a complete game.
+  2. Put `wss://iso-football.onrender.com/ws` in `js/config.js` (`server`), commit and push.
+  3. On Vercel: **Add New > Project**, import the repo, no build settings (`.vercelignore` keeps `server/` out).
+  4. Back on Render, set `ALLOWED_ORIGINS` to your Vercel URL (e.g. `https://iso-football.vercel.app`) so only your site can connect.
+  The free Render plan sleeps when idle: the first player waits ~30 s for it to wake (the online screen shows CONNECTING).
+- `GET /healthz` reports rooms and players. `npm test` in `server/` plays a scripted match against a throwaway server.
+
+Server, in short: it steps the same 120 Hz simulation as single-player, broadcasts a snapshot 40 times a second (about 100 KB/s per player), and clients play snapshots back ~90 ms behind, interpolated. Inputs are sanitised and rate-limited; rooms are cleaned up when players leave.
+
 ## Code layout
 
 | File | Role |
@@ -80,6 +104,10 @@ Sliding tackle: Sprint + direction + tackle. Skill moves are chords of J, K and 
 | `js/audio.js` | Synthesized sound effects |
 | `js/input.js` | Keyboard / mouse / gamepad mapping and key rebinding |
 | `js/profile.js` | Saved profile — credits, collection, store purchases, achievements, box draws, MyCareer |
+| `js/config.js` | Deployment settings: where the online server is |
+| `js/net.js` | Online: snapshot encode / apply shared by the server and the browser |
+| `js/online.js` | Online: connection, lobby screen, snapshot playback and input sending |
+| `server/server.js` | Online server: static hosting, rooms, quick match, authoritative simulation |
 | `js/main.js` | Screens, HUD, main loop |
 | `js/meta-ui.js` | Play, MyCareer, Store (Box Draw, Achievements), Settings and key-binding screens |
 | `assets/play/` | PLAY page artwork (SVG): MyCareer, Quick Match and Testing Arena cards |

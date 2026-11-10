@@ -7,7 +7,7 @@
 
   const App = {
     screen: 'menu',           // menu | select | match | end
-    mode: 'cpu',              // cpu | arena (testing arena: one player, no opponent) | career (MyCareer ladder)
+    mode: 'cpu',              // cpu | arena (testing arena: one player, no opponent) | career (MyCareer ladder) | online (1v1 on the server)
     diff: 'normal',
     pick: [ISO.playerById('messi'), ISO.playerById('ronaldo')],
     side: 0,                  // which side the selection grid is picking for
@@ -67,6 +67,21 @@
     else home = ISO.Profile.outfit(home);        // your prime upgrade and equipped skin
     if (arena) away = home;
     buildMatch(home, away, ['human', arena ? 'none' : 'cpu'], [career ? 'YOU' : 'P1', arena ? '' : 'CPU'], false);
+    beginMatch(arena);
+  }
+
+  // Online 1v1: the server runs the match; this builds the local mirror the renderer and HUD read from.
+  App.startOnline = (picks, names, kickoff, me) => {
+    const defs = picks.map((p) => ISO.outfit(ISO.playerById(p.id), p.prime, p.skin));
+    App.mode = 'online'; App.demo = false; App.paused = false; App.me = me; App.names = names;
+    App.matchDiff = 'normal'; App.matchWin = 0; App.kickoffFlip = kickoff;
+    buildMatch(defs[0], defs[1], ['none', 'none'], [0, 1].map((i) => (i === me ? 'YOU' : String(names[i] || 'P' + (i + 1)).toUpperCase().slice(0, 8))), false);
+    $('pRestart').classList.add('hidden'); $('pQuit').textContent = 'LEAVE MATCH'; $('pQuitMenu').classList.add('hidden');
+    beginMatch(false);
+  };
+
+  function beginMatch(arena) {
+    if (App.mode !== 'online') { $('pRestart').classList.remove('hidden'); $('pQuit').textContent = 'CHANGE PLAYERS'; $('pQuitMenu').classList.remove('hidden'); }
     ISO.Input.resetMouse();
     $('hud').classList.toggle('arena', arena);
     for (const i of [0, 1]) {
@@ -83,7 +98,7 @@
   }
 
   // ------------------------------------------------------------- screens
-  const MENU_SCREENS = ['menu', 'play', 'select', 'career', 'store', 'settings'];
+  const MENU_SCREENS = ['menu', 'play', 'select', 'career', 'store', 'settings', 'online'];
   function updateCredits() { $('creditsVal').textContent = ISO.Profile.infinite() ? '∞' : ISO.Profile.data.credits.toLocaleString(); }
   function toast(title, sub, col) {
     const el = document.createElement('div'); el.className = 'toast';
@@ -178,13 +193,13 @@
   }
 
   function renderSelect() {
-    const arena = App.mode === 'arena', two = false, P = ISO.Profile;
-    $('selMode').textContent = (arena ? 'TESTING ARENA · 1 PLAYER' : '1 PLAYER · VS CPU') + '  ·  COLLECTION ' + P.ownedCount() + '/' + ISO.PLAYERS.length;
+    const online = App.mode === 'online', arena = App.mode === 'arena' || online, two = false, P = ISO.Profile;
+    $('selMode').textContent = (online ? 'ONLINE 1V1 · PICK YOUR PLAYER' : arena ? 'TESTING ARENA · 1 PLAYER' : '1 PLAYER · VS CPU') + '  ·  COLLECTION ' + P.ownedCount() + '/' + ISO.PLAYERS.length;
     // what a win is worth with this match-up: tougher opponent and harder CPU pay more
     const me = P.owns(App.pick[0].id) ? P.outfit(App.pick[0]) : App.pick[0], wm = P.winMult(App.diff, me, App.pick[1]);
-    $('selReward').classList.toggle('hidden', arena);
     $('selReward').className = 'sel-reward' + (arena ? ' hidden' : '') + (wm.total > 1 ? ' up' : wm.total < 1 ? ' down' : '');
     $('selReward').innerHTML = 'WIN BONUS <b>×' + wm.total + '</b><small>' + (App.pick[1].ovr - me.ovr > 0 ? '+' : '') + (App.pick[1].ovr - me.ovr) + ' OVR GAP</small>';
+    $('selKick').textContent = online ? 'CONFIRM ›' : 'START ›';
     $('diffSeg').classList.toggle('hidden', arena);
     $('sideSeg').classList.toggle('hidden', arena);
     $('panel1').style.visibility = arena ? 'hidden' : '';
@@ -198,7 +213,7 @@
       const ovr = pr ? ISO.primeOf(base).ovr : base.ovr;
       b.querySelector('.c-ovr').textContent = ovr;
       b.style.order = (100 - ovr) * 1000 + ISO.PLAYERS.indexOf(base);      // highest overall first
-      const s0 = App.pick[0].id === b.dataset.id, s1 = App.mode !== 'arena' && App.pick[1].id === b.dataset.id;
+      const s0 = App.pick[0].id === b.dataset.id, s1 = !arena && App.pick[1].id === b.dataset.id;
       b.classList.toggle('sel0', s0); b.classList.toggle('sel1', s1);
       b.querySelector('.c-pick').innerHTML = (s0 ? '<span style="background:#35e08a">P1</span>' : '') + (s1 ? '<span style="background:#ffb23d">' + (two ? 'P2' : 'CPU') + '</span>' : '');
     });
@@ -213,7 +228,9 @@
       $('endName' + i).textContent = d.short; $('endScore' + i).textContent = G.score[i];
       $('endFace' + i).parentElement.classList.toggle('win', w === i);
     }
-    $('endTitle').textContent = App.mode === 'career' ? (w === 0 ? 'YOU WIN!' : App.matchDefs[1].short + ' WINS') : App.matchDefs[w].short + ' WINS' + (w === 0 ? ' — YOU WIN!' : ' — CPU WINS');
+    const online = App.mode === 'online', me = App.me;
+    if (online) $('endTitle').textContent = w === me ? 'YOU WIN!' : String(App.names[w] || App.matchDefs[w].short).toUpperCase() + ' WINS';
+    else $('endTitle').textContent = App.mode === 'career' ? (w === 0 ? 'YOU WIN!' : App.matchDefs[1].short + ' WINS') : App.matchDefs[w].short + ' WINS' + (w === 0 ? ' — YOU WIN!' : ' — CPU WINS');
     $('endTitle').style.color = R.TEAM_COL[w];
     const tot = s.poss[0] + s.poss[1] || 1, pp = Math.round((s.poss[0] / tot) * 100);
     const mm = Math.floor(G.time / 60), ss = Math.floor(G.time % 60);
@@ -221,6 +238,13 @@
       [s.saves[0], 'SAVES FACED', s.saves[1]], [s.clears[0], 'REBOUNDS CLEARED', s.clears[1]], [s.tackles[0], 'TACKLES WON', s.tackles[1]], [s.skills[0], 'SKILL MOVES', s.skills[1]],
       ['', 'MATCH TIME ' + String(mm).padStart(2, '0') + ':' + String(ss).padStart(2, '0'), '']];
     $('endStats').innerHTML = rows.map((r) => '<tr><td>' + r[0] + '</td><td>' + r[1] + '</td><td>' + r[2] + '</td></tr>').join('');
+    $('endRematch').textContent = 'REMATCH'; $('endRematch').disabled = false;
+    if (online) {          // friendly matches: no credits, no career progress
+      $('endRewards').innerHTML = '<span>ONLINE 1V1 · FRIENDLY</span>';
+      $('endRematch').classList.remove('hidden'); $('endContinue').classList.add('hidden'); $('endChange').classList.add('hidden');
+      $('endMenu').textContent = 'LEAVE'; show('end'); return;
+    }
+    $('endMenu').textContent = 'MAIN MENU';
     // rewards
     const career = App.mode === 'career';
     const res = ISO.Profile.recordMatch({ mode: career ? 'career' : 'cpu', won: w === 0, gf: G.score[0], ga: G.score[1], diff: App.matchDiff,
@@ -254,8 +278,10 @@
     'diff-easy': () => { App.diff = 'easy'; renderSelect(); },
     'diff-normal': () => { App.diff = 'normal'; renderSelect(); },
     'diff-hard': () => { App.diff = 'hard'; renderSelect(); },
-    'kickoff': () => { if (App.mode === 'career') App.mode = 'cpu'; App.kickoffFlip = 0; startMatch(); },
+    'kickoff': () => { if (App.mode === 'online') { show('online'); return; } if (App.mode === 'career') App.mode = 'cpu'; App.kickoffFlip = 0; startMatch(); },
     'mode-career': () => show('career'),
+    'mode-online': () => { App.mode = 'online'; show('online'); },
+    'online-pick': () => { App.mode = 'online'; App.side = 0; App.touched = true; show('select'); },
     'career-play': () => { App.mode = 'career'; App.kickoffFlip = 0; startMatch(); },
     'career-continue': () => show('career'),
     'play': () => show('play'),
@@ -264,13 +290,13 @@
     'achievements': () => { ISO.Meta.storeTab('ach'); show('store'); },
     'resume': () => setPaused(false),
     'restart': () => startMatch(),
-    'rematch': () => { App.kickoffFlip = 1 - App.kickoffFlip; startMatch(); },
+    'rematch': () => { if (App.mode === 'online') { ISO.Online.rematch(); return; } App.kickoffFlip = 1 - App.kickoffFlip; startMatch(); },
     'mode-cpu-menu': () => { App.mode = 'cpu'; App.side = 0; App.touched = false; show('select'); },
     'mouse': () => App.setMouse(!ISO.Profile.data.settings.mouseAim),
     'sound': () => { ISO.Audio.setMuted(!ISO.Audio.muted); ISO.Profile.setSetting('muted', ISO.Audio.muted); $('soundBtn').textContent = 'SOUND: ' + (ISO.Audio.muted ? 'OFF' : 'ON'); },
     'settings': () => show('settings'),
-    'quit': () => { App.paused = false; show(App.mode === 'career' ? 'career' : 'select'); },
-    'quit-menu': () => { App.paused = false; show('menu'); },
+    'quit': () => { App.paused = false; if (App.mode === 'online') { ISO.Online.leave(); show('online'); return; } show(App.mode === 'career' ? 'career' : 'select'); },
+    'quit-menu': () => { App.paused = false; if (App.mode === 'online') ISO.Online.leave(); show('menu'); },
   };
   document.addEventListener('click', (e) => {
     const el = e.target.closest('[data-act]');
@@ -292,9 +318,9 @@
     if (e.code !== 'Escape') return;
     if (!$('controls').classList.contains('hidden')) $('controls').classList.add('hidden');
     else if (App.screen === 'match') setPaused(!App.paused);
-    else if (App.screen !== 'menu' && MENU_SCREENS.includes(App.screen) && $('opening').classList.contains('hidden')) show(App.screen === 'select' || App.screen === 'career' ? 'play' : 'menu');
+    else if (App.screen !== 'menu' && MENU_SCREENS.includes(App.screen) && $('opening').classList.contains('hidden')) show(App.screen === 'select' || App.screen === 'career' ? (App.mode === 'online' && App.screen === 'select' ? 'online' : 'play') : App.screen === 'online' ? 'play' : 'menu');
   });
-  window.addEventListener('blur', () => { if (App.screen === 'match' && !App.paused && App.G.phase !== 'end') setPaused(true); });
+  window.addEventListener('blur', () => { if (App.screen === 'match' && !App.paused && App.mode !== 'online' && App.G.phase !== 'end') setPaused(true); });
 
   // ------------------------------------------------------------- loop
   // the cursor in canvas pixels, and in pitch (sim) coordinates
@@ -315,14 +341,17 @@
     for (const i of [0, 1]) {
       if (App.ctrl[i] === 'none') out[i] = ISO.Game.ZERO;
       else if (App.ctrl[i] === 'cpu') out[i] = ISO.AI.update(G, G.players[i], App.ai[i], C.STEP);
-      else {
-        const k = ISO.Input.get('solo', i), aim = mouseSim();
-        out[i] = { ...k, mx: -k.my, my: k.mx };
-        if (aim) { out[i].ax = aim.x; out[i].ay = aim.y; }
-      }   // screen: up = towards the goal (+x in the sim)
+      else out[i] = humanInput(i);
     }
     return out;
   }
+  function humanInput(i) {
+    const k = ISO.Input.get('solo', i), aim = mouseSim();
+    const o = { ...k, mx: -k.my, my: k.mx };       // screen: up = towards the goal (+x in the sim)
+    if (aim) { o.ax = aim.x; o.ay = aim.y; }
+    return o;
+  }
+  App.humanInput = () => humanInput(0);
 
   function updateHud() {
     const G = App.G, H = App.hud;
@@ -343,15 +372,19 @@
     requestAnimationFrame(frame);
     const dt = Math.min(0.05, (now - App.last) / 1000 || 0);
     App.last = now;
-    const G = App.G, running = !(App.screen === 'match' && App.paused);
+    const online = App.mode === 'online' && !App.demo;           // the server runs the match: no local stepping, and no pausing
+    const G = App.G, running = online || !(App.screen === 'match' && App.paused);
     if (running) {
-      App.acc += dt * (App.demo ? 0.75 : ISO.Profile.data.settings.speed);
-      let stepped = false;
-      while (App.acc >= C.STEP) {
-        ISO.Game.step(G, inputs());
-        App.acc -= C.STEP; stepped = true;
+      if (online) ISO.Online.frame(G, dt);
+      else {
+        App.acc += dt * (App.demo ? 0.75 : ISO.Profile.data.settings.speed);
+        let stepped = false;
+        while (App.acc >= C.STEP) {
+          ISO.Game.step(G, inputs());
+          App.acc -= C.STEP; stepped = true;
+        }
+        if (stepped) ISO.Input.consume();
       }
-      if (stepped) ISO.Input.consume();
       for (const e of G.events) {
         R.onEvent(G, e);
         if (!App.demo) ISO.Audio.play(e.type, e);
