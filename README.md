@@ -2,7 +2,7 @@
 
 **Alpha v1**
 
-A 2D, top-down, 1v1 football game for the browser. Two footballers, one ball, two goals — first to five wins.
+A 2D, top-down, 1v1 football game for the browser. Rebound drill with the goal at the top: the attacker starts 10 yards outside the 18-yard box, in the centre, with the defender in front; a keeper catch is thrown back out for either player to win. After a shot, win the rebound and clear it outside the box. First to five goals wins.
 
 ## Play
 
@@ -20,7 +20,7 @@ Modes: **1 Player vs CPU** (easy / normal / hard) and **2 Players** on one keybo
 | Sprint | Left Shift | Right Shift / L |
 | Shoot (hold to charge) · Tackle | Space | M |
 | Finesse shot | F | , |
-| Chip shot | Q | N |
+| Power shot (long wind-up) | Q | N |
 | Skill move | E | . |
 | Jockey · Shield | Left Ctrl / C | K |
 

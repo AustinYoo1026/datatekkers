@@ -112,10 +112,10 @@
   // Goalkeepers are AI-only. Ratings: reflexes, positioning, diving, handling, one-on-one.
   ISO.KEEPERS = [
     { name: 'Home GK', a: { ref: 84, pos: 83, div: 84, han: 81, ooo: 82 },
-      look: { skin: '#e8bd95', hair: 'short', hairColor: '#3a2a1c', h: 1.08, w: 1.08 },
+      look: { skin: '#e8bd95', hair: 'short', hairColor: '#3a2a1c', h: 0.9, w: 0.9 },
       kit: kit('#a78bfa', '#2e1f5e', 'solid', '#2e1f5e', '#a78bfa') },
     { name: 'Away GK', a: { ref: 83, pos: 84, div: 83, han: 82, ooo: 83 },
-      look: { skin: '#9a6a44', hair: 'buzz', hairColor: '#17100c', beard: 'stubble', beardColor: '#17100c', h: 1.08, w: 1.08 },
+      look: { skin: '#9a6a44', hair: 'buzz', hairColor: '#17100c', beard: 'stubble', beardColor: '#17100c', h: 0.9, w: 0.9 },
       kit: kit('#ff8a3d', '#4a1f00', 'solid', '#4a1f00', '#ff8a3d') },
   ];
 

@@ -36,7 +36,7 @@
     App.ai = ctrl.map((c) => (c === 'cpu' ? ISO.AI.create(quiet ? 'normal' : App.diff) : null));
     App.V = {
       sheets: [ISO.Sprites.forPlayer(home, kits[0], 0), ISO.Sprites.forPlayer(away, kits[1], 1)],
-      keeperSheets: [ISO.Sprites.forKeeper(ISO.KEEPERS[0], 0), ISO.Sprites.forKeeper(ISO.KEEPERS[1], 1)],
+      keeperSheet: ISO.Sprites.forKeeper(ISO.KEEPERS[1], 1),
       labels, quiet,
     };
     App.acc = 0; App.endTimer = 0;
@@ -163,7 +163,7 @@
     const tot = s.poss[0] + s.poss[1] || 1, pp = Math.round((s.poss[0] / tot) * 100);
     const mm = Math.floor(G.time / 60), ss = Math.floor(G.time % 60);
     const rows = [[pp + '%', 'POSSESSION', 100 - pp + '%'], [s.shots[0], 'SHOTS', s.shots[1]], [s.onTarget[0], 'ON TARGET', s.onTarget[1]],
-      [s.saves[1], 'SAVES FACED', s.saves[0]], [s.tackles[0], 'TACKLES WON', s.tackles[1]], [s.skills[0], 'SKILL MOVES', s.skills[1]],
+      [s.saves[0], 'SAVES FACED', s.saves[1]], [s.clears[0], 'REBOUNDS CLEARED', s.clears[1]], [s.tackles[0], 'TACKLES WON', s.tackles[1]], [s.skills[0], 'SKILL MOVES', s.skills[1]],
       ['', 'MATCH TIME ' + String(mm).padStart(2, '0') + ':' + String(ss).padStart(2, '0'), '']];
     $('endStats').innerHTML = rows.map((r) => '<tr><td>' + r[0] + '</td><td>' + r[1] + '</td><td>' + r[2] + '</td></tr>').join('');
     show('end');
@@ -218,7 +218,7 @@
     const G = App.G, out = [null, null];
     for (const i of [0, 1]) {
       if (App.ctrl[i] === 'cpu') out[i] = ISO.AI.update(G, G.players[i], App.ai[i], C.STEP);
-      else out[i] = ISO.Input.get(App.mode === '2p' ? (i ? 'p2' : 'p1') : 'solo', i);
+      else { const k = ISO.Input.get(App.mode === '2p' ? (i ? 'p2' : 'p1') : 'solo', i); out[i] = { ...k, mx: -k.my, my: k.mx }; }   // screen: up = towards the goal (+x in the sim)
     }
     return out;
   }
@@ -244,7 +244,7 @@
     App.last = now;
     const G = App.G, running = !(App.screen === 'match' && App.paused);
     if (running) {
-      App.acc += dt;
+      App.acc += dt * C.SPEED;
       let stepped = false;
       while (App.acc >= C.STEP) {
         ISO.Game.step(G, inputs());

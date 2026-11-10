@@ -3,7 +3,7 @@
 (function () {
   'use strict';
   const ISO = (globalThis.ISO = globalThis.ISO || {});
-  const { FW, FH, GY0, GY1, BOXD } = ISO.C;
+  const C = ISO.C, { FW, FH, GY0, GY1 } = C;
   const GCY = (GY0 + GY1) / 2;
   const { clamp, hyp, q } = ISO.util;
 
@@ -26,7 +26,8 @@
     o.shoot = o.finesse = o.chip = false;
     if (G.phase !== 'play') { m.shot = null; m.aimHold = 0; m.fool = null; return o; }
 
-    const tgx = dir > 0 ? FW : 0, ogx = dir > 0 ? 0 : FW;
+    const tgx = FW, ogx = FW;           // both players attack the one goal; the defender protects it too
+    const inBox = ISO.inBox(b), clearing = b.owner === me && inBox && me.team !== G.attacker;
     const dB = hyp(b.x - me.x, b.y - me.y);
     const go = (x, y, s) => { const dx = x - me.x, dy = y - me.y, d = hyp(dx, dy); if (d > 4) { o.mx = (dx / d) * s; o.my = (dy / d) * s; } return d; };
 
@@ -38,7 +39,7 @@
     }
 
     if (b.owner === me) {
-      const K = G.keepers[1 - me.team];
+      const K = G.keeper;
       const dg = hyp(tgx - me.x, GCY - me.y);
       const ox = opp.x - me.x, oy = opp.y - me.y, od = hyp(ox, oy) || 1;
       const ahead = ox * dir > 0;
@@ -49,7 +50,8 @@
         else m.laneY = me.y + (GCY - me.y) * 0.6;
       }
       let tx = tgx - dir * 110, ty = m.laneY;
-      if (Math.abs(tgx - me.x) < 220) { tx = tgx - dir * 30; ty = GCY + (me.y - GCY) * 0.3; }
+      if (clearing) { tx = tgx - C.BOXD - 90; ty = me.y < GCY ? Math.max(70, me.y - 60) : Math.min(FH - 70, me.y + 60); }   // won the rebound: take it out of the box
+      else if (Math.abs(tgx - me.x) < 220) { tx = tgx - dir * 30; ty = GCY + (me.y - GCY) * 0.3; }
       let dx = tx - me.x, dy = ty - me.y, d = hyp(dx, dy) || 1;
       dx /= d; dy /= d;
       if (od < 110 && (ox * dx + oy * dy) / od > 0.2) {       // swerve around the defender
@@ -69,6 +71,7 @@
         o.sprint = false; o.mx = dir * 0.7; o.my = (m.shot ? m.shot.aim : m.aimHold) * 0.7; m.aimHold = 0; return o;
       }
 
+      if (clearing) return o;
       if (m.skillCd <= 0 && ahead && od < 92 && od > 38 && R() < D.skillP * dt * 6) {
         m.skillCd = 1.2 + R() * 1.6;
         o.skill = true;
@@ -89,7 +92,7 @@
         (dg < 105 || R() < dt * (dg < 170 ? 9 : 1.6) * D.eager)) {
         const kOut = Math.abs(K.x - tgx);
         let key = 'shoot', hold;
-        if (kOut > 75 && dg > 150 && dg < 330 && R() < 0.6 * D.smart) { key = 'chip'; hold = clamp((dg - 195) / 190, 0.12, 1) * 0.8; }
+        if (dg > 150 && R() < 0.45 * D.smart) { key = 'chip'; hold = 1.0 + R() * 0.35; }      // power shot: long wind-up
         else if (dg > 170 && R() < 0.15 + 0.4 * q(me.a.cur)) { key = 'finesse'; hold = 0.35 + R() * 0.25; }
         else hold = dg > 230 ? 0.48 + R() * 0.24 : 0.22 + R() * 0.3;
         let aim = K.y > GCY ? -1 : 1;
@@ -105,6 +108,9 @@
         R() < D.foolP * (0.45 + 0.55 * q(opp.a.skl))) {
         m.fool = { t: 0.28 + R() * 0.2, x: opp.skill.fakeX, y: opp.skill.fakeY };     // bought the feint
       }
+      if (!m.fool && opp.fakeT > 0.4 - dt * 1.5 && dB < 125 && R() < D.foolP * (0.45 + 0.55 * q(opp.a.skl))) {
+        m.fool = { t: 0.3 + R() * 0.2, x: (opp.x - me.x) / (hyp(opp.x - me.x, opp.y - me.y) || 1), y: (opp.y - me.y) / (hyp(opp.x - me.x, opp.y - me.y) || 1) };     // bought the fake shot: lunges to block
+      }
       if (m.fool) {
         m.fool.t -= dt;
         o.mx = m.fool.x; o.my = m.fool.y;
@@ -112,7 +118,7 @@
         return o;
       }
       const gdx = ogx - b.x, gdy = GCY - b.y, gd = hyp(gdx, gdy) || 1;
-      const goalSide = (me.x - b.x) * -dir > -6;
+      const goalSide = me.x - b.x > -6;       // between the ball and the goal
       const gap = goalSide ? (dB < 150 ? 22 : 50) : 95;
       const tx = b.x + (gdx / gd) * gap + b.vx * 0.12, ty = b.y + (gdy / gd) * gap + b.vy * 0.12;
       const d = go(tx, ty, D.speed);
@@ -132,19 +138,13 @@
 
     // loose ball, or a keeper has it
     m.fool = null;
-    if (b.holder) {
-      if (b.holder.team === me.team) {
-        const y = opp.y > GCY ? 150 : FH - 150;
-        go(ogx + dir * 300, y, 0.9);
-      } else go(FW / 2 + dir * 60, GCY + (opp.y - GCY) * 0.5, 0.8);
-      return o;
-    }
+    if (b.holder) { go(C.FW - C.BOXD - 70, GCY, 0.9); return o; }       // the keeper is about to throw it out: get ready
     let tt = Math.min(0.45, dB / 350);
     if (b.z > 18 || b.vz > 150) tt = Math.max(tt, (b.vz + Math.sqrt(b.vz * b.vz + 1800 * b.z)) / 900 * 0.9);   // run to where a high ball lands
     const d = go(clamp(b.x + b.vx * tt, 4, FW - 4), clamp(b.y + b.vy * tt, 4, FH - 4), 1);
     o.sprint = d > 40 && me.stam > 10;
     if (!m.shot && m.shotCd <= 0 && dB < 85 && hyp(tgx - b.x, GCY - b.y) < 270 && hyp(b.vx, b.vy) > 60 && R() < D.smart * dt * 6) {
-      m.shot = { key: 'shoot', t: 0.6, aim: G.keepers[1 - me.team].y > GCY ? -1 : 1 };    // first-time finish
+      m.shot = { key: 'shoot', t: 0.6, aim: G.keeper.y > GCY ? -1 : 1 };    // first-time finish
       o.shoot = true;
     }
     return o;
