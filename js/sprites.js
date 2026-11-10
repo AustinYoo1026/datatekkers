@@ -1,20 +1,13 @@
-/* ISO FOOTBALL — 2D character sprites.
-   Every footballer gets a sprite sheet generated at runtime on an offscreen
-   canvas from their look + kit. The sheet layout is fixed (ISO.Sprites.LAYOUT),
-   so a hand-drawn PNG with the same layout can replace any generated sheet via
-   ISO.SPRITE_OVERRIDES — a missing or broken image simply keeps the generated one. */
+/* ISO FOOTBALL — 2D characters.
+   Every footballer is drawn live from their look + kit and a pose (see drawChar), at whatever size the camera asks
+   for, so the figures stay sharp and every movement can blend into the next. A hand-drawn PNG sheet in the fixed
+   layout (ISO.Sprites.LAYOUT) can still replace a character via ISO.SPRITE_OVERRIDES — a missing or broken image
+   simply keeps the live one. */
 (function () {
   'use strict';
   const ISO = (globalThis.ISO = globalThis.ISO || {});
 
   const CW = 64, CH = 62, S = 2, FOOT_X = 32, FOOT_Y = 52, DRAW_SCALE = 1.15;
-  const ANIMS = [['idle', 2], ['run', 6], ['sprint', 6], ['kick', 3], ['tackle', 2], ['slide', 1],
-    ['celebrate', 4], ['skill', 4], ['stumble', 1], ['dive', 1]];
-  const DIRS = ['down', 'up', 'side'];       // 'side' faces right; the renderer mirrors it for left
-  const COL = {};
-  let NCOL = 0;
-  for (const [a, f] of ANIMS) { COL[a] = { start: NCOL, frames: f }; NCOL += f; }
-
   function shade(hex, amt) {
     const n = parseInt(hex.slice(1), 16);
     const c = (v) => Math.max(0, Math.min(255, v + amt));
@@ -157,95 +150,123 @@
   }
 
   // ---- body ---------------------------------------------------------------
-  // Pose: l1/l2 leg swing (-1 back .. +1 forward), a1/a2 arm swing, bob, lean,
-  // rot (whole-body rotation, used for slides and dives), armsUp, spread, squash.
-  function drawChar(c, L, kit, dir, P, keeper) {
-    const w = L.w || 1, h = L.h || 1, skin = L.skin, skinD = shade(skin, -30);
-    const sock = kit.socks, sockD = shade(sock.length === 7 ? sock : '#888888', -35), boot = L.boot || CORAL;
-    const sleeve = kit.pat === 'sleeves' ? kit.b : kit.a, glove = '#f4f4f4';
-    const l1 = P.l1 || 0, l2 = P.l2 || 0, a1 = P.a1 || 0, a2 = P.a2 || 0, bob = P.bob || 0, lean = P.lean || 0, spr = P.spread || 0;
-    const lw = 4.3 * Math.sqrt(w);
+  // The figure is a small rig drawn live every frame, so a pose is a set of numbers that can be blended:
+  //   t1 k1 t2 k2   thigh angle (rad, + = forward) and knee bend (rad) of each leg
+  //   s1 e1 s2 e2   shoulder swing (+ = forward) and elbow bend of each arm;  ab = arms held out sideways
+  //   armsUp 0..1   arms raised overhead;  lean = torso pitch (+ = forward);  tilt = roll to the side
+  //   spread        feet apart (px);  air = height off the ground (px);  rot = whole-body rotation (lying down)
+  // The legs are solved in the body's own side-on plane and the lower foot is put on the ground, so the hips rise and
+  // fall with the stride instead of the feet sliding. The same solution is then drawn side-on, or from the front / back.
+  const THIGH = 7.9, SHIN = 7.9, UARM = 5.3, FARM = 5.1, DZ = 0.42;
+  const REST = { t1: 0, k1: 0, t2: 0, k2: 0, s1: 0, e1: 0.2, s2: 0, e2: 0.2, ab: 0, armsUp: 0, lean: 0, tilt: 0, spread: 0, air: 0, rot: 0, bob: 0 };
+  const POSE_KEYS = Object.keys(REST);
+  function legFK(t, k) {      // forward offset and drop below the hip of the knee and the foot
+    const kf = Math.sin(t) * THIGH, kd = Math.cos(t) * THIGH;
+    return { kf, kd, ff: kf + Math.sin(t - k) * SHIN, fd: kd + Math.cos(t - k) * SHIN, fa: t - k };
+  }
+  function armFK(sa, eb, up) {
+    const a = sa + (2.5 - sa) * up, e = eb + (0.12 - eb) * up, L = 1 + 0.65 * up;      // raised arms reach past the head
+    const ef = Math.sin(a) * UARM * L, ed = Math.cos(a) * UARM * L;
+    return { ef, ed, hf: ef + Math.sin(a + e) * FARM * L, hd: ed + Math.cos(a + e) * FARM * L };
+  }
+  // an inked limb: two segments with a dark outline under them and clean round joints
+  function limb2(c, x0, y0, x1, y1, x2, y2, w1, w2, c1, c2) {
+    c.lineCap = 'round'; c.lineJoin = 'round';
+    c.strokeStyle = INK; c.lineWidth = Math.max(w1, w2) + 1.5;
+    c.beginPath(); c.moveTo(x0, y0); c.lineTo(x1, y1); c.lineTo(x2, y2); c.stroke();
+    c.strokeStyle = c1; c.lineWidth = w1; c.beginPath(); c.moveTo(x0, y0); c.lineTo(x1, y1); c.stroke();
+    c.strokeStyle = c2; c.lineWidth = w2; c.beginPath(); c.moveTo(x1, y1); c.lineTo(x2, y2); c.stroke();
+  }
+  function bootSide(c, x, y, ang, col) {
+    c.save(); c.translate(x, y); c.rotate(-ang * 0.55);
+    c.beginPath(); c.moveTo(-2.2, -2.3); c.lineTo(1.6, -2.3); c.lineTo(4.6, -0.6); c.lineTo(4.6, 0.9); c.lineTo(-2.2, 0.9); c.closePath();
+    c.fillStyle = col; c.fill(); c.strokeStyle = INK; c.lineWidth = 0.7; c.lineJoin = 'miter'; c.stroke();
+    c.fillStyle = 'rgba(255,255,255,.55)'; c.fillRect(-1.6, 0.1, 5.6, 0.7);
+    c.restore();
+  }
+  function bootFront(c, x, y, near, col) {
+    c.fillStyle = col; poly(c, x, y - 0.5, 2.6, near ? 2.8 : 2.1); c.fill();
+    c.strokeStyle = INK; c.lineWidth = 0.7; c.stroke();
+  }
+  function hand(c, x, y, skin, keeper) {
+    c.fillStyle = keeper ? '#f4f4f4' : skin; poly(c, x, y, keeper ? 2.5 : 1.7, keeper ? 2.5 : 1.7); c.fill();
+    c.strokeStyle = INK; c.lineWidth = 0.6; c.stroke();
+  }
+  function shorts(c, kit, x, y, w, h) {
+    c.fillStyle = kit.shorts; rr(c, x, y, w, h, 2); c.fill();
+    hatch(c, x, y, w, h, ISO.lum(kit.shorts) > 0.5 ? 'rgba(31,36,51,.35)' : 'rgba(255,255,255,.4)', 2.2, 0.7);
+    c.strokeStyle = INK; c.lineWidth = 0.9; c.lineJoin = 'miter'; rr(c, x, y, w, h, 2); c.stroke();
+  }
+
+  function drawChar(c, L, kit, dir, P0, keeper) {
+    const P = P0 || REST, g = (k) => (P[k] === undefined ? REST[k] : P[k]);
+    const w = L.w || 1, h = L.h || 1, skin = L.skin, skinD = shade(skin, -34);
+    const sock = kit.socks, sockD = shade(sock.length === 7 ? sock : '#888888', -38), boot = L.boot || CORAL;
+    const sleeve = kit.pat === 'sleeves' ? kit.b : kit.a, sleeveD = shade(sleeve.length === 7 ? sleeve : '#888888', -34);
+    const lw = 4.5 * Math.sqrt(w), up = g('armsUp'), ab = g('ab'), lean = g('lean'), tilt = g('tilt'), spr = g('spread');
+    const L1 = legFK(g('t1'), g('k1')), L2 = legFK(g('t2'), g('k2'));
+    const A1 = armFK(g('s1'), g('e1'), up), A2 = armFK(g('s2'), g('e2'), up);
+    const hip = Math.max(L1.fd, L2.fd) + g('air') - 0.6, bob = g('bob');
     c.save();
     c.scale(h, h);
-    if (P.rot) { c.translate(0, -12); c.rotate(P.rot); c.translate(0, 12); }
-    if (P.squash) c.scale(1, P.squash);
-    const hipY = -15 + bob;
+    if (g('rot')) { c.translate(0, -12); c.rotate(g('rot')); c.translate(0, 12); }
     if (dir === 'side') {
-      const tw = 8.8 * w;
-      const leg = (sw, far) => {
-        const th = sw * 0.72, kx = Math.sin(th) * 7.5, ky = hipY + Math.cos(th) * 7.5;
-        const th2 = th - (sw < 0 ? -sw * 0.6 : 0);
-        const fx = kx + Math.sin(th2) * 7.5, fy = ky + Math.cos(th2) * 7.5;
-        limb(c, 0, hipY, kx, ky, lw, far ? skinD : skin); limb(c, kx, ky, fx, fy, 3.6, far ? sockD : sock);
-        ell(c, fx + 1.3, fy + 0.5, 3.1, 1.9, boot);
+      const tw = 8.9 * w, hy = -hip;
+      const leg = (F, far) => {
+        limb2(c, 0, hy, F.kf, hy + F.kd, F.ff, hy + F.fd, lw, 3.8, far ? skinD : skin, far ? sockD : sock);
+        bootSide(c, F.ff, hy + F.fd, F.fa, far ? shade(boot.length === 7 ? boot : '#888888', -30) : boot);
       };
-      const arm = (sw, far) => {
-        const sx = 0.5, sy = -12.6;
-        let ex, ey;
-        if (P.armsUp) { ex = sx + (far ? 1 : 4); ey = sy - 12.5; } else { const an = sw * 0.95; ex = sx + Math.sin(an) * 9; ey = sy + Math.cos(an) * 9; }
-        const mx = (sx + ex) / 2, my = (sy + ey) / 2;
-        limb(c, sx, sy, mx, my, 3.5, far ? shade(sleeve.length === 7 ? sleeve : '#888888', -30) : sleeve);
-        limb(c, mx, my, ex, ey, 3, far ? skinD : skin);
-        if (keeper) ell(c, ex, ey, 2.4, 2.4, glove);
+      const arm = (A, far) => {
+        const k = Math.max(0.45, Math.cos(ab)), sx = 0.4, sy = -10.3 + bob;
+        limb2(c, sx, sy, sx + A.ef * k, sy + A.ed, sx + A.hf * k, sy + A.hd, 3.5, 3, far ? sleeveD : sleeve, far ? skinD : skin);
+        hand(c, sx + A.hf * k, sy + A.hd, far ? skinD : skin, keeper);
       };
-      c.translate(0, hipY); c.rotate(lean); c.translate(0, -hipY);
-      arm(a2, true); leg(l2, true); leg(l1, false);
-      c.fillStyle = kit.shorts; rr(c, -tw / 2 - 0.3, hipY - 4.5, tw + 0.6, 7, 2); c.fill();
-      hatch(c, -tw / 2, hipY - 4.5, tw, 7, ISO.lum(kit.shorts) > 0.5 ? 'rgba(31,36,51,.35)' : 'rgba(255,255,255,.4)', 2.2, 0.7);
-      c.strokeStyle = INK; c.lineWidth = 0.8; rr(c, -tw / 2 - 0.3, hipY - 4.5, tw + 0.6, 7, 2); c.stroke();
-      shirt(c, kit, -tw / 2, hipY - 15, tw, 11.5, 3);
-      arm(a1, false);
-      head(c, L, 'side', 1.2, hipY - 21.3);
+      leg(L2, true); leg(L1, false);
+      c.translate(0, hy); c.rotate(lean);              // the upper body pivots at the hips
+      arm(A2, true);
+      shorts(c, kit, -tw / 2 - 0.3, -4.6, tw + 0.6, 7.2);
+      shirt(c, kit, -tw / 2, -15.2 + bob, tw, 11.6, 3);
+      arm(A1, false);
+      head(c, L, 'side', 1.2, -21.6 + bob);
     } else {
-      const up = dir === 'up', tw = 12.4 * w;
-      const leg = (i, sw) => {
-        const s2 = up ? -sw : sw, hx = i * 3.3 * w + i * spr, fx = hx + i * spr * 0.7;
-        const fy = s2 >= 0 ? 0.5 + s2 * 1.7 : s2 * 4.4, ky = (hipY + fy) / 2;
-        limb(c, hx, hipY, fx, ky, lw, skin); limb(c, fx, ky, fx, fy - 1.6, 3.7, sock);
-        ell(c, fx, fy - 0.6, 2.5, s2 >= 0 ? 2.7 : 2, boot);
+      const s = dir === 'up' ? -1 : 1, tw = 12.5 * w, hy = -hip;
+      const leg = (F, sg) => {
+        const hx = sg * (3.3 * w + spr * 0.35), fx = sg * (3.3 * w + spr), kx = (hx + fx) / 2 + sg * Math.max(0, F.kf - F.ff) * 0.12;
+        const ky = hy + F.kd + s * F.kf * DZ, fy = hy + F.fd + s * F.ff * DZ;
+        limb2(c, hx, hy, kx, ky, fx, fy, lw, 3.9, skin, sock);
+        bootFront(c, fx, fy, s * F.ff >= 0, boot);
       };
-      if ((up ? -l1 : l1) <= (up ? -l2 : l2)) { leg(-1, l1); leg(1, l2); } else { leg(1, l2); leg(-1, l1); }
-      c.fillStyle = kit.shorts; rr(c, -tw / 2, hipY - 5, tw, 7.2, 2); c.fill();
-      hatch(c, -tw / 2, hipY - 5, tw, 7.2, ISO.lum(kit.shorts) > 0.5 ? 'rgba(31,36,51,.35)' : 'rgba(255,255,255,.4)', 2.2, 0.7);
-      c.strokeStyle = INK; c.lineWidth = 0.8; rr(c, -tw / 2, hipY - 5, tw, 7.2, 2); c.stroke();
-      shirt(c, kit, -tw / 2, hipY - 14.6, tw, 11.6, 3.2);
-      if (up && L.num != null) {
+      // the leg further from the viewer goes down first
+      if (s * L1.ff <= s * L2.ff) { leg(L1, -1); leg(L2, 1); } else { leg(L2, 1); leg(L1, -1); }
+      c.translate(0, hy); c.rotate(tilt); c.translate(0, s * lean * 4.5);
+      const th = 11.7 * (1 - Math.min(0.25, Math.abs(lean) * 0.3));
+      shorts(c, kit, -tw / 2, -5.1, tw, 7.4);
+      shirt(c, kit, -tw / 2, -4.9 - th + bob, tw, th, 3.2);
+      if (dir === 'up' && L.num != null) {
         c.fillStyle = ISO.lum(kit.a) > 0.55 ? '#16161a' : '#ffffff';
         c.font = '700 6.6px Arial, sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
-        c.fillText(String(L.num), 0, hipY - 8.6);
+        c.fillText(String(L.num), 0, -4.9 - th / 2 + bob + 0.4);
       }
-      for (const i of [-1, 1]) {
-        const sw = (i < 0 ? a1 : a2) * (up ? -1 : 1), sx = i * (tw / 2 + 0.5), sy = hipY - 12.6;
-        let ex, ey;
-        if (P.armsUp) { ex = i * (tw / 2 + 3.6); ey = hipY - 26; }
-        else { ex = i * (tw / 2 + 2 + (P.armsOut ? 4 : 0)); ey = hipY - 4 - Math.abs(sw) * 2.4 + (sw > 0 ? 1.4 : 0) - (P.armsOut ? 4 : 0); }
-        const mx = (sx + ex) / 2, my = (sy + ey) / 2;
-        limb(c, sx, sy, mx, my, 3.6, sleeve); limb(c, mx, my, ex, ey, 3, skin);
-        if (keeper) ell(c, ex, ey, 2.5, 2.5, glove);
-      }
-      head(c, L, dir, lean * 4, hipY - 21.2);
+      const arm = (A, sg) => {
+        const sx = sg * (tw / 2 + 0.7), sy = -4.9 - th + 2.1 + bob, out = Math.sin(ab) + up * 0.35, k = Math.max(0.3, Math.cos(ab));
+        const ex = sx + sg * (0.9 + out * UARM), ey = sy + A.ed * k + s * A.ef * DZ;
+        const hx = sx + sg * (1.3 + out * (UARM + FARM)), hy2 = sy + A.hd * k + s * A.hf * DZ;
+        limb2(c, sx, sy, ex, ey, hx, hy2, 3.6, 3, sleeve, skin);
+        hand(c, hx, hy2, skin, keeper);
+      };
+      arm(A1, -1); arm(A2, 1);
+      head(c, L, dir, 0, -4.9 - th - 6.6 + bob);
     }
     c.restore();
   }
 
-  function poseFor(anim, i, dir) {
-    switch (anim) {
-      case 'idle': return { bob: i ? 0.7 : 0, a1: 0.1, a2: -0.1 };
-      case 'run': case 'sprint': {
-        const ph = (i / 6) * Math.PI * 2, s = Math.sin(ph), k = anim === 'sprint' ? 1.3 : 1;
-        return { l1: s * k, l2: -s * k, a1: -s * 0.85 * k, a2: s * 0.85 * k, bob: -Math.abs(Math.cos(ph)) * 1.1, lean: anim === 'sprint' ? 0.2 : 0.07 };
-      }
-      case 'kick': return [{ l1: -1.2, l2: 0.2, a1: 0.9, a2: -0.6, lean: 0.05 }, { l1: 1.55, l2: -0.2, a1: -0.9, a2: 0.8, lean: -0.12 }, { l1: 0.9, l2: -0.1, a1: -0.4, a2: 0.4 }][i];
-      case 'tackle': return i ? { l1: 1.55, l2: -0.8, a1: -0.7, a2: 0.9, lean: 0.3, bob: 1.5 } : { l1: 1.2, l2: -0.4, a1: -0.5, a2: 0.6, lean: 0.2, bob: 0.8 };
-      case 'slide': return dir === 'side' ? { rot: -1.15, l1: 1.2, l2: 0.5, a1: -1.2, a2: 0.4 } : { squash: 0.72, l1: 1.5, l2: 0.6, armsOut: true };
-      case 'celebrate': return { armsUp: true, bob: [0, -3, -5, -3][i], l1: i % 2 ? 0.4 : -0.2, l2: i % 2 ? -0.2 : 0.4 };
-      case 'skill': return [{ l1: 0.7, l2: -0.2, spread: 2.6, a1: 0.6, a2: -0.6 }, { l1: 0.9, l2: -0.9, a1: -0.5, a2: 0.5 },
-        { l1: -0.2, l2: 0.7, spread: 2.6, a1: -0.6, a2: 0.6 }, { l1: 0.2, l2: -1.5, a1: 0.7, a2: -0.7, lean: 0.12 }][i];
-      case 'stumble': return { lean: -0.35, a1: 1.1, a2: -1.1, l1: 0.6, l2: -0.4, armsOut: true, bob: 1 };
-      case 'dive': return { rot: 1.5, armsUp: true, l1: 0.4, l2: -0.3 };
-    }
-    return {};
-  }
+  // The fixed frames of the sheet layout, used only when a hand-drawn PNG replaces a generated character.
+  const ANIMS = [['idle', 2], ['run', 6], ['sprint', 6], ['kick', 3], ['tackle', 2], ['slide', 1],
+    ['celebrate', 4], ['skill', 4], ['stumble', 1], ['dive', 1]];
+  const DIRS = ['down', 'up', 'side'];       // 'side' faces right; the renderer mirrors it for left
+  const COL = {};
+  let NCOL = 0;
+  for (const [a, f] of ANIMS) { COL[a] = { start: NCOL, frames: f }; NCOL += f; }
 
   function canvas(w, h) {
     if (typeof OffscreenCanvas !== 'undefined' && typeof document === 'undefined') return new OffscreenCanvas(w, h);
@@ -253,38 +274,38 @@
   }
 
   const cache = new Map();
-  function getSheet(key, look, kit, keeper) {
-    let sheet = cache.get(key);
-    if (sheet) return sheet;
-    sheet = canvas(NCOL * CW * S, DIRS.length * CH * S);
-    const c = sheet.getContext('2d');
-    for (const [anim, frames] of ANIMS) for (let f = 0; f < frames; f++) DIRS.forEach((dir, row) => {
-      const col = COL[anim].start + f;
-      c.setTransform(S, 0, 0, S, (col * CW + FOOT_X) * S, (row * CH + FOOT_Y) * S);
-      drawChar(c, look, kit, anim === 'dive' ? 'side' : dir, poseFor(anim, f, dir), keeper);
-    });
-    const entry = { img: sheet };
-    cache.set(key, entry);
-    return entry;
+  function entryFor(key, look, kit, keeper) {
+    let e = cache.get(key);
+    if (!e) { e = { look, kit, keeper, img: null }; cache.set(key, e); }
+    return e;
   }
-
-  // Build (or fetch) the sheet for a footballer; optionally swap in a professional PNG.
+  // The character for a footballer; optionally a professional PNG sheet (ISO.SPRITE_OVERRIDES) replaces the live drawing.
   function forPlayer(def, kit, slot) {
     const key = def.id + ':' + slot + ':' + kit.a + kit.b + kit.pat + (def.look.boot || '');
     const fresh = !cache.has(key);
-    const entry = getSheet(key, Object.assign({ num: def.num }, def.look), kit, false);
+    const entry = entryFor(key, Object.assign({ num: def.num }, def.look), kit, false);
     const url = fresh && ISO.SPRITE_OVERRIDES && ISO.SPRITE_OVERRIDES[def.id];
     if (url && typeof Image !== 'undefined') {
       const img = new Image();
       img.onload = () => { if (img.width >= NCOL * CW && img.height >= DIRS.length * CH) entry.img = img; };
-      img.onerror = () => {};       // keep the generated sheet
+      img.onerror = () => {};       // keep the live character
       img.src = url;
     }
     return entry;
   }
-  function forKeeper(def, team) { return getSheet('gk:' + team, def.look, def.kit, true); }
+  function forKeeper(def, team) { return entryFor('gk:' + team, def.look, def.kit, true); }
 
-  // draw one cell with its feet anchored at (x, y); angle (optional) rotates lying sprites
+  // Draw the character in pose P with its feet anchored at (x, y); angle (optional) turns a lying body on the ground.
+  function drawLive(ctx, entry, P, dir, x, y, flip, angle, sx) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(DRAW_SCALE * (sx || 1), DRAW_SCALE);
+    if (angle != null) { ctx.translate(0, -8); ctx.rotate(angle); ctx.translate(0, 12); }
+    if (flip) ctx.scale(-1, 1);
+    drawChar(ctx, entry.look, entry.kit, dir, P, entry.keeper);
+    ctx.restore();
+  }
+  // one cell of a replacement PNG sheet
   function draw(ctx, entry, anim, frame, dir, x, y, flip, angle) {
     const col = COL[anim].start + (frame % COL[anim].frames), row = DIRS.indexOf(dir);
     const img = entry.img, k = img.width / (NCOL * CW);
@@ -305,7 +326,7 @@
     cv = canvas(size * 2, size * 2);
     const c = cv.getContext('2d'), D = size * 2, k = D / 30;
     c.setTransform(k, 0, 0, k, D / 2, D * 1.62);
-    drawChar(c, Object.assign({}, def.look, { h: 1, num: def.num }), kit, 'down', { a1: 0.1, a2: -0.1 }, false);
+    drawChar(c, Object.assign({}, def.look, { h: 1, num: def.num }), kit, 'down', { s1: 0.08, s2: -0.08, e1: 0.25, e2: 0.25 }, false);
     portraits.set(key, cv);
     return cv;
   }
@@ -338,6 +359,6 @@
 
   ISO.Sprites = {
     LAYOUT: { cellW: CW, cellH: CH, scale: S, footX: FOOT_X, footY: FOOT_Y, anims: ANIMS, dirs: DIRS },
-    forPlayer, forKeeper, draw, portrait, ball, BALL_FRAMES, BALL_PX, drawChar,
+    forPlayer, forKeeper, draw, drawLive, portrait, ball, BALL_FRAMES, BALL_PX, drawChar, REST, POSE_KEYS, DRAW_SCALE,
   };
 })();

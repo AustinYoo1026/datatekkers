@@ -279,7 +279,7 @@
   function renderDrills() {
     for (const k of ['penalty', 'target', 'chip']) {
       const d = PF.data.drills[k], max = ISO.DRILLS[k].max;
-      $('drillBest-' + k).textContent = d ? 'BEST ' + d.best + ' / ' + max + ' · ' + d.plays + ' PLAYED' : 'NOT PLAYED YET';
+      $('drillBest-' + k).textContent = d ? 'BEST ' + d.best + ' / ' + max + (k === 'penalty' ? ' SCORED' : '') + ' · ' + d.plays + ' PLAYED' : 'NOT PLAYED YET';
     }
   }
   function renderPlay() {
@@ -402,7 +402,6 @@
     const ST = PF.data.settings, A = ST.admin;
     $('setVolume').value = Math.round(ST.volume * 100); $('setVolumeVal').textContent = Math.round(ST.volume * 100) + '%';
     $('setSound').checked = !ST.muted; $('setCrowd').checked = ST.crowd;
-    $('setSpeed').value = Math.round(ST.speed * 100); $('setSpeedVal').textContent = Math.round(ST.speed * 100) + '%';
     $('setDiff').value = ST.diff || 'normal';
     $('setMouse').checked = ST.mouseAim; $('setReticle').checked = ST.reticle; $('setHint').checked = ST.hint;
     $('adminLogin').classList.toggle('hidden', A.unlocked); $('adminPanel').classList.toggle('hidden', !A.unlocked);
@@ -416,7 +415,6 @@
     if (t.id === 'setVolume') { PF.setSetting('volume', t.value / 100); ISO.Audio.setVolume(t.value / 100); $('setVolumeVal').textContent = t.value + '%'; }
     else if (t.id === 'setSound') { PF.setSetting('muted', !t.checked); ISO.Audio.setMuted(!t.checked); }
     else if (t.id === 'setCrowd') { PF.setSetting('crowd', t.checked); ISO.Audio.setCrowd(t.checked); }
-    else if (t.id === 'setSpeed') { PF.setSetting('speed', t.value / 100); $('setSpeedVal').textContent = t.value + '%'; }
     else if (t.id === 'setDiff') { PF.setSetting('diff', t.value); App.diff = t.value; }
     else if (t.id === 'setMouse') App.setMouse(t.checked);
     else if (t.id === 'setReticle') PF.setSetting('reticle', t.checked);

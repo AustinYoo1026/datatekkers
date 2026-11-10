@@ -16,7 +16,7 @@ for (const f of ['data', 'game', 'net']) require(path.join(ROOT, 'js', f + '.js'
 const ISO = globalThis.ISO, C = ISO.C;
 
 const PORT = +process.env.PORT || 8080, HOST = process.env.HOST || '0.0.0.0';
-const SEND_EVERY = 3;                 // sim steps per snapshot: 120 / 3 = 40 snapshots per second
+const SEND_EVERY = 2;                 // sim steps per snapshot: the sim advances 120 x C.SPEED steps a second, so 36 snapshots per second
 const MAX_ROOMS = +process.env.MAX_ROOMS || 200;
 const IDLE_MS = 10 * 60 * 1000;       // empty / abandoned rooms are dropped
 
@@ -119,7 +119,7 @@ class Room {
   start() {
     this.state = 'match'; this.rematch.fill(false);
     const defs = this.seats.map((s) => defOf(s.pick));
-    this.G = ISO.Game.create({ roster: defs, kickoff: this.kickoff, moves: this.seats.map((s) => s.moves) });
+    this.G = ISO.Game.create({ roster: defs, kickoff: this.kickoff, moves: this.seats.map((s) => s.moves), replay: true });      // the goal pause is long enough for the clients' replay
     this.inp = this.seats.map(() => null); this.tap = this.seats.map(() => ({})); this.events = []; this.steps = 0; this.acc = 0; this.last = performance.now();
     this.broadcast({ t: 'start', size: this.size, picks: this.seats.map((s) => s.pick), names: this.seats.map((s) => s.name), kickoff: this.kickoff });
     this.sync();
@@ -140,7 +140,7 @@ class Room {
   }
   tick(now) {
     if (this.state !== 'match') return;
-    this.acc += Math.min(0.1, (now - this.last) / 1000); this.last = now;
+    this.acc += Math.min(0.1, (now - this.last) / 1000) * C.SPEED; this.last = now;      // same pace as the offline game: real time x C.SPEED
     const G = this.G;
     while (this.acc >= C.STEP) {
       ISO.Game.step(G, this.seats.map((_, i) => this.frameInput(i)));

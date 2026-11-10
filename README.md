@@ -19,7 +19,7 @@ The main menu has four buttons: **Play**, **Store**, **Settings** and **Controls
 
 - **MyCareer** — build your own player (look + kit) and climb a 12-opponent ladder from the weakest squad players to the greatest icons (first to 3, CPU difficulty rises as you climb). Wins earn upgrade points to spend on your attributes; losses still earn one. Any stat can be dropped as low as 30, even below where it started, to refund points into others.
 - **Quick Match** — any footballer you own, Prime upgrade and skin included, against the CPU on easy, normal or hard. Players are listed by overall.
-- **Drills** — one player against the keeper: **Penalty Shootout** (5 kicks), **Target Practice** (hit the lit corner of the goal for 3 points), **Chip Challenge** (lob a keeper who has come off his line) and the free **Testing Arena** (every skill move unlocked, no score limit). Drills pay credits by score and keep your best; the keeper level sets how good the keeper is.
+- **Drills** — **Penalty Shootout** (a full shootout against an opposing team: you take your kick, then keep goal for theirs; five each, then sudden death), and one player against the keeper in **Target Practice** (hit the lit corner of the goal for 3 points), **Chip Challenge** (lob a keeper who has come off his line) and the free **Testing Arena** (every skill move unlocked, no score limit). Drills pay credits by score and keep your best; the keeper level sets how good the keeper is.
 - **Controls** — every action has two rebindable slots, and a slot can hold a key combination such as Shift+Q.
 
 ### Store
@@ -34,10 +34,19 @@ The main menu has four buttons: **Play**, **Store**, **Settings** and **Controls
 
 ### Settings
 
-- Audio, game speed and default CPU difficulty.
+- Audio and default CPU difficulty. The game speed is fixed (see Gameplay notes).
 - **Mouse aiming & click to shoot** — on: the cursor aims, left click shoots, right click is the power shot. Off: keyboard only. It can also be switched from the pause menu.
 - **Keyboard** — every action has two rebindable keys. Click a slot and press a key; `Esc` cancels, `Backspace` clears, and a key already in use swaps places. **Reset to default** restores the original layout.
 - **Reset all progress** — wipes credits, players, skins, Primes, skill moves, maps, achievements and MyCareer. Settings and key bindings are kept.
+
+## Gameplay notes
+
+- **Pace** — the whole game runs at 60% of real time (`C.SPEED` in `js/game.js`). The simulation still steps at a fixed 120 Hz; the main loop and the online server feed it real time × `C.SPEED`, so players, ball, keeper and every timer slow together. It is not a setting.
+- **Movement** — no turning phase: the body swings straight onto the line of travel and a change of direction is a quick plant-and-go. With the ball, touches land with the footfalls, the ball is nudged from foot to foot, and a change of horizontal direction rolls it across the body.
+- **Characters** — drawn live from a small rig (`js/sprites.js`) and a blended pose (`js/render.js`), so every movement eases into the next and figures stay sharp at any zoom.
+- **Ankle breakers** — a skill move close to a defender can put them on the floor for a moment. Close range, a skilful dribbler, and a defender who is lunging, recovering or running the wrong way all raise the odds; keeping your distance or jockeying keeps your balance.
+- **Goal replays** — every match goal (not drills, not the Testing Arena) is replayed through a low cinematic camera, the finish in slow motion. Offline, the shoot key skips it. The replay is a recording kept by the renderer: it never touches the match.
+- **Penalty shootout controls** — your kick: aim with left / right (or the mouse) and hold shoot for power. Their kick: you are the keeper — left / right to move along the line, hold a side and press shoot to dive, add up to dive high. Watch the run-up: it often gives the side away.
 
 ## Online 1v1 and 2v2
 

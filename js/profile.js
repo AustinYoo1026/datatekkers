@@ -169,9 +169,9 @@
 
   // Finishing a penalty / target / chip drill pays credits by score (scaled by the keeper level) and keeps your best.
   const DRILL_CR = { penalty: 20, target: 6, chip: 30 };
-  function recordDrill(kind, score, diff) {
+  function recordDrill(kind, score, diff, bonus) {
     const before = doneSet(), d = (P.drills[kind] = P.drills[kind] || { best: 0, plays: 0 });
-    const credits = Math.round(score * (DRILL_CR[kind] || 5) * (WIN_MULT[diff] || 1));
+    const credits = Math.round((score * (DRILL_CR[kind] || 5) + (bonus || 0)) * (WIN_MULT[diff] || 1));
     const newBest = score > d.best;
     if (newBest) d.best = score;
     d.plays++; P.stats.drillRuns++; P.credits += credits; save();

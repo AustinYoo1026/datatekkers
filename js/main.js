@@ -31,11 +31,12 @@
 
   // ------------------------------------------------------------- matches
   // `roster` (online 2v2): four footballers, player i on team i % 2; a team shares one kit
-  function buildMatch(home, away, ctrl, labels, quiet, roster) {
+  function buildMatch(home, away, ctrl, labels, quiet, roster, takers) {
     const defs = roster || [home, away];
     const kits = ISO.resolveKits(defs[0], defs[1]);
     App.kits = kits;
     App.G = ISO.Game.create({ home, away, roster: defs, kickoff: App.kickoffFlip, solo: !quiet && App.mode === 'drill', drill: !quiet && App.mode === 'drill' ? App.drill : null, win: quiet ? 0 : App.matchWin,
+      replay: !quiet, takers: takers || null,          // goals in a match are replayed; the menu demo and the drills play straight on
       keeperNerf: quiet ? 0 : ({ easy: 24, normal: 10, hard: 0 }[App.matchDiff] || 0),
       moves: ctrl.map((c) => (c === 'human' ? ISO.Profile.moveSet() : null)) });      // you can only use the skill moves you have unlocked
     App.ctrl = ctrl;
@@ -44,8 +45,10 @@
     App.V = {
       sheets: defs.map((d, i) => ISO.Sprites.forPlayer(d, kits[i % 2], i)), me: 0,
       keeperSheet: ISO.Sprites.forKeeper(ISO.KEEPERS[1], 1),
+      myKeeperSheet: ISO.Sprites.forKeeper(ISO.KEEPERS[0], 0),       // penalty shootout: the keeper you play
       labels, quiet,
     };
+    App.takerDef = defs[1]; App.V.canSkip = !quiet && App.mode !== 'online';
     App.acc = 0; App.endTimer = 0;
     R.reset();
   }
@@ -70,8 +73,17 @@
     }
     else home = ISO.Profile.outfit(home);        // your prime upgrade and equipped skin
     if (arena) away = home;
-    buildMatch(home, away, ['human', arena ? 'none' : 'cpu'], [career ? 'YOU' : 'P1', arena ? '' : 'CPU'], false);
-    beginMatch(arena);
+    let takers = null;
+    if (arena && App.drill === 'penalty') {      // the opposing team: five takers drawn from the roster, better finishers on the harder levels
+      const pool = ISO.PLAYERS.filter((d) => d.id !== App.pick[0].id).sort((a, b) => (a.attr.fin + a.attr.sho) - (b.attr.fin + b.attr.sho));
+      const cut = App.diff === 'easy' ? pool.slice(0, Math.ceil(pool.length * 0.6)) : App.diff === 'hard' ? pool.slice(Math.floor(pool.length * 0.45)) : pool;
+      takers = [];
+      while (takers.length < 5 && cut.length) takers.push(cut.splice((Math.random() * cut.length) | 0, 1)[0]);
+      away = takers[0];
+    }
+    const pens = !!takers;
+    buildMatch(home, away, ['human', arena ? 'none' : 'cpu'], [career ? 'YOU' : pens ? 'YOU' : 'P1', pens ? 'CPU' : arena ? '' : 'CPU'], false, null, takers);
+    beginMatch(arena && !pens);
   }
 
   // Online 1v1 / 2v2: the server runs the match; this builds the local mirror the renderer and HUD read from.
@@ -97,6 +109,7 @@
       const d = App.matchDefs[App.hudIdx[i]], f = $('hudFace' + i).getContext('2d');
       f.clearRect(0, 0, 88, 88); f.drawImage(ISO.Sprites.portrait(d, 80, App.kits[i]), 0, 0, 88, 88);
       $('hudName' + i).textContent = team2 ? App.V.teams[i] : d.short; $('hudOvr' + i).textContent = team2 ? '' : d.ovr;
+      $('hudFace' + i).parentElement.querySelector('.stam').style.visibility = App.G.drill && App.G.drill.so ? 'hidden' : '';
       $('hudTag' + i).textContent = team2 ? (App.me % 2 === i ? 'YOUR TEAM' : 'OPPONENTS') : App.V.labels[i]; $('hudScore' + i).textContent = '0';
     }
     App.hud = { s: [-1, -1], t: -1 };
@@ -234,10 +247,21 @@
 
   // ------------------------------------------------------------- drill results
   function showDrillEnd() {
-    const G = App.G, D = G.drill, res = ISO.Profile.recordDrill(D.kind, D.points, App.matchDiff);
-    $('deTitle').textContent = D.name;
+    const G = App.G, D = G.drill, so = D.so, won = so && G.winner === 0;
+    const res = ISO.Profile.recordDrill(D.kind, D.points, App.matchDiff, won ? 60 : 0);
+    const dot = (r) => '<i class="' + (r.res === 'goal' ? (r.pts >= 3 ? 'gold' : r.pts ? 'ok' : 'meh') : 'bad') + '" title="' + r.res + '"></i>';
+    if (so) {         // shootout: the final score, and every kick of both sides
+      const row = (name, kicks) => '<div class="de-row"><span>' + name + '</span>' + kicks.map((k) => dot({ res: k, pts: 1 })).join('') + '</div>';
+      $('deTitle').textContent = won ? 'SHOOTOUT WON!' : 'SHOOTOUT LOST'; $('deTitle').style.color = R.TEAM_COL[won ? 0 : 1];
+      $('deScore').textContent = G.score[0] + ' – ' + G.score[1]; $('deMax').textContent = 'ON PENALTIES';
+      $('deDots').innerHTML = row('YOU', so.kicks[0]) + row('OPPONENTS', so.kicks[1]);
+      $('deRewards').innerHTML = '<span class="cr">+' + res.credits + ' CR</span><span>' + D.goals + ' SCORED</span><span>' + (D.saves || 0) + ' SAVED</span><span>' + App.matchDiff.toUpperCase() + ' LEVEL</span>' +
+        (won ? '<span class="boost">WIN BONUS</span>' : '') + (res.newBest ? '<span class="boost">NEW BEST</span>' : '');
+      show('drillend'); achToasts(res.ach); return;
+    }
+    $('deTitle').textContent = D.name; $('deTitle').style.color = '';
     $('deScore').textContent = D.points; $('deMax').textContent = '/ ' + D.max + (D.kind === 'target' ? ' POINTS' : ' GOALS');
-    $('deDots').innerHTML = D.results.map((r) => '<i class="' + (r.res === 'goal' ? (r.pts >= 3 ? 'gold' : r.pts ? 'ok' : 'meh') : 'bad') + '" title="' + r.res + '"></i>').join('');
+    $('deDots').innerHTML = D.results.map(dot).join('');
     const rate = D.results.length ? Math.round((D.results.filter((r) => r.res === 'goal').length / D.results.length) * 100) : 0;
     $('deRewards').innerHTML = '<span class="cr">+' + res.credits + ' CR</span><span>' + rate + '% SCORED</span><span>' + App.matchDiff.toUpperCase() + ' KEEPER</span>' +
       (res.newBest ? '<span class="boost">NEW BEST</span>' : '<span>BEST ' + res.best + '</span>');
@@ -364,6 +388,7 @@
   function mouseSim() {
     if (!ISO.Profile.data.settings.mouseAim) return null;
     const m = mouseCanvas();
+    if (m && App.G.drill && App.G.drill.so) return { x: C.FW, y: R.unprojectGoal(m.x, m.y).X };      // shootout view: the cursor picks a spot in the goal
     return m && { x: C.FW - (m.y - R.OY) / R.Z, y: (m.x - R.OX) / R.Z };
   }
 
@@ -395,7 +420,15 @@
       const st = $('hudStam' + i), p = G.players[App.hudIdx[i]];
       st.style.width = p.stam.toFixed(0) + '%'; st.classList.toggle('low', p.exhausted || p.stam < 20);
     }
-    const t = G.drill ? 'SHOT ' + Math.min(G.drill.n + 1, G.drill.total) + ' / ' + G.drill.total : Math.floor(G.time);
+    const so = G.drill && G.drill.so;
+    if (so && App.takerDef !== G.players[1].def) {        // the next opposing taker steps up
+      const d = (App.takerDef = G.players[1].def), f = $('hudFace1').getContext('2d');
+      App.V.sheets[1] = ISO.Sprites.forPlayer(d, App.kits[1], 1);
+      f.clearRect(0, 0, 88, 88); f.drawImage(ISO.Sprites.portrait(d, 80, App.kits[1]), 0, 0, 88, 88);
+      $('hudName1').textContent = d.short; $('hudOvr1').textContent = d.ovr;
+    }
+    const t = so ? (so.sudden ? 'SUDDEN DEATH' : 'KICK ' + Math.min(Math.min(so.kicks[0].length, so.kicks[1].length) + 1, G.drill.total) + ' / ' + G.drill.total)
+      : G.drill ? 'SHOT ' + Math.min(G.drill.n + 1, G.drill.total) + ' / ' + G.drill.total : Math.floor(G.time);
     if (t !== H.t) { H.t = t; $('hudTime').textContent = G.drill ? t : String(Math.floor(t / 60)).padStart(2, '0') + ':' + String(t % 60).padStart(2, '0'); }
   }
 
@@ -408,7 +441,9 @@
     if (running) {
       if (online) ISO.Online.frame(G, dt);
       else {
-        App.acc += dt * (App.demo ? 0.75 : ISO.Profile.data.settings.speed);
+        App.acc += dt * C.SPEED;          // the whole game runs at C.SPEED of real time; nothing else scales the pace
+        // a replay can be skipped (offline): the goal pause simply ends early
+        if (!App.demo && App.screen === 'match' && G.phase === 'goal' && R.inReplay(G, App.V) && ISO.Input.get('solo', 0).shoot) G.phaseT = Math.min(G.phaseT, 0.06);
         let stepped = false;
         while (App.acc >= C.STEP) {
           ISO.Game.step(G, inputs());

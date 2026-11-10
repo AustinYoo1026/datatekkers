@@ -71,9 +71,9 @@
         <span class="pc-s" id="playQuick"></span></button>
       <button class="playcard arena" data-act="mode-drills">
         <span class="pc-k">TRAINING</span><span class="pc-t">DRILLS</span>
-        <span class="pc-d">Penalty shootouts, target practice, chip challenges and the free Testing Arena. Just you, the ball and the keeper.</span>
+        <span class="pc-d">A full penalty shootout where you shoot and keep goal, target practice, chip challenges and the free Testing Arena.</span>
         <span class="pc-s">4 DRILLS · EARN CREDITS</span></button>
-      <button class="playcard online" data-act="mode-online">
+      <button class="playcard online art art-online" data-act="mode-online">
         <span class="pc-k">VS A FRIEND · FIRST TO THREE</span><span class="pc-t">ONLINE 1V1</span>
         <span class="pc-d">Create a room and send the code to a friend, or jump into quick match. The server runs the match.</span>
         <span class="pc-s" id="playOnline">PLAY OVER THE INTERNET</span></button>
@@ -88,19 +88,19 @@
       <div class="sel-mode">TRAINING GROUND</div>
     </header>
     <div class="drillgrid">
-      <button class="drillcard" style="--pc:#4fa3ff" data-act="drill-arena">
+      <button class="drillcard art art-arena" style="--pc:#4fa3ff" data-act="drill-arena">
         <span class="pc-k">FREE PRACTICE</span><span class="dc-t">TESTING ARENA</span>
         <span class="pc-d">Just you, the ball and the keeper. Every skill move unlocked, no score limit — drill your chords and finishing.</span>
         <span class="pc-s">NO LIMIT · +2 CR PER GOAL</span></button>
-      <button class="drillcard" style="--pc:#ffb23d" data-act="drill-penalty">
-        <span class="pc-k">5 KICKS · LIVE KEEPER</span><span class="dc-t">PENALTY SHOOTOUT</span>
-        <span class="pc-d">Five penalties from the spot. Pick your corner, pick your power — the keeper will guess. A power shot is a gamble.</span>
+      <button class="drillcard art art-penalty" style="--pc:#ffb23d" data-act="drill-penalty">
+        <span class="pc-k">5 KICKS EACH · YOU SHOOT, YOU SAVE</span><span class="dc-t">PENALTY SHOOTOUT</span>
+        <span class="pc-d">A full shootout against an opposing team. Take your kick, then go in goal for theirs: read the run-up, pick a side and dive. Level after five? Sudden death.</span>
         <span class="pc-s" id="drillBest-penalty"></span></button>
-      <button class="drillcard" style="--pc:#35e08a" data-act="drill-target">
+      <button class="drillcard art art-target" style="--pc:#35e08a" data-act="drill-target">
         <span class="pc-k">10 SHOTS · 30 POINTS</span><span class="dc-t">TARGET PRACTICE</span>
         <span class="pc-d">A corner of the goal lights up. Hit it for 3 points, any other goal is 1. A mannequin keeper guards the middle.</span>
         <span class="pc-s" id="drillBest-target"></span></button>
-      <button class="drillcard" style="--pc:#f1735f" data-act="drill-chip">
+      <button class="drillcard art art-chip" style="--pc:#f1735f" data-act="drill-chip">
         <span class="pc-k">6 CHANCES · CHIP SHOT</span><span class="dc-t">CHIP CHALLENGE</span>
         <span class="pc-d">The keeper has come off his line. Scoop it over him with the chip key — too soft and he plucks it, too hard and it clears the bar.</span>
         <span class="pc-s" id="drillBest-chip"></span></button>
@@ -271,7 +271,6 @@
         <label class="set-row"><span>Sound effects</span><input type="checkbox" class="tog" id="setSound"></label>
         <label class="set-row"><span>Crowd ambience</span><input type="checkbox" class="tog" id="setCrowd"></label>
         <h3>GAMEPLAY</h3>
-        <label class="set-row"><span>Game speed</span><input type="range" min="50" max="110" step="5" id="setSpeed"><b id="setSpeedVal"></b></label>
         <label class="set-row"><span>Default CPU difficulty</span><select id="setDiff"><option value="easy">Easy</option><option value="normal">Normal</option><option value="hard">Hard</option></select></label>
         <label class="set-row"><span>Mouse aiming &amp; click to shoot</span><input type="checkbox" class="tog" id="setMouse"></label>
         <label class="set-row"><span>Aim reticle</span><input type="checkbox" class="tog" id="setReticle"></label>
