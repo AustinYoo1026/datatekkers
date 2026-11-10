@@ -25,6 +25,7 @@
     { id: 'power_5', name: 'Thunderbolt', desc: 'Score 5 power-shot goals', stat: 'powerGoals', goal: 5, reward: 400 },
     { id: 'clears_10', name: 'Second Ball', desc: 'Clear 10 rebounds out of the box', stat: 'clears', goal: 10, reward: 300 },
     { id: 'arena_20', name: 'Practice Makes Perfect', desc: 'Score 20 goals in the Testing Arena', stat: 'arenaGoals', goal: 20, reward: 200 },
+    { id: 'drills_5', name: 'Training Ground', desc: 'Finish 5 Penalty, Target or Chip drills', stat: 'drillRuns', goal: 5, reward: 250 },
     { id: 'career_3', name: 'Rising Star', desc: 'Beat 3 MyCareer opponents', stat: 'careerWins', goal: 3, reward: 500 },
     { id: 'career_8', name: 'World Class', desc: 'Beat 8 MyCareer opponents', stat: 'careerWins', goal: 8, reward: 1500 },
     { id: 'career_all', name: 'The GOAT', desc: 'Beat every MyCareer opponent', stat: 'careerDone', goal: 1, reward: 5000 },
@@ -88,7 +89,8 @@
       settings: { volume: 0.8, muted: false, crowd: true, speed: 0.75, mouseAim: true, reticle: true, hint: true, diff: 'normal', keys: null,
         admin: { unlocked: false, allChars: false, allAch: false, infCredits: false } },
       stats: { matches: 0, wins: 0, goals: 0, powerGoals: 0, skills: 0, clears: 0, cleanSheets: 0, hardWins: 0,
-        boxes: 0, careerWins: 0, careerDone: 0, arenaGoals: 0, iconPulls: 0 },
+        boxes: 0, careerWins: 0, careerDone: 0, arenaGoals: 0, iconPulls: 0, drillRuns: 0 },
+      drills: {},          // best score per drill: { penalty: { best, plays } }
     };
   }
   let P = null;
@@ -163,6 +165,17 @@
     const before = doneSet();
     P.stats.arenaGoals++; P.credits += 2; save();
     return newlyDone(before);
+  }
+
+  // Finishing a penalty / target / chip drill pays credits by score (scaled by the keeper level) and keeps your best.
+  const DRILL_CR = { penalty: 20, target: 6, chip: 30 };
+  function recordDrill(kind, score, diff) {
+    const before = doneSet(), d = (P.drills[kind] = P.drills[kind] || { best: 0, plays: 0 });
+    const credits = Math.round(score * (DRILL_CR[kind] || 5) * (WIN_MULT[diff] || 1));
+    const newBest = score > d.best;
+    if (newBest) d.best = score;
+    d.plays++; P.stats.drillRuns++; P.credits += credits; save();
+    return { credits, best: d.best, newBest, ach: newlyDone(before) };
   }
 
   // ------------------------------------------------------------ box draw
@@ -296,7 +309,7 @@
 
   load();
   ISO.Profile = {
-    get data() { return P; }, save, ACH, BOXES, PITY, statOf, isDone, claim, recordMatch, recordArenaGoal,
+    get data() { return P; }, save, ACH, BOXES, PITY, statOf, isDone, claim, recordMatch, recordArenaGoal, recordDrill,
     WIN_MULT, winMult, canOpen, openBox, filler, owns, infinite, ownedCount: () => ISO.PLAYERS.filter((d) => owns(d.id)).length,
     ownsSkin, skinOf, buySkin, equipSkin, isPrime, buyPrime, outfit, hasMove, buyMove, moveSet, ownsMap, buyMap, setMap,
     takeAch() { const l = lastAch; lastAch = []; return l; },      // achievements completed by the last purchase

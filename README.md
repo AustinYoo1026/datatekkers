@@ -19,7 +19,8 @@ The main menu has four buttons: **Play**, **Store**, **Settings** and **Controls
 
 - **MyCareer** — build your own player (look + kit) and climb a 12-opponent ladder from the weakest squad players to the greatest icons (first to 3, CPU difficulty rises as you climb). Wins earn upgrade points to spend on your attributes; losses still earn one. Any stat can be dropped as low as 30, even below where it started, to refund points into others.
 - **Quick Match** — any footballer you own, Prime upgrade and skin included, against the CPU on easy, normal or hard. Players are listed by overall.
-- **Testing Arena** — you, the ball and the keeper. Every skill move unlocked, no score limit.
+- **Drills** — one player against the keeper: **Penalty Shootout** (5 kicks), **Target Practice** (hit the lit corner of the goal for 3 points), **Chip Challenge** (lob a keeper who has come off his line) and the free **Testing Arena** (every skill move unlocked, no score limit). Drills pay credits by score and keep your best; the keeper level sets how good the keeper is.
+- **Controls** — every action has two rebindable slots, and a slot can hold a key combination such as Shift+Q.
 
 ### Store
 

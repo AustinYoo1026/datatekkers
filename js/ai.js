@@ -15,7 +15,7 @@
 
   function create(diff) {
     return { diff: diff || 'normal', t: 0, laneY: GCY, shot: null, shotCd: 0, tackleCd: 0, skillCd: 1, fool: null,
-      out: { mx: 0, my: 0, sprint: false, jockey: false, shoot: false, finesse: false, chip: false, skill: false, j: false, k: false, l: false } };
+      out: { mx: 0, my: 0, sprint: false, jockey: false, shoot: false, finesse: false, chip: false, lob: false, skill: false, j: false, k: false, l: false } };
   }
 
   function update(G, me, m, dt) {
@@ -23,7 +23,7 @@
     const R = G.rand;
     m.tackleCd -= dt; m.skillCd -= dt; m.shotCd -= dt;
     o.skill = false; o.j = o.k = o.l = false; o.jockey = false; o.sprint = false; o.mx = 0; o.my = 0;
-    o.shoot = o.finesse = o.chip = false;
+    o.shoot = o.finesse = o.chip = o.lob = false;
     if (G.phase !== 'play') { m.shot = null; m.aimHold = 0; m.fool = null; return o; }
 
     const tgx = FW, ogx = FW;           // both players attack the one goal; the defender protects it too
@@ -93,9 +93,10 @@
         (dg < 105 || R() < dt * (dg < 170 ? 9 : 1.6) * D.eager)) {
         const kOut = Math.abs(K.x - tgx);
         let key = 'shoot', hold;
-        if (dg > 150 && R() < 0.45 * D.smart) { key = 'chip'; hold = 1.0 + R() * 0.35; }      // power shot: long wind-up
-        else if (dg > 170 && R() < 0.15 + 0.4 * q(me.a.cur)) { key = 'finesse'; hold = 0.35 + R() * 0.25; }
-        else hold = dg > 230 ? 0.48 + R() * 0.24 : 0.22 + R() * 0.3;
+        if (kOut > 22 && dg > 90 && dg < 230 && R() < 0.4 * D.smart) { key = 'lob'; hold = 0.3 + R() * 0.12; }     // keeper off his line: chip him
+        else if (dg > 150 && R() < 0.45 * D.smart) { key = 'chip'; hold = 0.7 + R() * 0.24; }      // power shot: long wind-up
+        else if (dg > 170 && R() < 0.15 + 0.4 * q(me.a.cur)) { key = 'finesse'; hold = 0.26 + R() * 0.18; }
+        else hold = dg > 230 ? 0.33 + R() * 0.16 : 0.15 + R() * 0.2;
         let aim = K.y > GCY ? -1 : 1;
         if (R() > 0.5 + D.smart * 0.5) aim = R() < 0.5 ? -1 : 1;
         m.shot = { key, t: hold, aim };

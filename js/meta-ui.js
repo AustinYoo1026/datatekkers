@@ -81,11 +81,23 @@
   document.addEventListener('change', (e) => { if (e.target.dataset && e.target.dataset.slide) renderCareer(); });     // refresh the portrait / opponent panel once you let go
 
   // ---------------------------------------------------------------- boxes
+  // every player a box can give, by rarity, with which boxes can roll that rarity and what you already own
+  function renderPool() {
+    $('boxPool').innerHTML = '<h3 class="pool-h">EVERY PLAYER YOU CAN DRAW</h3>' + RANKS.slice().reverse().map((r) => {
+      const list = ISO.PLAYERS.filter((d) => ISO.rarityOf(d) === r).sort((a, b) => b.ovr - a.ovr);
+      if (!list.length) return '';
+      const boxes = PF.BOXES.filter((b) => b.odds[r] > 0).map((b) => b.name.replace(' BOX', '')).join(' · ');
+      const owned = list.filter((d) => PF.owns(d.id)).length;
+      return '<div class="poolrow" style="--rc:' + RR[r].col + '"><div class="poolhead"><b>' + RR[r].name + '</b><span>' + owned + ' / ' + list.length + ' owned · drops from ' + (boxes || 'no box') + '</span></div>' +
+        '<div class="poolchips">' + list.map((d) => '<span class="pchip' + (PF.owns(d.id) ? ' got' : '') + '">' + esc(d.name) + '<i>' + d.ovr + '</i></span>').join('') + '</div></div>';
+    }).join('');
+  }
   function renderBoxes() {
     const P = PF.data;
     $('boxPity').style.width = (P.pity / PF.PITY) * 100 + '%';
     $('boxPityTxt').textContent = 'LEGENDARY+ GUARANTEED IN ' + (PF.PITY - P.pity) + (PF.PITY - P.pity === 1 ? ' BOX' : ' BOXES');
     $('storeSub').textContent = 'COLLECTION ' + PF.ownedCount() + ' / ' + ISO.PLAYERS.length + ' · Pull random players. Rarer boxes unlock as you complete achievements; duplicates refund credits.';
+    renderPool();
     $('boxGrid').innerHTML = PF.BOXES.map((b) => {
       const st = PF.canOpen(b);
       const odds = RANKS.filter((r) => b.odds[r] > 0).map((r) => '<li style="color:' + RR[r].col + '"><span>' + RR[r].name + '</span><b>' + +(b.odds[r] * 100).toFixed(1) + '%</b></li>').join('');
@@ -264,6 +276,12 @@
     $('achDot').classList.toggle('hidden', !ready);
   }
   // ---------------------------------------------------------------- play hub
+  function renderDrills() {
+    for (const k of ['penalty', 'target', 'chip']) {
+      const d = PF.data.drills[k], max = ISO.DRILLS[k].max;
+      $('drillBest-' + k).textContent = d ? 'BEST ' + d.best + ' / ' + max + ' · ' + d.plays + ' PLAYED' : 'NOT PLAYED YET';
+    }
+  }
   function renderPlay() {
     const C = PF.data.career, opp = PF.careerOpponent();
     $('playCareer').textContent = opp ? 'STAGE ' + (C.stage + 1) + ' / ' + C.ladder.length + ' · NEXT: ' + opp.short : 'CAREER COMPLETE';
@@ -324,7 +342,7 @@
     const IN = ISO.Input, B = IN.bindings;
     $('keyBinds').innerHTML = IN.ACTIONS.map(([a, name]) => '<div class="kb-row"><span>' + name + '</span>' + [0, 1].map((i) => {
       const wait = rebind && rebind.a === a && rebind.i === i;
-      return '<button class="kb' + (wait ? ' wait' : '') + (B[a][i] ? '' : ' empty') + '" data-bind="' + a + '" data-slot="' + i + '">' + (wait ? 'PRESS A KEY…' : esc(IN.label(B[a][i]))) + '</button>';
+      return '<button class="kb' + (wait ? ' wait' : '') + (B[a][i] ? '' : ' empty') + '" data-bind="' + a + '" data-slot="' + i + '">' + (wait ? (combo.length ? esc(combo.map(IN.label).join('+')) + '+…' : 'PRESS KEYS…') : esc(IN.label(B[a][i]))) + '</button>';
     }).join('') + '</div>').join('');
   }
   // the controls guide, store chords and match hint all show whatever keys are bound now
@@ -334,7 +352,7 @@
     const move = ['up', 'left', 'down', 'right'];
     const rows = [['Move', [0, 1].map((i) => move.map((a) => B[a][i]).filter(Boolean).map(k).join('')).filter(Boolean).join(' / ')], ['Sprint', both('sprint')],
       ['Aim', 'Mouse (optional)'], ['Shoot · Tackle', both('shoot') + ' / left click'], ['Finesse shot', both('finesse')],
-      ['Power shot (long wind-up)', both('chip') + ' / right click'], ['Skill moves', ['j', 'k', 'l'].map((a) => k(B[a].find(Boolean))).join(' ') + ' (alone or together)'],
+      ['Power shot (long wind-up)', both('chip') + ' / right click'], ['Chip shot (scoop over the keeper)', both('lob')], ['Skill moves', ['j', 'k', 'l'].map((a) => k(B[a].find(Boolean))).join(' ') + ' (alone or together)'],
       ['Jockey · Shield', both('jockey')], ['Pause', '<kbd>Esc</kbd>']];
     $('keysTable').innerHTML = '<tr><th>Action</th><th>Keys</th></tr>' + rows.map((r) => '<tr><td>' + r[0] + '</td><td>' + r[1] + '</td></tr>').join('');
     document.querySelectorAll('kbd[data-k]').forEach((el) => { el.textContent = IN.keyLabel(el.dataset.k); });
@@ -343,17 +361,18 @@
   function saveKeys(B) { ISO.Input.setBindings(B); PF.setSetting('keys', B); keyLabels(); }
   document.addEventListener('click', (e) => {
     const t = e.target.closest('[data-bind]');
-    if (t) { ISO.Audio.init(); ISO.Audio.play('ui'); rebind = { a: t.dataset.bind, i: +t.dataset.slot }; renderKeys(); }
+    if (t) { ISO.Audio.init(); ISO.Audio.play('ui'); rebind = { a: t.dataset.bind, i: +t.dataset.slot }; combo = []; renderKeys(); }
     else if (rebind) { rebind = null; renderKeys(); }
   });
-  // capture phase on window: runs before the game's own key handlers, so the pressed key only rebinds
-  window.addEventListener('keydown', (e) => {
-    if (!rebind) return;
-    e.preventDefault(); e.stopImmediatePropagation();
-    const { a, i } = rebind; rebind = null;
-    const B = ISO.Input.bindings, code = e.code;
-    if (code === 'Escape') { renderKeys(); return; }
-    if (code === 'Backspace' || code === 'Delete') B[a][i] = null;
+  // capture phase on window: runs before the game's own key handlers, so the pressed key only rebinds.
+  // A binding is one key, or a combination: hold the first key(s) and press the last (e.g. Shift then Q → Shift+Q).
+  // Modifier keys alone (Shift, Ctrl, Alt) are bound when released without a partner.
+  const MODS = new Set(['ShiftLeft', 'ShiftRight', 'ControlLeft', 'ControlRight', 'AltLeft', 'AltRight']);
+  let combo = [];
+  function finishRebind(code) {
+    const { a, i } = rebind; rebind = null; combo = [];
+    const B = ISO.Input.bindings;
+    if (code === null) B[a][i] = null;
     else {
       const old = B[a][i];
       for (const b in B) for (let j = 0; j < 2; j++) if (B[b][j] === code && !(b === a && j === i)) B[b][j] = b === a ? null : old;      // swap
@@ -361,6 +380,21 @@
       ISO.Audio.play('coin');
     }
     saveKeys(B); renderKeys();
+  }
+  window.addEventListener('keydown', (e) => {
+    if (!rebind) return;
+    e.preventDefault(); e.stopImmediatePropagation();
+    if (e.repeat) return;
+    const code = e.code;
+    if (code === 'Escape') { rebind = null; combo = []; renderKeys(); return; }
+    if ((code === 'Backspace' || code === 'Delete') && !combo.length) return finishRebind(null);
+    if (!combo.includes(code)) combo.push(code);
+    if (!MODS.has(code) || combo.length >= 3) finishRebind(combo.slice(0, 3).join('+')); else renderKeys();
+  }, true);
+  window.addEventListener('keyup', (e) => {
+    if (!rebind || !combo.length) return;
+    e.preventDefault(); e.stopImmediatePropagation();
+    if (combo.includes(e.code)) finishRebind(combo.join('+'));      // only modifiers were pressed: bind them
   }, true);
 
   // ---------------------------------------------------------------- settings
@@ -427,6 +461,7 @@
       if (screen === 'career') renderCareer();
       else if (screen === 'store') renderStore();
       else if (screen === 'play') renderPlay();
+      else if (screen === 'drills') renderDrills();
       else if (screen === 'settings') renderSettings();
       else $('opening').classList.add('hidden');
       updateBadge();

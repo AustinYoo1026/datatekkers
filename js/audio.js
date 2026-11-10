@@ -49,6 +49,7 @@
       case 'tackle': case 'block': case 'bump': noise(420, 0.9, 0.12, 0.5); tone('sine', 100, 45, 0.12, 0.4); break;
       case 'lunge': noise(e.slide ? 900 : 1600, 0.6, e.slide ? 0.4 : 0.1, e.slide ? 0.2 : 0.1); break;
       case 'save': noise(700, 0.7, 0.14, 0.5); tone('sine', 130, 60, 0.12, 0.35); noise(1100, 0.5, 0.9, 0.16, 0.05, 'bandpass', 0.2); break;
+      case 'ankles': tone('sine', 300, 90, 0.25, 0.3); noise(500, 0.8, 0.12, 0.35); break;
       case 'skill': tone('sine', 620, 980, 0.09, 0.07); break;
       case 'beep': tone('square', 660, 660, 0.12, 0.09); break;
       case 'whistle': whistle(0.5); break;

@@ -6,14 +6,14 @@
   // One player. Skill moves are chords of J / K / L. Every action has two rebindable key slots (Settings › Keyboard);
   // the mouse buttons ride along on shoot and power shot.
   const ACTIONS = [['up', 'Move up'], ['down', 'Move down'], ['left', 'Move left'], ['right', 'Move right'], ['sprint', 'Sprint'],
-    ['shoot', 'Shoot · Tackle'], ['finesse', 'Finesse shot'], ['chip', 'Power shot'], ['j', 'Skill key 1'], ['k', 'Skill key 2'], ['l', 'Skill key 3'],
+    ['shoot', 'Shoot · Tackle'], ['finesse', 'Finesse shot'], ['chip', 'Power shot'], ['lob', 'Chip shot'], ['j', 'Skill key 1'], ['k', 'Skill key 2'], ['l', 'Skill key 3'],
     ['jockey', 'Jockey · Shield']];
   const DEFAULT_KEYS = { up: ['KeyW', 'ArrowUp'], down: ['KeyS', 'ArrowDown'], left: ['KeyA', 'ArrowLeft'], right: ['KeyD', 'ArrowRight'],
-    sprint: ['ShiftLeft', 'ShiftRight'], shoot: ['Space', null], finesse: ['KeyF', null], chip: ['KeyQ', null], j: ['KeyJ', null], k: ['KeyK', null], l: ['KeyL', null],
+    sprint: ['ShiftLeft', 'ShiftRight'], shoot: ['Space', null], finesse: ['KeyF', null], chip: ['KeyQ', null], lob: ['KeyE', null], j: ['KeyJ', null], k: ['KeyK', null], l: ['KeyL', null],
     jockey: ['ControlLeft', 'KeyC'] };
   const MOUSE_KEYS = { shoot: ['Mouse0'], chip: ['Mouse2'] };
   const MAPS = {};
-  let binds = null;
+  let binds = null, combos = [];      // a binding can be one key or a combination written 'ShiftLeft+KeyQ'
   const GAME_KEYS = new Set();
   function setBindings(b) {
     binds = {};
@@ -22,7 +22,11 @@
     for (const [a] of ACTIONS) MAPS.solo[a] = binds[a].filter(Boolean).concat(MOUSE_KEYS[a] || []);
     GAME_KEYS.clear();
     for (const k of ['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Tab']) GAME_KEYS.add(k);
-    for (const list of Object.values(MAPS.solo)) for (const k of list) GAME_KEYS.add(k);
+    combos = [];
+    for (const list of Object.values(MAPS.solo)) for (const k of list) {
+      for (const part of k.split('+')) GAME_KEYS.add(part);
+      if (k.indexOf('+') > 0) combos.push(k.split('+'));
+    }
   }
   setBindings(null);
   const NAMES = { ArrowUp: '↑', ArrowDown: '↓', ArrowLeft: '←', ArrowRight: '→', ShiftLeft: 'Shift', ShiftRight: 'R-Shift', ControlLeft: 'Ctrl', ControlRight: 'R-Ctrl',
@@ -30,6 +34,7 @@
     BracketRight: ']', Backslash: '\\', Semicolon: ';', Quote: "'", Comma: ',', Period: '.', Slash: '/', CapsLock: 'Caps', Enter: 'Enter', Tab: 'Tab' };
   function label(code) {
     if (!code) return '—';
+    if (code.indexOf('+') > 0) return code.split('+').map(label).join('+');
     if (code.startsWith('Key')) return code.slice(3);
     if (code.startsWith('Digit')) return code.slice(5);
     if (code.startsWith('Numpad')) return 'Num ' + code.slice(6);
@@ -55,7 +60,16 @@
   window.addEventListener('contextmenu', (e) => { if (capture && mouseOn) e.preventDefault(); });
   window.addEventListener('blur', () => { held.clear(); latched.clear(); });
 
-  const on = (list) => { for (const k of list) if (held.has(k) || latched.has(k)) return true; return false; };
+  const down = (k) => held.has(k) || latched.has(k);
+  // a combination fires only while every key in it is down; its keys do not also fire their own single-key actions
+  const shadowed = (k) => combos.some((c) => c.indexOf(k) >= 0 && c.every(down));
+  const on = (list) => {
+    for (const k of list) {
+      if (k.indexOf('+') > 0) { if (k.split('+').every(down)) return true; }
+      else if (down(k) && !shadowed(k)) return true;
+    }
+    return false;
+  };
 
   function pad(i) {
     const pads = navigator.getGamepads ? navigator.getGamepads() : [];
@@ -63,18 +77,18 @@
     if (!g || !g.connected) return null;
     const b = (n) => !!(g.buttons[n] && g.buttons[n].pressed), dz = (v) => (Math.abs(v) < 0.22 ? 0 : v);
     return { mx: dz(g.axes[0] || 0) + (b(15) ? 1 : 0) - (b(14) ? 1 : 0), my: dz(g.axes[1] || 0) + (b(13) ? 1 : 0) - (b(12) ? 1 : 0),
-      shoot: b(0), finesse: b(1), j: b(2), chip: b(3), sprint: b(7) || b(5), jockey: b(6) || b(4) };
+      shoot: b(0), finesse: b(1), j: b(2), chip: b(3), lob: b(9) || b(10), sprint: b(7) || b(5), jockey: b(6) || b(4) };
   }
 
   function get(mapName, padIndex) {
     const m = MAPS[mapName];
     const o = { mx: (on(m.right) ? 1 : 0) - (on(m.left) ? 1 : 0), my: (on(m.down) ? 1 : 0) - (on(m.up) ? 1 : 0),
-      sprint: on(m.sprint), jockey: on(m.jockey), shoot: on(m.shoot), finesse: on(m.finesse), chip: on(m.chip), j: on(m.j), k: on(m.k), l: on(m.l) };
+      sprint: on(m.sprint), jockey: on(m.jockey), shoot: on(m.shoot), finesse: on(m.finesse), chip: on(m.chip), lob: on(m.lob), j: on(m.j), k: on(m.k), l: on(m.l) };
     o.skill = o.j || o.k || o.l;
     const g = pad(padIndex);
     if (g) {
       if (!o.mx && !o.my) { o.mx = g.mx; o.my = g.my; }
-      for (const k of ['sprint', 'jockey', 'shoot', 'finesse', 'chip', 'j']) o[k] = o[k] || g[k];
+      for (const k of ['sprint', 'jockey', 'shoot', 'finesse', 'chip', 'lob', 'j']) o[k] = o[k] || g[k];
       o.skill = o.j || o.k || o.l;
     }
     return o;
