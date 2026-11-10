@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ISO Football</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='14' fill='%23fff' stroke='%23111' stroke-width='2'/%3E%3Cpath d='M16 9l6 4.5-2.3 7h-7.4L10 13.5z' fill='%23111'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div id="stage">
+  <canvas id="cv" width="1280" height="720"></canvas>
+  <div id="dim"></div>
+
+  <!-- match HUD -->
+  <div id="hud" class="hidden">
+    <div class="hud-team home">
+      <canvas class="hud-face" id="hudFace0" width="88" height="88"></canvas>
+      <div class="hud-info">
+        <div class="hud-name"><span id="hudTag0" class="tag">P1</span><span id="hudName0"></span><span class="ovr" id="hudOvr0"></span></div>
+        <div class="stam"><i id="hudStam0"></i></div>
+      </div>
+    </div>
+    <div class="hud-mid">
+      <div class="hud-score"><b id="hudScore0">0</b><span>–</span><b id="hudScore1">0</b></div>
+      <div class="hud-time" id="hudTime">00:00</div>
+    </div>
+    <div class="hud-team away">
+      <div class="hud-info">
+        <div class="hud-name"><span class="ovr" id="hudOvr1"></span><span id="hudName1"></span><span id="hudTag1" class="tag">CPU</span></div>
+        <div class="stam"><i id="hudStam1"></i></div>
+      </div>
+      <canvas class="hud-face" id="hudFace1" width="88" height="88"></canvas>
+    </div>
+  </div>
+  <div id="hint" class="hidden">ESC — pause &amp; controls</div>
+
+  <!-- main menu -->
+  <section id="menu" class="screen">
+    <div class="menu-box">
+      <div class="kicker">1 v 1 · FIRST TO FIVE</div>
+      <div class="ver">ALPHA V1</div>
+      <h1>ISO <em>FOOTBALL</em></h1>
+      <p class="tagline">Two footballers. One ball. Two goals.</p>
+      <div class="menu-btns">
+        <button class="btn primary" data-act="mode-cpu">1 PLAYER <small>vs CPU</small></button>
+        <button class="btn" data-act="mode-2p">2 PLAYERS <small>same keyboard</small></button>
+        <button class="btn ghost" data-act="controls">CONTROLS</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- player selection -->
+  <section id="select" class="screen hidden">
+    <header class="sel-head">
+      <button class="btn small ghost" data-act="back-menu">‹ MENU</button>
+      <h2>SELECT FOOTBALLERS</h2>
+      <div class="sel-mode" id="selMode"></div>
+    </header>
+    <div class="sel-body">
+      <aside class="panel home" id="panel0" data-act="side-0"></aside>
+      <div class="grid" id="grid"></div>
+      <aside class="panel away" id="panel1" data-act="side-1"></aside>
+    </div>
+    <footer class="sel-foot">
+      <div class="seg" id="sideSeg">
+        <span class="seg-label">PICKING FOR</span>
+        <button class="segb" data-act="side-0" id="segSide0">HOME</button>
+        <button class="segb" data-act="side-1" id="segSide1">AWAY</button>
+      </div>
+      <button class="btn small ghost" data-act="random">RANDOM</button>
+      <div class="seg" id="diffSeg">
+        <span class="seg-label">CPU</span>
+        <button class="segb" data-act="diff-easy" id="segDiff-easy">EASY</button>
+        <button class="segb" data-act="diff-normal" id="segDiff-normal">NORMAL</button>
+        <button class="segb" data-act="diff-hard" id="segDiff-hard">HARD</button>
+      </div>
+      <button class="btn primary" data-act="kickoff">KICK OFF ›</button>
+    </footer>
+  </section>
+
+  <!-- pause -->
+  <section id="pause" class="overlay hidden">
+    <div class="card">
+      <h2>PAUSED</h2>
+      <button class="btn primary" data-act="resume">RESUME</button>
+      <button class="btn" data-act="restart">RESTART MATCH</button>
+      <button class="btn" data-act="controls">CONTROLS</button>
+      <button class="btn" data-act="sound" id="soundBtn">SOUND: ON</button>
+      <button class="btn ghost" data-act="quit">CHANGE PLAYERS</button>
+      <button class="btn ghost" data-act="quit-menu">MAIN MENU</button>
+    </div>
+  </section>
+
+  <!-- full time -->
+  <section id="end" class="overlay hidden">
+    <div class="card wide">
+      <div class="kicker">FULL TIME</div>
+      <div class="end-row">
+        <div class="end-side"><canvas id="endFace0" width="160" height="160"></canvas><div id="endName0"></div></div>
+        <div class="end-score"><b id="endScore0">0</b><span>–</span><b id="endScore1">0</b></div>
+        <div class="end-side"><canvas id="endFace1" width="160" height="160"></canvas><div id="endName1"></div></div>
+      </div>
+      <h2 id="endTitle"></h2>
+      <table class="stats" id="endStats"></table>
+      <div class="end-btns">
+        <button class="btn primary" data-act="rematch">REMATCH</button>
+        <button class="btn" data-act="quit">CHANGE PLAYERS</button>
+        <button class="btn ghost" data-act="quit-menu">MAIN MENU</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- controls guide -->
+  <section id="controls" class="overlay hidden">
+    <div class="card guide">
+      <h2>CONTROLS</h2>
+      <div class="guide-cols">
+        <div>
+          <h3>KEYS</h3>
+          <table class="keys">
+            <tr><th>Action</th><th>Player 1</th><th>Player 2</th></tr>
+            <tr><td>Move</td><td><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></td><td><kbd>↑</kbd><kbd>←</kbd><kbd>↓</kbd><kbd>→</kbd></td></tr>
+            <tr><td>Sprint</td><td><kbd>L-Shift</kbd></td><td><kbd>R-Shift</kbd> / <kbd>L</kbd></td></tr>
+            <tr><td>Shoot · Tackle</td><td><kbd>Space</kbd></td><td><kbd>M</kbd></td></tr>
+            <tr><td>Finesse shot</td><td><kbd>F</kbd></td><td><kbd>,</kbd></td></tr>
+            <tr><td>Chip shot</td><td><kbd>Q</kbd></td><td><kbd>N</kbd></td></tr>
+            <tr><td>Skill move</td><td><kbd>E</kbd></td><td><kbd>.</kbd></td></tr>
+            <tr><td>Jockey · Shield</td><td><kbd>Ctrl</kbd> / <kbd>C</kbd></td><td><kbd>K</kbd></td></tr>
+            <tr><td>Pause</td><td colspan="2"><kbd>Esc</kbd></td></tr>
+          </table>
+          <p class="note">In 1-player mode the arrow keys also move your player. Gamepads work too (stick, A shoot, B finesse, Y chip, X skill, RT sprint, LT jockey).</p>
+          <h3>WITH THE BALL</h3>
+          <ul>
+            <li><b>Hold</b> a shot key to charge, <b>release</b> to strike. Past the marker a normal shot becomes a <b>power shot</b> — faster, less accurate.</li>
+            <li>Hold <b>up / down</b> while shooting to pick a corner.</li>
+            <li>Hold a shot key as a loose ball arrives for a <b>first-time shot</b>.</li>
+            <li>Tap the <b>skill key</b> while charging to cancel — a fake shot.</li>
+            <li>Sprinting knocks the ball further ahead — a defender can nick it.</li>
+            <li><b>Jockey</b> with the ball to shield it from the defender.</li>
+          </ul>
+          <h3>WITHOUT THE BALL</h3>
+          <ul>
+            <li><kbd>Space</kbd> — <b>standing tackle</b>. Get close; a tap also pokes at a loose ball.</li>
+            <li><kbd>Sprint</kbd> + direction + <kbd>Space</kbd> — <b>sliding tackle</b>. Long reach, slow recovery.</li>
+            <li><b>Jockey</b> to face the ball and shuffle; tackles from a jockey are stronger.</li>
+            <li>Stand in the way to <b>block</b> shots.</li>
+          </ul>
+        </div>
+        <div>
+          <h3>SKILL MOVES</h3>
+          <p class="note">Press the skill key with a direction <b>relative to where your player is facing</b> (a diagonal counts as sideways). Holding Sprint selects the advanced move. Players without enough skill stars perform a simpler move instead. Tackles fail against a well-timed move — and land easily on a badly timed one.</p>
+          <table class="keys skills">
+            <tr><th>Input</th><th>Move</th><th>★</th></tr>
+            <tr><td><kbd>E</kbd></td><td>Stepovers</td><td>2</td></tr>
+            <tr><td><kbd>E</kbd> + forward</td><td>Body feint<br><i>Nutmeg if the defender is right in front</i></td><td>1<br>4</td></tr>
+            <tr><td><kbd>E</kbd> + sideways</td><td>Ball roll <i>(slow)</i><br>La Croqueta <i>(moving)</i></td><td>2<br>3</td></tr>
+            <tr><td><kbd>E</kbd> + back</td><td>Drag back</td><td>2</td></tr>
+            <tr><td><kbd>Sprint</kbd> + <kbd>E</kbd></td><td>Roulette</td><td>3</td></tr>
+            <tr><td><kbd>Sprint</kbd> + <kbd>E</kbd> + forward</td><td>Heel-to-heel</td><td>4</td></tr>
+            <tr><td><kbd>Sprint</kbd> + <kbd>E</kbd> + sideways</td><td>Elastico</td><td>5</td></tr>
+            <tr><td><kbd>Sprint</kbd> + <kbd>E</kbd> + back</td><td>Rainbow flick</td><td>5</td></tr>
+          </table>
+          <h3>RULES</h3>
+          <ul>
+            <li>First to five goals wins. The player who concedes kicks off.</li>
+            <li>No fouls, corners or throw-ins: a ball over the touchline is a kick-in for the other player; over the goal line it goes to the keeper.</li>
+          </ul>
+        </div>
+      </div>
+      <button class="btn primary" data-act="close-controls">GOT IT</button>
+    </div>
+  </section>
+</div>
+
+<script src="js/data.js"></script>
+<script src="js/game.js"></script>
+<script src="js/ai.js"></script>
+<script src="js/sprites.js"></script>
+<script src="js/render.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/input.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
