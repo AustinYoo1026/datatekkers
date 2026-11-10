@@ -8,8 +8,8 @@
   const { clamp, hyp, q } = ISO.util;
 
   const DIFFS = {
-    easy:   { think: 0.3,  tackleP: 0.22, slideP: 0.04, skillP: 0.08, foolP: 0.85, eager: 0.55, smart: 0.3, speed: 0.9 },
-    normal: { think: 0.18, tackleP: 0.48, slideP: 0.1,  skillP: 0.25, foolP: 0.6,  eager: 1.0,  smart: 0.6, speed: 1 },
+    easy:   { think: 0.42, tackleP: 0.12, slideP: 0.02, skillP: 0.05, foolP: 0.95, eager: 0.4,  smart: 0.18, speed: 0.8 },
+    normal: { think: 0.25, tackleP: 0.34, slideP: 0.06, skillP: 0.18, foolP: 0.74, eager: 0.78, smart: 0.45, speed: 0.92 },
     hard:   { think: 0.09, tackleP: 0.8,  slideP: 0.18, skillP: 0.45, foolP: 0.32, eager: 1.4,  smart: 0.9, speed: 1 },
   };
 

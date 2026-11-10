@@ -8,7 +8,8 @@
 
   const imgCache = new Map();
   function face(d, kit) {
-    const key = d.id + (kit ? kit.a : '');
+    kit = kit || d.kit;
+    const key = d.id + kit.a + kit.b + kit.pat + (d.look.boot || '');
     if (!imgCache.has(key)) imgCache.set(key, ISO.Sprites.portrait(d, 64, kit).toDataURL());
     return imgCache.get(key);
   }
@@ -60,11 +61,12 @@
       const k = row.dataset.row, v = C.attr[k], s = row.querySelector('input');
       s.value = v;
       const pct = (x) => (x / 99) * 100 + '%';
-      row.querySelector('.t-base').style.width = pct(C.base[k]);
+      row.querySelector('.t-base').style.left = pct(C.base[k]);       // tick at the starting value
       row.querySelector('.t-val').style.width = pct(v);
       row.querySelector('.t-reach').style.width = pct(PF.reach(k));
       row.querySelector('b').textContent = v;
       row.querySelector('.ccost').textContent = v >= 99 ? 'MAX' : PF.upgradeCost(v) + ' PT';
+      row.classList.toggle('below', v < C.base[k]);
     });
     $('careerPts').textContent = C.points;
     $('careerOvr').textContent = PF.careerOvr(C.attr);
@@ -83,7 +85,7 @@
     const P = PF.data;
     $('boxPity').style.width = (P.pity / PF.PITY) * 100 + '%';
     $('boxPityTxt').textContent = 'LEGENDARY+ GUARANTEED IN ' + (PF.PITY - P.pity) + (PF.PITY - P.pity === 1 ? ' BOX' : ' BOXES');
-    $('boxCollection').textContent = 'COLLECTION ' + PF.ownedCount() + ' / ' + ISO.PLAYERS.length;
+    $('storeSub').textContent = 'COLLECTION ' + PF.ownedCount() + ' / ' + ISO.PLAYERS.length + ' · Pull random players. Rarer boxes unlock as you complete achievements; duplicates refund credits.';
     $('boxGrid').innerHTML = PF.BOXES.map((b) => {
       const st = PF.canOpen(b);
       const odds = RANKS.filter((r) => b.odds[r] > 0).map((r) => '<li style="color:' + RR[r].col + '"><span>' + RR[r].name + '</span><b>' + +(b.odds[r] * 100).toFixed(1) + '%</b></li>').join('');
@@ -170,6 +172,134 @@
   }
   function closeOpening() { spin = null; $('opening').classList.add('hidden'); renderBoxes(); }
 
+  // ---------------------------------------------------------------- store
+  const store = { tab: 'players', pid: null };
+  const cr = (n) => n.toLocaleString() + ' CR';
+  const buyBtn = (kind, id, cost, label) => '<button class="btn small ' + (PF.infinite() || PF.data.credits >= cost ? 'primary' : 'poor') +
+    '" data-st="' + kind + '" data-id="' + id + '">' + (label || 'BUY') + ' · ' + cr(cost) + '</button>';
+  const MOVE_DESC = {
+    feint: 'Drop the shoulder one way, go the other.', stepover: 'Feet over the ball to freeze the defender.',
+    roll: 'Roll the ball sideways out of a tackle.', dragback: 'Pull it back and turn away from pressure.',
+    croqueta: 'Snap the ball from foot to foot past a lunge.', roulette: 'Spin 360° over the ball, shielding it all the way.',
+    heel: 'Flick it forward off both heels and burst clear.', nutmeg: 'Slip it through their legs and run round.',
+    elastico: 'Out, then in, in one touch. Sells the biggest fake.', rainbow: 'Flick the ball over the defender’s head.',
+  };
+  function chordOf(id) {
+    const IN = ISO.Input, G = ISO.Game, keys = (m) => ['j', 'k', 'l'].filter((_, i) => m & (1 << i)).map((k) => '<kbd>' + esc(IN.keyLabel(k)) + '</kbd>').join(' + ');
+    for (const m in G.CHORD) if (G.CHORD[m] === id) return keys(+m);
+    for (const m in G.CHORD_SPRINT) if (G.CHORD_SPRINT[m] === id) return '<kbd>' + esc(IN.keyLabel('sprint')) + '</kbd> + ' + keys(+m);
+    return '';
+  }
+
+  function storePlayers() {
+    const mine = ISO.PLAYERS.filter((d) => PF.owns(d.id)).map((d) => [d, PF.outfit(d).ovr]).sort((a, b) => b[1] - a[1] || a[0].name.localeCompare(b[0].name)).map((x) => x[0]);
+    if (!mine.some((d) => d.id === store.pid)) store.pid = (mine.find((d) => d.id === App.pick[0].id) || mine[0]).id;
+    const base = ISO.playerById(store.pid), prime = PF.isPrime(base.id), cur = PF.outfit(base), pr = ISO.primeOf(base), rar = ISO.rarityOf(base);
+    const roster = mine.map((d) => {
+      const o = PF.outfit(d);
+      return '<button class="st-pl r-' + ISO.rarityOf(d) + (d.id === store.pid ? ' on' : '') + (o.prime ? ' prime' : '') + '" data-st="pl" data-id="' + d.id + '">' +
+        '<img src="' + face(o) + '" alt=""><span>' + esc(d.short) + (o.prime ? '<small>★ PRIME</small>' : '') + '</span><b>' + o.ovr + '</b></button>';
+    }).join('');
+    const ups = ISO.ATTRS.filter(([k]) => pr.attr[k] > base.attr[k]).length;
+    const primeBox = prime
+      ? '<div class="st-prime on"><div class="pk">★ PRIME ACTIVE</div><div class="pv"><b>' + pr.ovr + '</b> OVR</div><p>Every attribute boosted. Gold boots on. ' + '★'.repeat(ISO.stars(pr.attr.skl)) + ' skill moves.</p></div>'
+      : '<div class="st-prime"><div class="pk">PRIME UPGRADE</div><div class="pv">' + base.ovr + ' <i>›</i> <b>' + pr.ovr + '</b> OVR</div>' +
+        '<p>+' + ISO.PRIME.boost + ' to ' + ups + ' attributes, permanently' + (ISO.stars(pr.attr.skl) > ISO.stars(base.attr.skl) ? ', ' + ISO.stars(pr.attr.skl) + '★ skill moves' : '') + ' and gold boots.</p>' +
+        buyBtn('prime', base.id, ISO.primeCost(base), 'GO PRIME') + '</div>';
+    const skins = ISO.SKINS.map((sk) => {
+      const own = PF.ownsSkin(base.id, sk.id), eq = PF.skinOf(base.id) === sk.id;
+      const act = eq ? '<span class="st-tag on">✓ EQUIPPED</span>' : own ? '<button class="btn small" data-st="equip" data-id="' + sk.id + '">EQUIP</button>' : buyBtn('skin', sk.id, sk.cost);
+      return '<div class="st-card' + (eq ? ' on' : '') + '"><img src="' + face(ISO.outfit(base, prime, sk.id)) + '" alt=""><h4>' + sk.name + '</h4><p>' + sk.desc(base) + '</p>' + act + '</div>';
+    }).join('');
+    return '<div class="st-players"><div class="st-roster" id="stRoster">' + roster + '</div><div class="st-detail">' +
+      '<div class="st-hero r-' + rar + '"><img src="' + face(cur) + '" alt=""><div class="st-id"><div class="st-rar">' + RR[rar].name + '</div><h3>' + esc(base.name) + '</h3>' +
+      '<div class="st-meta">' + base.flag + ' ' + esc(base.club) + '</div><div class="st-attrs">' +
+      [['pac', 'PAC'], ['dri', 'DRI'], ['fin', 'FIN'], ['sho', 'SHO'], ['skl', 'SKL'], ['str', 'STR']].map(([k, l]) => '<span>' + l + ' <b>' + cur.attr[k] + '</b></span>').join('') + '</div></div>' + primeBox + '</div>' +
+      '<div class="st-sub">SKINS FOR ' + esc(base.short) + '</div><div class="st-skins">' + skins + '</div></div></div>';
+  }
+  function storeMoves() {
+    const SK = ISO.Game.SKILLS, mine = ISO.PLAYERS.filter((d) => PF.owns(d.id)).map((d) => ISO.stars(PF.outfit(d).attr.skl));
+    const ids = Object.keys(ISO.MOVE_COST).sort((a, b) => ISO.MOVE_COST[a] - ISO.MOVE_COST[b] || SK[a].star - SK[b].star);
+    return '<div class="st-moves">' + ids.map((id) => {
+      const m = SK[id], cost = ISO.MOVE_COST[id], own = PF.hasMove(id), can = mine.filter((s) => s >= m.star).length;
+      const act = !cost ? '<span class="st-tag on">FREE</span>' : own ? '<span class="st-tag on">✓ UNLOCKED</span>' : buyBtn('move', id, cost, 'UNLOCK');
+      return '<div class="st-card move' + (own ? ' on' : '') + '"><div class="st-stars">' + '★'.repeat(m.star) + '<i>' + '★'.repeat(5 - m.star) + '</i></div><h4>' + esc(m.name.toUpperCase()) + '</h4>' +
+        '<div class="st-chord">' + chordOf(id) + '</div><p>' + MOVE_DESC[id] + '</p>' +
+        '<small class="' + (can ? '' : 'warn') + '">' + (can ? can + ' of your players can do it' : 'None of your players has ' + m.star + '★ skills yet') + '</small>' + act + '</div>';
+    }).join('') + '</div><p class="note center">A move needs to be unlocked here <b>and</b> your player needs enough skill stars. Until then the input does a simpler move. Every move is free to try in the Testing Arena.</p>';
+  }
+  const mapImg = new Map();
+  function storeMaps() {
+    return '<div class="st-maps">' + ISO.MAPS.map((m) => {
+      if (!mapImg.has(m.id)) mapImg.set(m.id, ISO.Render.thumb(m.id).toDataURL());
+      const own = PF.ownsMap(m.id), on = PF.data.map === m.id;
+      const act = on ? '<span class="st-tag on">✓ SELECTED</span>' : own ? '<button class="btn small" data-st="setmap" data-id="' + m.id + '">PLAY HERE</button>' : buyBtn('map', m.id, m.cost);
+      return '<div class="st-card map' + (on ? ' on' : '') + '"><img src="' + mapImg.get(m.id) + '" alt=""><h4>' + m.name + '</h4><p>' + m.desc + '</p>' + act + '</div>';
+    }).join('') + '</div><p class="note center">Maps change the look of every match — Quick Match, MyCareer and the Testing Arena. The pitch plays the same everywhere.</p>';
+  }
+  function renderStore() {
+    const ro = $('stRoster'), top = ro ? ro.scrollTop : 0, T = store.tab;
+    document.querySelectorAll('#storeTabs .segb').forEach((b) => b.classList.toggle('on', b.dataset.id === T));
+    const own = T === 'players' || T === 'moves' || T === 'maps';
+    $('storeBody').classList.toggle('hidden', !own);
+    $('storeBoxes').classList.toggle('hidden', T !== 'boxes');
+    $('storeAch').classList.toggle('hidden', T !== 'ach');
+    if (own) $('storeBody').innerHTML = T === 'moves' ? storeMoves() : T === 'maps' ? storeMaps() : storePlayers();
+    else $('storeBody').innerHTML = '';
+    $('storeSub').textContent = {
+      boxes: 'Pull random players. Rarer boxes unlock as you complete achievements; duplicates refund credits.',
+      players: 'Skins and Prime upgrades for the players you own.',
+      moves: 'Unlock skill moves for your matches.',
+      maps: 'Pitches to play on.',
+      ach: '',
+    }[T];
+    if (T === 'boxes') renderBoxes();      // these two write their own subtitle
+    if (T === 'ach') renderAch();
+    if ($('stRoster')) $('stRoster').scrollTop = top;
+    updateBadge();
+  }
+  function updateBadge() {
+    const ready = PF.ACH.some((a) => !PF.data.claimed[a.id] && PF.statOf(a) >= a.goal);
+    $('achBadge').classList.toggle('hidden', !ready);
+    $('achDot').classList.toggle('hidden', !ready);
+  }
+  // ---------------------------------------------------------------- play hub
+  function renderPlay() {
+    const C = PF.data.career, opp = PF.careerOpponent();
+    $('playCareer').textContent = opp ? 'STAGE ' + (C.stage + 1) + ' / ' + C.ladder.length + ' · NEXT: ' + opp.short : 'CAREER COMPLETE';
+    $('playQuick').textContent = PF.ownedCount() + ' / ' + ISO.PLAYERS.length + ' PLAYERS OWNED';
+  }
+  document.addEventListener('click', (e) => {
+    const t = e.target.closest('[data-st]');
+    if (!t) return;
+    ISO.Audio.init();
+    const k = t.dataset.st, id = t.dataset.id;
+    if (k === 'tab') { store.tab = id; ISO.Audio.play('ui'); }
+    else if (k === 'pl') { store.pid = id; ISO.Audio.play('ui'); }
+    else if (k === 'equip') { PF.equipSkin(store.pid, id); ISO.Audio.play('ui'); }
+    else if (k === 'setmap') { PF.setMap(id); ISO.Render.setMap(id); ISO.Audio.play('ui'); }
+    else {
+      const d = ISO.playerById(store.pid);
+      if (k === 'prime' && (PF.infinite() || PF.data.credits >= ISO.primeCost(d)) &&
+        !window.confirm('Upgrade ' + d.name + ' to Prime for ' + cr(ISO.primeCost(d)) + '? This is permanent.')) return;
+      const res = k === 'skin' ? PF.buySkin(store.pid, id) : k === 'prime' ? PF.buyPrime(store.pid) : k === 'move' ? PF.buyMove(id) : PF.buyMap(id);
+      if (res === 'ok') {
+        if (k === 'prime') { ISO.Audio.play('reveal', { rank: 4 }); App.toast('★ PRIME ' + d.short, 'Now ' + ISO.primeOf(d).ovr + ' OVR — every attribute boosted', '#ffcf4d'); }
+        else {
+          ISO.Audio.play('coin');
+          if (k === 'skin') App.toast(ISO.skinById(id).name + ' SKIN', 'Bought and equipped on ' + d.short, '#35e08a');
+          else if (k === 'move') App.toast(ISO.Game.SKILLS[id].name.toUpperCase() + ' UNLOCKED', 'Use it in your next match', '#35e08a');
+          else { ISO.Render.setMap(id); App.toast(ISO.mapById(id).name, 'Map bought and selected', '#35e08a'); }
+        }
+        App.achToasts(PF.takeAch());
+      } else {
+        ISO.Audio.play('deny');
+        if (res === 'poor') { t.classList.remove('shake'); void t.offsetWidth; t.classList.add('shake'); App.toast('NOT ENOUGH CREDITS', 'Play matches and claim achievements to earn more', '#f1735f'); return; }
+      }
+    }
+    App.updateCredits(); renderStore();
+  });
+
   // ---------------------------------------------------------------- achievements
   function renderAch() {
     const P = PF.data;
@@ -185,8 +315,53 @@
         (gates[a.id] ? '<em>UNLOCKS ' + gates[a.id] + '</em>' : '') + '</div>' +
         '<div class="achprog"><span class="bar"><i style="width:' + (v / a.goal) * 100 + '%"></i></span><small>' + v + ' / ' + a.goal + '</small></div>' + act + '</div>';
     }).join('');
-    $('achSub').textContent = done + ' / ' + PF.ACH.length + ' COMPLETE';
+    $('storeSub').textContent = done + ' / ' + PF.ACH.length + ' COMPLETE · Achievements pay out credits and unlock box tiers.';
   }
+
+  // ---------------------------------------------------------------- keyboard
+  let rebind = null;       // { a: action, i: slot } while waiting for a key
+  function renderKeys() {
+    const IN = ISO.Input, B = IN.bindings;
+    $('keyBinds').innerHTML = IN.ACTIONS.map(([a, name]) => '<div class="kb-row"><span>' + name + '</span>' + [0, 1].map((i) => {
+      const wait = rebind && rebind.a === a && rebind.i === i;
+      return '<button class="kb' + (wait ? ' wait' : '') + (B[a][i] ? '' : ' empty') + '" data-bind="' + a + '" data-slot="' + i + '">' + (wait ? 'PRESS A KEY…' : esc(IN.label(B[a][i]))) + '</button>';
+    }).join('') + '</div>').join('');
+  }
+  // the controls guide, store chords and match hint all show whatever keys are bound now
+  function keyLabels() {
+    const IN = ISO.Input, B = IN.bindings, k = (code) => '<kbd>' + esc(IN.label(code)) + '</kbd>';
+    const both = (a) => B[a].filter(Boolean).map(k).join(' / ') || '<i>unbound</i>';
+    const move = ['up', 'left', 'down', 'right'];
+    const rows = [['Move', [0, 1].map((i) => move.map((a) => B[a][i]).filter(Boolean).map(k).join('')).filter(Boolean).join(' / ')], ['Sprint', both('sprint')],
+      ['Aim', 'Mouse (optional)'], ['Shoot · Tackle', both('shoot') + ' / left click'], ['Finesse shot', both('finesse')],
+      ['Power shot (long wind-up)', both('chip') + ' / right click'], ['Skill moves', ['j', 'k', 'l'].map((a) => k(B[a].find(Boolean))).join(' ') + ' (alone or together)'],
+      ['Jockey · Shield', both('jockey')], ['Pause', '<kbd>Esc</kbd>']];
+    $('keysTable').innerHTML = '<tr><th>Action</th><th>Keys</th></tr>' + rows.map((r) => '<tr><td>' + r[0] + '</td><td>' + r[1] + '</td></tr>').join('');
+    document.querySelectorAll('kbd[data-k]').forEach((el) => { el.textContent = IN.keyLabel(el.dataset.k); });
+    App.setMouse(PF.data.settings.mouseAim);       // refreshes the match hint
+  }
+  function saveKeys(B) { ISO.Input.setBindings(B); PF.setSetting('keys', B); keyLabels(); }
+  document.addEventListener('click', (e) => {
+    const t = e.target.closest('[data-bind]');
+    if (t) { ISO.Audio.init(); ISO.Audio.play('ui'); rebind = { a: t.dataset.bind, i: +t.dataset.slot }; renderKeys(); }
+    else if (rebind) { rebind = null; renderKeys(); }
+  });
+  // capture phase on window: runs before the game's own key handlers, so the pressed key only rebinds
+  window.addEventListener('keydown', (e) => {
+    if (!rebind) return;
+    e.preventDefault(); e.stopImmediatePropagation();
+    const { a, i } = rebind; rebind = null;
+    const B = ISO.Input.bindings, code = e.code;
+    if (code === 'Escape') { renderKeys(); return; }
+    if (code === 'Backspace' || code === 'Delete') B[a][i] = null;
+    else {
+      const old = B[a][i];
+      for (const b in B) for (let j = 0; j < 2; j++) if (B[b][j] === code && !(b === a && j === i)) B[b][j] = b === a ? null : old;      // swap
+      B[a][i] = code;
+      ISO.Audio.play('coin');
+    }
+    saveKeys(B); renderKeys();
+  }, true);
 
   // ---------------------------------------------------------------- settings
   function renderSettings() {
@@ -198,6 +373,7 @@
     $('setMouse').checked = ST.mouseAim; $('setReticle').checked = ST.reticle; $('setHint').checked = ST.hint;
     $('adminLogin').classList.toggle('hidden', A.unlocked); $('adminPanel').classList.toggle('hidden', !A.unlocked);
     document.querySelectorAll('[data-admin]').forEach((el) => { el.checked = !!A[el.dataset.admin]; });
+    rebind = null; renderKeys();
   }
   function onSetting(e) {
     const t = e.target;
@@ -208,7 +384,7 @@
     else if (t.id === 'setCrowd') { PF.setSetting('crowd', t.checked); ISO.Audio.setCrowd(t.checked); }
     else if (t.id === 'setSpeed') { PF.setSetting('speed', t.value / 100); $('setSpeedVal').textContent = t.value + '%'; }
     else if (t.id === 'setDiff') { PF.setSetting('diff', t.value); App.diff = t.value; }
-    else if (t.id === 'setMouse') PF.setSetting('mouseAim', t.checked);
+    else if (t.id === 'setMouse') App.setMouse(t.checked);
     else if (t.id === 'setReticle') PF.setSetting('reticle', t.checked);
     else if (t.id === 'setHint') PF.setSetting('hint', t.checked);
     else if (t.dataset.admin) { PF.setAdmin(t.dataset.admin, t.checked); App.updateCredits(); App.toast('ADMIN', t.closest('.set-row').textContent.trim() + (t.checked ? ' — ON' : ' — OFF'), '#f1735f'); }
@@ -226,7 +402,7 @@
     if (t.dataset.up) { if (PF.upgrade(t.dataset.up)) { ISO.Audio.play('coin'); renderCareer(); } else ISO.Audio.play('deny'); }
     else if (t.dataset.open) openBox(t.dataset.open);
     else if (t.dataset.again) { if (!t.disabled) openBox(t.dataset.again); }
-    else if (t.dataset.claim) { const cr = PF.claim(t.dataset.claim); if (cr) { ISO.Audio.play('coin'); App.toast('+' + cr + ' CREDITS', 'Achievement reward claimed', '#ffcf4d'); App.updateCredits(); renderAch(); } }
+    else if (t.dataset.claim) { const cr = PF.claim(t.dataset.claim); if (cr) { ISO.Audio.play('coin'); App.toast('+' + cr + ' CREDITS', 'Achievement reward claimed', '#ffcf4d'); App.updateCredits(); renderAch(); updateBadge(); } }
     else if (t.dataset.meta === 'look-prev') { PF.cycleLook(-1); renderCareer(); }
     else if (t.dataset.meta === 'look-next') { PF.cycleLook(1); renderCareer(); }
     else if (t.dataset.meta === 'kit-prev') { PF.cycleKit(-1); renderCareer(); }
@@ -238,21 +414,24 @@
       if (ok) App.toast('ADMIN UNLOCKED', 'Developer switches are available', '#f1735f');
       renderSettings();
     }
+    else if (t.dataset.meta === 'keys-reset') { saveKeys(null); PF.setSetting('keys', null); renderKeys(); App.toast('CONTROLS RESET', 'Default keys restored', '#35e08a'); }
     else if (t.dataset.meta === 'admin-logout') { PF.adminLogout(); App.updateCredits(); renderSettings(); }
-    else if (t.dataset.meta === 'reset-all') { if (window.confirm('Reset ALL progress? Credits, unlocked players, achievements and your career will be wiped. Settings are kept.')) { PF.reset(); App.updateCredits(); App.toast('PROGRESS RESET', 'Fresh start', '#f1735f'); } }
+    else if (t.dataset.meta === 'reset-all') { if (window.confirm('Reset ALL progress?\n\nCredits, unlocked players, skins, Prime upgrades, skill moves, maps, achievements and your MyCareer will be wiped. Settings and key bindings are kept.\n\nThis cannot be undone.')) { PF.reset(); ISO.Render.setMap(PF.data.map); App.updateCredits(); App.toast('PROGRESS RESET', 'Fresh start — everything is back to day one', '#f1735f'); updateBadge(); renderSettings(); } }
     else if (t.dataset.meta === 'skip') { if (spin && !spin.done) finish(); }
     else if (t.dataset.meta === 'close-open') { if (!spin || spin.done) closeOpening(); }
   });
 
+  keyLabels();
   ISO.Meta = {
     onShow(screen) {
       if (screen === 'career') renderCareer();
-      else if (screen === 'boxes') renderBoxes();
-      else if (screen === 'ach') renderAch();
+      else if (screen === 'store') renderStore();
+      else if (screen === 'play') renderPlay();
       else if (screen === 'settings') renderSettings();
       else $('opening').classList.add('hidden');
-      const ready = PF.ACH.some((a) => !PF.data.claimed[a.id] && PF.statOf(a) >= a.goal);
-      $('achBadge').classList.toggle('hidden', !ready);
+      updateBadge();
     },
+    storeTab(t) { store.tab = t; },
+    keyLabels,
   };
 })();

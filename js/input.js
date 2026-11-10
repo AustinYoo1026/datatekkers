@@ -3,17 +3,43 @@
   'use strict';
   const ISO = (globalThis.ISO = globalThis.ISO || {});
 
-  // One player. Skill moves are chords of J / K / L.
+  // One player. Skill moves are chords of J / K / L. Every action has two rebindable key slots (Settings › Keyboard);
+  // the mouse buttons ride along on shoot and power shot.
+  const ACTIONS = [['up', 'Move up'], ['down', 'Move down'], ['left', 'Move left'], ['right', 'Move right'], ['sprint', 'Sprint'],
+    ['shoot', 'Shoot · Tackle'], ['finesse', 'Finesse shot'], ['chip', 'Power shot'], ['j', 'Skill key 1'], ['k', 'Skill key 2'], ['l', 'Skill key 3'],
+    ['jockey', 'Jockey · Shield']];
+  const DEFAULT_KEYS = { up: ['KeyW', 'ArrowUp'], down: ['KeyS', 'ArrowDown'], left: ['KeyA', 'ArrowLeft'], right: ['KeyD', 'ArrowRight'],
+    sprint: ['ShiftLeft', 'ShiftRight'], shoot: ['Space', null], finesse: ['KeyF', null], chip: ['KeyQ', null], j: ['KeyJ', null], k: ['KeyK', null], l: ['KeyL', null],
+    jockey: ['ControlLeft', 'KeyC'] };
+  const MOUSE_KEYS = { shoot: ['Mouse0'], chip: ['Mouse2'] };
   const MAPS = {};
-  MAPS.solo = { up: ['KeyW', 'ArrowUp'], down: ['KeyS', 'ArrowDown'], left: ['KeyA', 'ArrowLeft'], right: ['KeyD', 'ArrowRight'],
-    sprint: ['ShiftLeft', 'ShiftRight'], shoot: ['Space', 'Mouse0'], finesse: ['KeyF'], chip: ['KeyQ', 'Mouse2'], j: ['KeyJ'], k: ['KeyK'], l: ['KeyL'],
-    jockey: ['ControlLeft', 'ControlRight', 'KeyC'] };
-
-  const GAME_KEYS = new Set(['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Tab']);
-  for (const m of Object.values(MAPS)) for (const list of Object.values(m)) for (const k of list) GAME_KEYS.add(k);
+  let binds = null;
+  const GAME_KEYS = new Set();
+  function setBindings(b) {
+    binds = {};
+    for (const [a] of ACTIONS) binds[a] = ((b && b[a]) || DEFAULT_KEYS[a]).slice(0, 2);
+    MAPS.solo = {};
+    for (const [a] of ACTIONS) MAPS.solo[a] = binds[a].filter(Boolean).concat(MOUSE_KEYS[a] || []);
+    GAME_KEYS.clear();
+    for (const k of ['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Tab']) GAME_KEYS.add(k);
+    for (const list of Object.values(MAPS.solo)) for (const k of list) GAME_KEYS.add(k);
+  }
+  setBindings(null);
+  const NAMES = { ArrowUp: '↑', ArrowDown: '↓', ArrowLeft: '←', ArrowRight: '→', ShiftLeft: 'Shift', ShiftRight: 'R-Shift', ControlLeft: 'Ctrl', ControlRight: 'R-Ctrl',
+    AltLeft: 'Alt', AltRight: 'R-Alt', MetaLeft: 'Cmd', MetaRight: 'R-Cmd', Space: 'Space', Backquote: '`', Minus: '-', Equal: '=', BracketLeft: '[',
+    BracketRight: ']', Backslash: '\\', Semicolon: ';', Quote: "'", Comma: ',', Period: '.', Slash: '/', CapsLock: 'Caps', Enter: 'Enter', Tab: 'Tab' };
+  function label(code) {
+    if (!code) return '—';
+    if (code.startsWith('Key')) return code.slice(3);
+    if (code.startsWith('Digit')) return code.slice(5);
+    if (code.startsWith('Numpad')) return 'Num ' + code.slice(6);
+    return NAMES[code] || code;
+  }
+  const keyLabel = (a) => label(binds[a].find(Boolean));
 
   const held = new Set(), latched = new Set();
   let capture = false;      // only swallow browser shortcuts while a match is on screen
+  let mouseOn = true;       // Settings › Mouse aiming: off = the mouse does nothing in a match
 
   window.addEventListener('keydown', (e) => {
     if (capture && GAME_KEYS.has(e.code) && !e.metaKey) e.preventDefault();
@@ -24,9 +50,9 @@
   // mouse: the cursor aims, left button shoots, right button is the power shot (only while a match is on screen)
   const mouse = { x: 0, y: 0, moved: false };
   window.addEventListener('mousemove', (e) => { mouse.x = e.clientX; mouse.y = e.clientY; if (capture) mouse.moved = true; });
-  window.addEventListener('mousedown', (e) => { if (!capture) return; const k = 'Mouse' + e.button; held.add(k); latched.add(k); });
+  window.addEventListener('mousedown', (e) => { if (!capture || !mouseOn) return; const k = 'Mouse' + e.button; held.add(k); latched.add(k); });
   window.addEventListener('mouseup', (e) => held.delete('Mouse' + e.button));
-  window.addEventListener('contextmenu', (e) => { if (capture) e.preventDefault(); });
+  window.addEventListener('contextmenu', (e) => { if (capture && mouseOn) e.preventDefault(); });
   window.addEventListener('blur', () => { held.clear(); latched.clear(); });
 
   const on = (list) => { for (const k of list) if (held.has(k) || latched.has(k)) return true; return false; };
@@ -55,9 +81,11 @@
   }
 
   ISO.Input = {
-    get, MAPS, mouse,
+    get, MAPS, mouse, ACTIONS, DEFAULT_KEYS, setBindings, label, keyLabel,
+    get bindings() { return JSON.parse(JSON.stringify(binds)); },
     consume() { latched.clear(); },      // call once the simulation has seen this frame's taps
     setCapture(v) { capture = v; if (!v) { held.clear(); latched.clear(); } },
     resetMouse() { mouse.moved = false; },
+    setMouse(v) { mouseOn = !!v; if (!v) { held.delete('Mouse0'); held.delete('Mouse2'); } },
   };
 })();

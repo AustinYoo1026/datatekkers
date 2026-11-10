@@ -250,6 +250,118 @@
     return [home.kit, ak];
   };
 
+  // --- store catalogue: skins, primes, skill moves, maps ---------------------
+  // Skins are bought per character, and every purchasable jersey is one of a kind: no two players
+  // (and no two skins) share the same shirt. Each skin type has a theme; the details are generated
+  // per player from a seed, and a clash with any jersey already handed out moves on to the next design.
+  const PATS = ['solid', 'cstripe', 'vstripes', 'hoops', 'sash', 'halves', 'quarters', 'pin', 'chevron', 'sleeves'];
+  const BRIGHT = ['#f1735f', '#35e08a', '#4fa3ff', '#ffcf4d', '#b06bff', '#ff4fa3', '#3df5ff', '#d7ff3d', '#ff8a3d', '#e83030',
+    '#7fc4ff', '#ffffff', '#c9d2de', '#9ef0c4', '#ffb3c7', '#ffa64d'];
+  const DARKS = ['#17171b', '#1f2433', '#0a1f44', '#3a0d1a', '#0f3d2a', '#2e1f5e', '#4a1f00', '#26313f', '#5a0f2e', '#123b4a'];
+  const NAT = {   // national team colours: shirt, trim, shorts
+    ARG: ['#75aadb', '#ffffff', '#17171b'], POR: ['#c8102e', '#046a38', '#046a38'], FRA: ['#1d2f6f', '#ffffff', '#ffffff'],
+    NOR: ['#ba0c2f', '#00205b', '#ffffff'], BRA: ['#ffdc02', '#009b3a', '#0b3d91'], ESP: ['#c60b1e', '#ffc400', '#1d2f6f'],
+    EGY: ['#c8102e', '#17171b', '#ffffff'], ENG: ['#ffffff', '#1d2f6f', '#1d2f6f'], BEL: ['#e30613', '#ffd90c', '#e30613'],
+    NED: ['#ff6c00', '#17171b', '#ff6c00'], SCO: ['#1d2f6f', '#ffffff', '#ffffff'], JAM: ['#ffd100', '#009b3a', '#17171b'],
+    GHA: ['#ffffff', '#ce1126', '#ffffff'], WAL: ['#c8102e', '#00ad36', '#c8102e'], NZL: ['#ffffff', '#17171b', '#17171b'],
+    KOR: ['#c8102e', '#17171b', '#17171b'], GEO: ['#ffffff', '#da291c', '#ffffff'], SWE: ['#fecc02', '#006aa7', '#006aa7'],
+    ITA: ['#0066cc', '#ffffff', '#ffffff'], CIV: ['#ff8200', '#009e60', '#ffffff'],
+  };
+  const seeded = (str) => {
+    let h = 9; for (const ch of str) h = (h * 33 + ch.charCodeAt(0)) | 0;
+    return () => { h = (Math.imul(h, 1103515245) + 12345) | 0; return ((h >>> 16) & 0x7fff) / 0x8000; };
+  };
+  const pickOf = (r, list) => list[(r() * list.length) | 0];
+  // Each design returns a candidate kit for try number n (0, 1, 2 ...): early tries stay closest to the theme.
+  const DESIGNS = {
+    away: (d, r, n) => {
+      const k = d.kit, pat = n === 0 ? (k.pat === 'solid' ? 'cstripe' : k.pat === 'cstripe' ? 'sash' : 'solid') : pickOf(r, PATS);
+      const b = n < 4 ? k.a : pickOf(r, BRIGHT.concat(DARKS));
+      return kit(k.b, b, pat, k.a, k.b);
+    },
+    national: (d, r, n) => {
+      const c = NAT[d.nat] || ['#f4f4f4', '#17171b', '#17171b'], swap = n >= PATS.length && n < PATS.length * 2;
+      const pat = n < PATS.length * 2 ? PATS[(n + ((r() * PATS.length) | 0)) % PATS.length] : pickOf(r, PATS);
+      const a = swap ? c[1] : c[0], b = n >= PATS.length * 2 ? pickOf(r, BRIGHT.concat(DARKS)) : swap ? c[0] : c[1];
+      return kit(a, b, pat, c[2], a);
+    },
+    third: (d, r) => {
+      const a = pickOf(r, BRIGHT.concat(DARKS));
+      let b = pickOf(r, ISO.lum(a) > 0.55 ? DARKS : BRIGHT);
+      if (b === a) b = '#ffffff';
+      return kit(a, b, pickOf(r, PATS), b, a);
+    },
+    blackout: (d, r) => kit('#17171b', pickOf(r, BRIGHT), pickOf(r, PATS), '#17171b', '#17171b'),
+    gold: (d, r) => kit('#ffcf4d', pickOf(r, DARKS), pickOf(r, PATS), pickOf(r, DARKS), '#ffcf4d'),
+  };
+  ISO.SKINS = [
+    { id: 'home', name: 'HOME', cost: 0, desc: () => 'The classic strip' },
+    { id: 'away', name: 'AWAY', cost: 300, desc: (d) => esc(d.club) + ' colours, flipped' },
+    { id: 'national', name: 'NATIONAL', cost: 400, desc: (d) => d.flag + ' ' + d.nat + ' colours' },
+    { id: 'third', name: 'THIRD', cost: 600, desc: () => 'A one-off design' },
+    { id: 'blackout', name: 'BLACKOUT', cost: 800, desc: () => 'All black, one accent', boot: '#17171b' },
+    { id: 'gold', name: 'GOLD', cost: 1500, desc: () => 'For the ones who made it', boot: '#ffcf4d' },
+  ];
+  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const kitKey = (k) => k.a + k.b + k.pat;
+  let SKIN_KITS = null;
+  // Hand out every player's jerseys in roster order, so the result never changes between sessions.
+  function buildSkinKits() {
+    SKIN_KITS = {};
+    const used = new Set(ISO.PLAYERS.map((d) => kitKey(d.kit)));      // never copy a real home kit either
+    for (const sk of ISO.SKINS) {
+      if (!DESIGNS[sk.id]) continue;
+      for (const d of ISO.PLAYERS) {
+        const r = seeded(d.id + ':' + sk.id);
+        let k = null;
+        for (let n = 0; n < 400; n++) { const c = DESIGNS[sk.id](d, r, n); if (c.a !== c.b && !used.has(kitKey(c))) { k = c; break; } }
+        if (!k) k = DESIGNS[sk.id](d, r, 0);
+        used.add(kitKey(k));
+        (SKIN_KITS[d.id] = SKIN_KITS[d.id] || {})[sk.id] = k;
+      }
+    }
+  }
+  ISO.skinKit = (d, sid) => {
+    if (sid === 'home') return d.kit;
+    if (!SKIN_KITS) buildSkinKits();
+    return (SKIN_KITS[d.id] && SKIN_KITS[d.id][sid]) || d.kit;
+  };
+  ISO.skinById = (id) => ISO.SKINS.find((s) => s.id === id) || ISO.SKINS[0];
+
+  // Prime: a permanent upgrade bought with credits. Every attribute and the overall go up.
+  ISO.PRIME = { boost: 4, cost: { common: 800, rare: 1500, epic: 3000, legend: 5000, icon: 8000 }, boot: '#ffcf4d' };
+  ISO.primeCost = (d) => ISO.PRIME.cost[ISO.rarityOf(d)];
+  ISO.primeOf = (d) => {
+    const attr = {};
+    for (const k of KEYS) attr[k] = Math.min(99, d.attr[k] + ISO.PRIME.boost);
+    return Object.assign({}, d, { attr, ovr: Math.min(99, d.ovr + ISO.PRIME.boost), prime: true, base: d,
+      look: Object.assign({}, d.look, { boot: ISO.PRIME.boot }) });
+  };
+  // A character as the owner fields them: prime stats (if bought) and the equipped skin.
+  ISO.outfit = (d, prime, skinId) => {
+    const sk = ISO.skinById(skinId);
+    if (!prime && sk.id === 'home') return d;
+    const o = prime ? ISO.primeOf(d) : Object.assign({}, d, { base: d });
+    if (sk.id !== 'home') {
+      o.kit = ISO.skinKit(d, sk.id); o.skin = sk.id;
+      if (sk.boot && !prime) o.look = Object.assign({}, d.look, { boot: sk.boot });
+    }
+    return o;
+  };
+
+  // Skill moves the player has to unlock in the store (the CPU is only limited by skill stars).
+  ISO.MOVE_COST = { feint: 0, stepover: 0, roll: 300, dragback: 300, croqueta: 600, roulette: 600, heel: 1000, nutmeg: 1000, elastico: 1600, rainbow: 1600 };
+
+  // Maps are cosmetic pitches; render.js paints them from these themes.
+  ISO.MAPS = [
+    { id: 'stadium', name: 'THE STADIUM', cost: 0, desc: 'Matchday under the floodlights' },
+    { id: 'street', name: 'STREET CAGE', cost: 600, desc: 'Tarmac, chain-link and yellow paint' },
+    { id: 'beach', name: 'COPA BEACH', cost: 900, desc: 'Sand underfoot, sea behind the goal' },
+    { id: 'snow', name: 'WINTER CUP', cost: 1200, desc: 'Orange lines on a frozen pitch' },
+    { id: 'neon', name: 'NEON NIGHT', cost: 2000, desc: 'Midnight turf, glowing lines' },
+  ];
+  ISO.mapById = (id) => ISO.MAPS.find((m) => m.id === id) || ISO.MAPS[0];
+
   /* Optional professional sprite overrides.
      Map a player id to an image URL laid out exactly like the generated sheet
      (see ISO.Sprites.LAYOUT in sprites.js). Missing/broken images are ignored. */

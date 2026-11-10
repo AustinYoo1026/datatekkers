@@ -122,7 +122,8 @@
     const oppAhead = od < 85 && (ox * fx + oy * fy) / od > 0.8;
     const spd = hyp(p.vx, p.vy);
     let id = (inp.sprint && CHORD_SPRINT[mask]) || CHORD[mask] || 'stepover';
-    while (SK[id].star > stars) id = SK_FALLBACK[id];
+    // p.moves (optional) is the set of moves this player has unlocked; anything else falls back to a simpler one
+    while (SK[id].star > stars || (p.moves && !G.solo && !p.moves.has(id) && SK_FALLBACK[id])) id = SK_FALLBACK[id];
     return { id, rel, sd, inAng, od };
   }
 
@@ -1000,6 +1001,7 @@
       stats: { poss: [0, 0], shots: [0, 0], onTarget: [0, 0], saves: [0, 0], tackles: [0, 0], skills: [0, 0], clears: [0, 0], powerGoals: [0, 0] },
       solo: !!opts.solo, win: opts.solo ? 1e9 : opts.win || C.WIN, attacker: opts.kickoff || 0, next: 0, rep: 0, shotTaken: false, armed: false,
     };
+    if (opts.moves) G.players.forEach((p, i) => { p.moves = opts.moves[i] || null; });
     G.keepers = [G.keeper];
     G.gauss = () => { let u = 0; for (let i = 0; i < 4; i++) u += G.rand(); return (u - 2) * 1.732; };
     setupRep(G, G.attacker, true);
@@ -1050,5 +1052,5 @@
     }
   }
 
-  ISO.Game = { create, step, SKILLS: SK, pickSkill, ZERO };
+  ISO.Game = { create, step, SKILLS: SK, pickSkill, ZERO, CHORD, CHORD_SPRINT };
 })();

@@ -32,7 +32,8 @@
   function buildMatch(home, away, ctrl, labels, quiet) {
     const kits = ISO.resolveKits(home, away);
     App.kits = kits;
-    App.G = ISO.Game.create({ home, away, kickoff: App.kickoffFlip, solo: !quiet && App.mode === 'arena', win: quiet ? 0 : App.matchWin });
+    App.G = ISO.Game.create({ home, away, kickoff: App.kickoffFlip, solo: !quiet && App.mode === 'arena', win: quiet ? 0 : App.matchWin,
+      moves: ctrl.map((c) => (c === 'human' ? ISO.Profile.moveSet() : null)) });      // you can only use the skill moves you have unlocked
     App.ctrl = ctrl;
     App.ai = ctrl.map((c) => (c === 'cpu' ? ISO.AI.create(quiet ? 'normal' : App.matchDiff) : null));
     App.matchDefs = [home, away];
@@ -63,6 +64,7 @@
       if (!away) { show('career'); return; }
       App.matchDiff = ISO.Profile.careerDiff(ISO.Profile.data.career.stage); App.matchWin = 3;
     }
+    else home = ISO.Profile.outfit(home);        // your prime upgrade and equipped skin
     if (arena) away = home;
     buildMatch(home, away, ['human', arena ? 'none' : 'cpu'], [career ? 'YOU' : 'P1', arena ? '' : 'CPU'], false);
     ISO.Input.resetMouse();
@@ -81,7 +83,7 @@
   }
 
   // ------------------------------------------------------------- screens
-  const MENU_SCREENS = ['menu', 'select', 'career', 'boxes', 'ach', 'settings'];
+  const MENU_SCREENS = ['menu', 'play', 'select', 'career', 'store', 'settings'];
   function updateCredits() { $('creditsVal').textContent = ISO.Profile.infinite() ? '∞' : ISO.Profile.data.credits.toLocaleString(); }
   function toast(title, sub, col) {
     const el = document.createElement('div'); el.className = 'toast';
@@ -89,7 +91,7 @@
     el.innerHTML = '<b></b><span></span>'; el.firstChild.textContent = title; el.lastChild.textContent = sub || '';
     $('toasts').appendChild(el); setTimeout(() => el.classList.add('out'), 3600); setTimeout(() => el.remove(), 4200);
   }
-  function achToasts(list) { for (const a of list || []) toast('ACHIEVEMENT UNLOCKED · ' + a.name.toUpperCase(), a.desc + ' — claim +' + a.reward + ' CR in Achievements', '#ffcf4d'); }
+  function achToasts(list) { for (const a of list || []) toast('ACHIEVEMENT UNLOCKED · ' + a.name.toUpperCase(), a.desc + ' — claim +' + a.reward + ' CR in Store › Achievements', '#ffcf4d'); }
 
   function show(screen) {
     App.screen = screen;
@@ -112,6 +114,14 @@
     updateCredits();
   }
 
+  // Mouse controls (aim + click to shoot) are one switch: Settings, or the pause menu mid-match.
+  App.setMouse = (on) => {
+    ISO.Profile.setSetting('mouseAim', on); ISO.Input.setMouse(on);
+    $('mouseBtn').textContent = 'MOUSE AIM: ' + (on ? 'ON' : 'OFF');
+    const K = (a) => ISO.Input.keyLabel(a).toUpperCase();
+    $('hint').textContent = 'ESC — pause & controls · ' + (on ? 'MOUSE aims, LEFT CLICK shoots, RIGHT CLICK power shot' : K('shoot') + ' shoots, ' + K('chip') + ' power shot, ' + K('finesse') + ' finesse');
+    if ($('setMouse')) $('setMouse').checked = on;
+  };
   function setPaused(p) {
     if (App.screen !== 'match') return;
     App.paused = p;
@@ -148,7 +158,8 @@
   }
 
   function renderPanel(i) {
-    const d = App.pick[i], el = $('panel' + i), two = false;
+    const mine = i === 0 && ISO.Profile.owns(App.pick[0].id);
+    const d = mine ? ISO.Profile.outfit(App.pick[i]) : App.pick[i], el = $('panel' + i), two = false;
     const who = i === 0 ? 'HOME · P1' : 'AWAY · ' + (two ? 'P2' : 'CPU');
     const stars = ISO.stars(d.attr.skl);
     el.classList.toggle('active', App.side === i);
@@ -157,18 +168,23 @@
       '<div class="p-top"><canvas width="184" height="184"></canvas><div><div class="side">' + who + '</div>' +
       '<div class="nm">' + d.name + '</div><div class="meta">' + d.flag + ' ' + d.nat + '<br>' + d.club + '</div></div></div>' +
       '<div class="chips"><span class="chip">SKILLS <b>' + '★'.repeat(stars) + '</b></span><span class="chip">FOOT <b>' + (d.foot === 'L' ? 'LEFT' : 'RIGHT') +
-      '</b></span><span class="chip">' + (d.era === 'legend' ? 'LEGEND' : 'MODERN') + '</span></div>' +
+      '</b></span><span class="chip">' + (d.era === 'legend' ? 'LEGEND' : 'MODERN') + '</span>' + (d.prime ? '<span class="chip primechip">★ PRIME</span>' : '') + '</div>' +
       '<div class="attrs">' + ISO.ATTRS.map(([k, label]) => {
         const v = d.attr[k];
         return '<div class="attr"><span>' + label + '</span><span class="bar"><i style="width:' + v + '%;background:' + barCol(v) + '"></i></span><span class="v">' + v + '</span></div>';
       }).join('') + '</div>';
-    const kits = ISO.resolveKits(App.pick[0], App.pick[1]);
+    const kits = ISO.resolveKits(ISO.Profile.owns(App.pick[0].id) ? ISO.Profile.outfit(App.pick[0]) : App.pick[0], App.pick[1]);
     el.querySelector('canvas').getContext('2d').drawImage(ISO.Sprites.portrait(d, 92, kits[i]), 0, 0);
   }
 
   function renderSelect() {
     const arena = App.mode === 'arena', two = false, P = ISO.Profile;
     $('selMode').textContent = (arena ? 'TESTING ARENA · 1 PLAYER' : '1 PLAYER · VS CPU') + '  ·  COLLECTION ' + P.ownedCount() + '/' + ISO.PLAYERS.length;
+    // what a win is worth with this match-up: tougher opponent and harder CPU pay more
+    const me = P.owns(App.pick[0].id) ? P.outfit(App.pick[0]) : App.pick[0], wm = P.winMult(App.diff, me, App.pick[1]);
+    $('selReward').classList.toggle('hidden', arena);
+    $('selReward').className = 'sel-reward' + (arena ? ' hidden' : '') + (wm.total > 1 ? ' up' : wm.total < 1 ? ' down' : '');
+    $('selReward').innerHTML = 'WIN BONUS <b>×' + wm.total + '</b><small>' + (App.pick[1].ovr - me.ovr > 0 ? '+' : '') + (App.pick[1].ovr - me.ovr) + ' OVR GAP</small>';
     $('diffSeg').classList.toggle('hidden', arena);
     $('sideSeg').classList.toggle('hidden', arena);
     $('panel1').style.visibility = arena ? 'hidden' : '';
@@ -177,6 +193,11 @@
     for (const k of ['easy', 'normal', 'hard']) $('segDiff-' + k).classList.toggle('on', App.diff === k);
     document.querySelectorAll('.pcard').forEach((b) => {
       b.classList.toggle('locked', App.side === 0 && !P.owns(b.dataset.id));
+      const base = ISO.playerById(b.dataset.id), pr = P.owns(base.id) && P.isPrime(base.id);
+      b.classList.toggle('prime', pr);
+      const ovr = pr ? ISO.primeOf(base).ovr : base.ovr;
+      b.querySelector('.c-ovr').textContent = ovr;
+      b.style.order = (100 - ovr) * 1000 + ISO.PLAYERS.indexOf(base);      // highest overall first
       const s0 = App.pick[0].id === b.dataset.id, s1 = App.mode !== 'arena' && App.pick[1].id === b.dataset.id;
       b.classList.toggle('sel0', s0); b.classList.toggle('sel1', s1);
       b.querySelector('.c-pick').innerHTML = (s0 ? '<span style="background:#35e08a">P1</span>' : '') + (s1 ? '<span style="background:#ffb23d">' + (two ? 'P2' : 'CPU') + '</span>' : '');
@@ -203,8 +224,14 @@
     // rewards
     const career = App.mode === 'career';
     const res = ISO.Profile.recordMatch({ mode: career ? 'career' : 'cpu', won: w === 0, gf: G.score[0], ga: G.score[1], diff: App.matchDiff,
-      opp: App.matchDefs[1], skills: s.skills[0], clears: s.clears[0], powerGoals: s.powerGoals[0] });
+      me: App.matchDefs[0], opp: App.matchDefs[1], skills: s.skills[0], clears: s.clears[0], powerGoals: s.powerGoals[0] });
     let rw = '<span class="cr">+' + res.credits + ' CR</span>';
+    if (w === 0 && res.mult !== 1) {
+      const parts = [];
+      if (res.wm.diff !== 1) parts.push(App.matchDiff.toUpperCase() + ' CPU ×' + res.wm.diff);
+      if (!career && res.wm.gap !== 1) parts.push((res.wm.gap > 1 ? 'TOUGHER' : 'WEAKER') + ' OPPONENT ×' + res.wm.gap);
+      rw += '<span class="' + (res.mult > 1 ? 'boost' : '') + '">WIN BONUS ×' + res.mult + ' · ' + parts.join(' · ') + '</span>';
+    }
     if (career) rw += '<span class="pts">+' + res.points + ' UPGRADE POINT' + (res.points === 1 ? '' : 'S') + '</span>' + (w === 0 ? '<span>NEXT OPPONENT UNLOCKED</span>' : '<span>TRY AGAIN — UPGRADE YOUR STATS</span>');
     $('endRewards').innerHTML = rw;
     $('endRematch').classList.toggle('hidden', career);
@@ -231,12 +258,15 @@
     'mode-career': () => show('career'),
     'career-play': () => { App.mode = 'career'; App.kickoffFlip = 0; startMatch(); },
     'career-continue': () => show('career'),
-    'boxes': () => show('boxes'),
-    'achievements': () => show('ach'),
+    'play': () => show('play'),
+    'store': () => show('store'),
+    'boxes': () => { ISO.Meta.storeTab('boxes'); show('store'); },
+    'achievements': () => { ISO.Meta.storeTab('ach'); show('store'); },
     'resume': () => setPaused(false),
     'restart': () => startMatch(),
     'rematch': () => { App.kickoffFlip = 1 - App.kickoffFlip; startMatch(); },
     'mode-cpu-menu': () => { App.mode = 'cpu'; App.side = 0; App.touched = false; show('select'); },
+    'mouse': () => App.setMouse(!ISO.Profile.data.settings.mouseAim),
     'sound': () => { ISO.Audio.setMuted(!ISO.Audio.muted); ISO.Profile.setSetting('muted', ISO.Audio.muted); $('soundBtn').textContent = 'SOUND: ' + (ISO.Audio.muted ? 'OFF' : 'ON'); },
     'settings': () => show('settings'),
     'quit': () => { App.paused = false; show(App.mode === 'career' ? 'career' : 'select'); },
@@ -252,6 +282,7 @@
     if (el.blur && App.screen === 'match') el.blur();
   });
   window.addEventListener('keydown', (e) => {
+    if (e.defaultPrevented) return;          // a key-rebind in Settings already took this press
     if (e.code === 'Enter' && $('controls').classList.contains('hidden') && !e.repeat) {
       if (App.screen === 'select') { e.preventDefault(); ACTIONS.kickoff(); }
       else if (App.screen === 'end') { e.preventDefault(); ACTIONS.rematch(); }
@@ -261,7 +292,7 @@
     if (e.code !== 'Escape') return;
     if (!$('controls').classList.contains('hidden')) $('controls').classList.add('hidden');
     else if (App.screen === 'match') setPaused(!App.paused);
-    else if (App.screen === 'select') show('menu');
+    else if (App.screen !== 'menu' && MENU_SCREENS.includes(App.screen) && $('opening').classList.contains('hidden')) show(App.screen === 'select' || App.screen === 'career' ? 'play' : 'menu');
   });
   window.addEventListener('blur', () => { if (App.screen === 'match' && !App.paused && App.G.phase !== 'end') setPaused(true); });
 
@@ -345,6 +376,10 @@
   { // apply saved settings
     const ST = ISO.Profile.data.settings;
     ISO.Audio.setVolume(ST.volume); ISO.Audio.setMuted(ST.muted); ISO.Audio.setCrowd(ST.crowd); App.diff = ST.diff || 'normal';
+    R.setMap(ISO.Profile.data.map);
+    ISO.Input.setBindings(ST.keys);
+    App.setMouse(ST.mouseAim);
+    if (ISO.Meta) ISO.Meta.keyLabels();
   }
   buildGrid();
   fit();

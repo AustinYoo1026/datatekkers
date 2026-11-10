@@ -1,18 +1,49 @@
 # ISO Football
 
-**Alpha v1**
+**Beta 2.0** — Store Update, Control Updates, MyCareer, Gameplay Changes
 
 A 2D, top-down, 1v1 football game for the browser. Rebound drill with the goal at the top: the attacker starts 10 yards outside the 18-yard box, in the centre, with the defender in front; a keeper catch is thrown back out for either player to win. After a shot, win the rebound and clear it outside the box. First to five goals wins.
 
-## Modes & progression
+## What's new in Beta 2.0
 
-- **MyCareer** — build your own player (look + kit) and climb a 12-opponent ladder from the weakest squad players to the greatest icons (first to 3, CPU difficulty rises as you climb). Wins earn upgrade points to spend on your attributes; losses still earn one.
+- **Store Update** — one Store for everything you spend credits on: Players (skins and Prime upgrades), Box Draw, Skill Moves, Maps and Achievements.
+- **Control Updates** — rebind every key in Settings, switch mouse aiming on and off (also from the pause menu).
+- **MyCareer** — move points between stats by dropping any stat as low as 30.
+- **Gameplay Changes** — a new PLAY page, easier Easy and Normal CPUs with smaller win bonuses, and bigger rewards for beating a higher-rated opponent in Quick Match.
+
+## Menus
+
+The main menu has four buttons: **Play**, **Store**, **Settings** and **Controls**.
+
+### Play
+
+- **MyCareer** — build your own player (look + kit) and climb a 12-opponent ladder from the weakest squad players to the greatest icons (first to 3, CPU difficulty rises as you climb). Wins earn upgrade points to spend on your attributes; losses still earn one. Any stat can be dropped as low as 30, even below where it started, to refund points into others.
+- **Quick Match** — any footballer you own, Prime upgrade and skin included, against the CPU on easy, normal or hard. Players are listed by overall.
+- **Testing Arena** — you, the ball and the keeper. Every skill move unlocked, no score limit.
+
+### Store
+
+- **Players** — for every player you own:
+  - **Skins** — Away, National, Third, Blackout and Gold. Every purchasable jersey is unique: no two players share one. Buy once, equip any time.
+  - **Prime** — a permanent upgrade: +4 to every attribute and the overall (cap 99), plus gold boots. Rarer players cost more (800 – 8,000 CR).
 - **Box Draw** — most players are locked. Spend credits on Bronze / Silver / Gold / Icon boxes (each tier unlocks by completing an achievement), watch the reel spin, and pull a random player. Rarer tiers have better odds, duplicates refund credits, and a pity counter guarantees a Legendary or better every 10 boxes.
-- **Achievements** — 21 goals (goals, wins, skills, power-shot goals, career progress, collection…) that pay out credits and unlock box tiers.
-- **Credits** — earned from every match (more for goals, wins, clean sheets and career wins), from achievements, and a trickle from Testing Arena goals.
-- Progress is saved in the browser (localStorage).
+- **Skill Moves** — only the body feint and stepovers are free. Ball roll, drag back, La Croqueta, roulette, heel-to-heel, nutmeg, elastico and rainbow flick are unlocked here (300 – 1,600 CR). A move also needs the player's skill stars; the CPU and the Testing Arena are not limited by unlocks.
+- **Maps** — cosmetic pitches: The Stadium (free), Street Cage, Copa Beach, Winter Cup, Neon Night.
+- **Achievements** — 25 goals (goals, wins, skills, power-shot goals, career progress, collection, store…) that pay out credits and unlock box tiers.
 
-Mouse aiming: move the mouse during a match and your shots go toward the cursor; left click shoots, right click is the power shot.
+### Settings
+
+- Audio, game speed and default CPU difficulty.
+- **Mouse aiming & click to shoot** — on: the cursor aims, left click shoots, right click is the power shot. Off: keyboard only. It can also be switched from the pause menu.
+- **Keyboard** — every action has two rebindable keys. Click a slot and press a key; `Esc` cancels, `Backspace` clears, and a key already in use swaps places. **Reset to default** restores the original layout.
+- **Reset all progress** — wipes credits, players, skins, Primes, skill moves, maps, achievements and MyCareer. Settings and key bindings are kept.
+
+## Credits
+
+- Every match pays credits, with more for goals, wins, clean sheets and career wins. Achievements pay out too, and Testing Arena goals earn a trickle.
+- Win bonuses depend on the CPU: ×0.4 on Easy, ×0.7 on Normal, ×1 on Hard.
+- In Quick Match, each overall point the CPU's player has over yours adds 4% to the win bonus, and each point below takes 4% off (×0.5 – ×2). Player select shows what a win is worth before kick-off.
+- Progress is saved in the browser (localStorage).
 
 ## Play
 
@@ -22,17 +53,18 @@ Open `index.html` in a desktop browser (no build step, no dependencies), or serv
 python3 -m http.server 8000   # then visit http://localhost:8000
 ```
 
-Modes: **1 Player vs CPU** (easy / normal / hard) and the **Testing Arena** (one player, the ball and the keeper, every skill move unlocked, no score limit). The full controls guide is in the main menu and the pause menu (`Esc`).
+The full controls guide is in the main menu and the pause menu (`Esc`), and shows your current key bindings. Default keys:
 
 | Action | Keys |
 | --- | --- |
 | Move | WASD / arrows |
 | Sprint | Shift |
-| Shoot (hold to charge) · Tackle | Space |
+| Shoot (hold to charge) · Tackle | Space / left click |
 | Finesse shot | F |
-| Power shot (long wind-up) | Q |
+| Power shot (long wind-up) | Q / right click |
 | Skill moves | J / K / L, alone or as chords |
 | Jockey · Shield | Ctrl / C |
+| Pause | Esc |
 
 Sliding tackle: Sprint + direction + tackle. Skill moves are chords of J, K and L: J stepovers, K body feint, L ball roll, J+K La Croqueta, J+L roulette, K+L elastico, J+K+L rainbow flick; Sprint + J / K / L gives heel-to-heel, drag back and nutmeg.
 
@@ -40,14 +72,17 @@ Sliding tackle: Sprint + direction + tackle. Skill moves are chords of J, K and 
 
 | File | Role |
 | --- | --- |
-| `js/data.js` | Roster, attributes, looks, kits, goalkeepers |
+| `js/data.js` | Roster, attributes, looks, kits, goalkeepers, and the store catalogue (skins, Prime, skill-move prices, maps) |
 | `js/game.js` | Match simulation — physics, dribbling, skills, shooting, tackling, keepers, rules. No DOM. |
 | `js/ai.js` | CPU opponent; emits the same inputs a human does |
 | `js/sprites.js` | Generates each character's sprite sheet on a canvas |
-| `js/render.js` | Canvas renderer and effects |
+| `js/render.js` | Canvas renderer, map themes and effects |
 | `js/audio.js` | Synthesized sound effects |
-| `js/input.js` | Keyboard / gamepad mapping |
+| `js/input.js` | Keyboard / mouse / gamepad mapping and key rebinding |
+| `js/profile.js` | Saved profile — credits, collection, store purchases, achievements, box draws, MyCareer |
 | `js/main.js` | Screens, HUD, main loop |
+| `js/meta-ui.js` | Play, MyCareer, Store (Box Draw, Achievements), Settings and key-binding screens |
+| `assets/play/` | PLAY page artwork (SVG): MyCareer, Quick Match and Testing Arena cards |
 
 The simulation runs at a fixed 120 Hz and is independent of rendering, so it can be run headless:
 

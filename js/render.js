@@ -12,16 +12,48 @@
   const hyp = Math.hypot, TAU = Math.PI * 2;
   const TEAM_COL = ['#35e08a', '#ffb23d'];
 
-  let pitch = null;
+  // ---- maps: every pitch is painted from a theme (ISO.MAPS lists them for the store) ----
+  const ADS = [['ISO FOOTBALL', '#0f1a14', '#35e08a'], ['FIRST TO FIVE', '#f4f4f4', '#10151c'], ['DATATEKKERS', '#132033', '#7fc4ff'],
+    ['ONE BALL · ONE GOAL', '#35e08a', '#06140c'], ['1 v 1', '#1b1b22', '#ffb23d'], ['ISO FOOTBALL', '#0f1a14', '#35e08a'], ['PLAY THE ISO', '#f4f4f4', '#10151c']];
+  const THEMES = {
+    stadium: { bg: '#0c1016', around: 'crowd', crowd: ['#2b3442', '#3a4658', '#566377', '#7a2f3a', '#2f5d7a', '#8a7a3a', '#444c5c', '#30394a', '#9aa3b2'],
+      wall: '#131a22', base: '#2c7a3d', bands: ['#2a7a3c', '#2f8443'], line: 'rgba(255,255,255,.86)', mark: 'rgba(255,230,120,.9)',
+      net: 'rgba(10,30,18,.55)', post: '#f4f6f8', vig: 0.28, turf: ['#bfe8cb', '#4a9c5d', '#3b8a4d'], ads: ADS },
+    street: { bg: '#14161b', around: 'bricks', crowd: ['#5a2f28', '#6b382e', '#4d2a25', '#63352c', '#57302a'],
+      wall: '#2a2d34', base: '#3d4149', bands: ['#41454e', '#474b55'], line: 'rgba(255,210,61,.9)', mark: 'rgba(255,255,255,.9)',
+      net: 'rgba(10,12,16,.55)', post: '#d9dde3', vig: 0.34, turf: ['#8b9099', '#5c616b', '#c9ced6'],
+      ads: [['STREET CAGE', '#17171b', '#ffd23d'], ['NO REF · NO RULES', '#ffd23d', '#17171b'], ['DATATEKKERS', '#f1735f', '#17171b'], ['WINNER STAYS ON', '#17171b', '#f4f4f4']] },
+    beach: { bg: '#c9a565', around: 'beach', crowd: ['#f1735f', '#ffcf4d', '#4fa3ff', '#f4f4f4', '#35e08a', '#ff8ac0'],
+      wall: '#b08f55', base: '#dcbb7c', bands: ['#dfc084', '#e6c98f'], line: 'rgba(29,78,137,.9)', mark: 'rgba(241,115,95,.95)',
+      net: 'rgba(90,70,40,.35)', post: '#f4f6f8', vig: 0.12, turf: ['#f1dcae', '#c9a565', '#e6c98f'],
+      ads: [['COPA BEACH', '#1d4e89', '#ffcf4d'], ['SUN · SAND · SKILLS', '#f4f4f4', '#1d4e89'], ['DATATEKKERS', '#f1735f', '#ffffff'], ['ISO FOOTBALL', '#ffcf4d', '#1d4e89']] },
+    snow: { bg: '#1a2230', around: 'crowd', crowd: ['#3a4658', '#566377', '#7c8a9e', '#a9b6c8', '#dfe7f0', '#8a3a3a', '#2f5d7a'],
+      wall: '#2a3546', base: '#cfdbe7', bands: ['#d3dfea', '#dee8f1'], line: 'rgba(241,115,95,.92)', mark: 'rgba(29,78,137,.95)',
+      net: 'rgba(60,80,105,.4)', post: '#f1735f', vig: 0.16, turf: ['#ffffff', '#dfe7f0', '#b9c7d6'], snow: true,
+      ads: [['WINTER CUP', '#f4f4f4', '#1d4e89'], ['COLD FEET?', '#1d4e89', '#f4f4f4'], ['DATATEKKERS', '#f1735f', '#ffffff'], ['ISO FOOTBALL', '#132033', '#7fc4ff']] },
+    neon: { bg: '#07060f', around: 'crowd', crowd: ['#2a1b4d', '#3b2470', '#5a2a8a', '#ff3dd0', '#3df5ff', '#1a1436', '#241a47'],
+      wall: '#120e24', base: '#0d1326', bands: ['#0e152b', '#121b36'], line: 'rgba(61,245,255,.95)', mark: 'rgba(255,61,208,.95)',
+      net: 'rgba(40,10,60,.55)', post: '#ff3dd0', vig: 0.4, turf: ['#3df5ff', '#ff3dd0', '#2a1b4d'], glow: '#3df5ff',
+      ads: [['NEON NIGHT', '#120e24', '#ff3dd0'], ['AFTER HOURS', '#120e24', '#3df5ff'], ['DATATEKKERS', '#ff3dd0', '#120e24'], ['ISO FOOTBALL', '#3df5ff', '#07060f']] },
+  };
+  let mapId = 'stadium', TH = THEMES.stadium, pitch = null;
+  const thumbs = new Map();
   const fx = { parts: [], texts: [], shake: 0, trail: [], flash: 0, t: 0 };
+  function setMap(id) { if (!THEMES[id] || id === mapId) return; mapId = id; TH = THEMES[id]; pitch = null; }
+  // a small picture of a map for the store
+  function thumb(id) {
+    if (!thumbs.has(id)) thumbs.set(id, buildPitch(THEMES[id] || THEMES.stadium, 0.3));
+    return thumbs.get(id);
+  }
 
-  function buildPitch() {
-    const cv = document.createElement('canvas'); cv.width = VW * 2; cv.height = VH * 2;
-    const c = cv.getContext('2d'); c.scale(2, 2);
+  function buildPitch(th, res) {
+    res = res || 2;
+    const cv = document.createElement('canvas'); cv.width = VW * res; cv.height = VH * res;
+    const c = cv.getContext('2d'); c.scale(res, res);
     let seed = 7; const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
-    // stands
-    c.fillStyle = '#0c1016'; c.fillRect(0, 0, VW, VH);
-    const crowd = ['#2b3442', '#3a4658', '#566377', '#7a2f3a', '#2f5d7a', '#8a7a3a', '#444c5c', '#30394a', '#9aa3b2'];
+    // surroundings
+    c.fillStyle = th.bg; c.fillRect(0, 0, VW, VH);
+    const crowd = th.crowd;
     const dots = (x0, y0, x1, y1) => {
       for (let y = y0; y < y1; y += 7) for (let x = x0 + ((y / 7) % 2) * 3.5; x < x1; x += 7) {
         c.fillStyle = crowd[(rnd() * crowd.length) | 0]; c.globalAlpha = 0.55 + rnd() * 0.4;
@@ -29,11 +61,36 @@
       }
       c.globalAlpha = 1;
     };
-    dots(0, 2, VW, 70); dots(0, VH - 14, VW, VH); dots(2, 70, 50, VH - 14); dots(VW - 48, 70, VW, VH - 14);
-    c.fillStyle = 'rgba(8,10,14,.45)'; c.fillRect(0, 0, VW, 70);
+    const bricks = (x0, y0, x1, y1) => {
+      for (let y = y0, r = 0; y < y1; y += 10, r++) for (let x = x0 - (r % 2) * 12; x < x1; x += 24) {
+        c.fillStyle = crowd[(rnd() * crowd.length) | 0]; c.globalAlpha = 0.75 + rnd() * 0.25;
+        c.fillRect(Math.max(x0, x + 1), y + 1, Math.min(22, x1 - x - 1), 8);
+      }
+      c.globalAlpha = 1;
+    };
+    const sand = (x0, y0, x1, y1) => {       // towels and parasols
+      for (let i = 0, n = ((x1 - x0) * (y1 - y0)) / 2600; i < n; i++) {
+        const x = x0 + 8 + rnd() * (x1 - x0 - 16), y = y0 + 8 + rnd() * (y1 - y0 - 16), col = crowd[(rnd() * crowd.length) | 0];
+        if (rnd() < 0.5) { c.fillStyle = col; c.fillRect(x - 3, y - 6, 6, 12); c.fillStyle = 'rgba(255,255,255,.6)'; c.fillRect(x - 3, y - 1, 6, 2); }
+        else { c.fillStyle = 'rgba(0,0,0,.18)'; c.beginPath(); c.arc(x + 2, y + 2, 8, 0, TAU); c.fill(); c.fillStyle = col; c.beginPath(); c.arc(x, y, 8, 0, TAU); c.fill();
+          c.fillStyle = '#ffffff'; for (let k = 0; k < 4; k++) { c.beginPath(); c.moveTo(x, y); c.arc(x, y, 8, k * 1.571, k * 1.571 + 0.785); c.fill(); } }
+      }
+    };
+    const fill = th.around === 'bricks' ? bricks : th.around === 'beach' ? sand : dots;
+    if (th.around === 'beach') {      // the sea behind the goal
+      const g = c.createLinearGradient(0, 0, 0, 70); g.addColorStop(0, '#1d6fa5'); g.addColorStop(0.75, '#4fb6d6'); g.addColorStop(1, '#e9f7f4');
+      c.fillStyle = g; c.fillRect(0, 0, VW, 70);
+      c.strokeStyle = 'rgba(255,255,255,.55)'; c.lineWidth = 1.4;
+      for (let i = 0; i < 90; i++) { const x = rnd() * VW, y = 6 + rnd() * 54, w = 10 + rnd() * 26; c.beginPath(); c.moveTo(x, y); c.quadraticCurveTo(x + w / 2, y - 3, x + w, y); c.stroke(); }
+    } else { fill(0, 2, VW, 70); c.fillStyle = 'rgba(8,10,14,.45)'; c.fillRect(0, 0, VW, 70); }
+    fill(0, VH - 14, VW, VH); fill(2, 70, 50, VH - 14); fill(VW - 48, 70, VW, VH - 14);
+    if (th.around === 'bricks') {     // chain-link over the walls
+      c.strokeStyle = 'rgba(200,210,225,.13)'; c.lineWidth = 0.8; c.beginPath();
+      for (let i = -VH; i < VW; i += 9) { c.moveTo(i, 0); c.lineTo(i + VH, VH); c.moveTo(i + VH, 0); c.lineTo(i, VH); }
+      c.stroke();
+    }
     // ad boards
-    const ads = [['ISO FOOTBALL', '#0f1a14', '#35e08a'], ['FIRST TO FIVE', '#f4f4f4', '#10151c'], ['DATATEKKERS', '#132033', '#7fc4ff'],
-      ['ONE BALL · ONE GOAL', '#35e08a', '#06140c'], ['1 v 1', '#1b1b22', '#ffb23d'], ['ISO FOOTBALL', '#0f1a14', '#35e08a'], ['PLAY THE ISO', '#f4f4f4', '#10151c']];
+    const ads = th.ads;
     const board = (x, y, w, h, i) => {
       const a = ads[i % ads.length];
       c.fillStyle = a[1]; c.fillRect(x, y, w, h);
@@ -42,37 +99,45 @@
       c.strokeStyle = 'rgba(0,0,0,.5)'; c.lineWidth = 1; c.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
     };
     for (let i = 0; i < 7; i++) { board(64 + i * 164.6, 72, 164.6, 20, i); board(64 + i * 164.6, VH - 34, 164.6, 20, i + 3); }
-    c.fillStyle = '#131a22'; c.fillRect(50, 72, 14, VH - 86); c.fillRect(VW - 64, 72, 14, VH - 86);
-    // grass
-    c.fillStyle = '#2c7a3d'; c.fillRect(64, 92, VW - 128, VH - 126);
+    c.fillStyle = th.wall; c.fillRect(50, 72, 14, VH - 86); c.fillRect(VW - 64, 72, 14, VH - 86);
+    // playing surface
+    c.fillStyle = th.base; c.fillRect(64, 92, VW - 128, VH - 126);
     const bands = 10, bh = FW / bands;
-    for (let i = 0; i < bands; i++) { c.fillStyle = i % 2 ? '#2f8443' : '#2a7a3c'; c.fillRect(OX, OY + i * bh * Z, FH * Z, bh * Z + 0.5); }
+    for (let i = 0; i < bands; i++) { c.fillStyle = th.bands[i % 2 ? 1 : 0]; c.fillRect(OX, OY + i * bh * Z, FH * Z, bh * Z + 0.5); }
     for (let i = 0; i < 9000; i++) {
       c.fillStyle = rnd() < 0.5 ? 'rgba(255,255,255,.035)' : 'rgba(0,0,0,.05)';
       c.fillRect(64 + rnd() * (VW - 128), 92 + rnd() * (VH - 126), 1.2, 2.4);
     }
+    if (th.snow) {      // drifts on the pitch, flakes over everything
+      c.save(); c.beginPath(); c.rect(64, 92, VW - 128, VH - 126); c.clip();
+      for (let i = 0; i < 70; i++) { c.fillStyle = 'rgba(255,255,255,' + (0.1 + rnd() * 0.16) + ')'; c.beginPath(); c.ellipse(64 + rnd() * (VW - 128), 92 + rnd() * (VH - 126), 20 + rnd() * 50, 6 + rnd() * 12, 0, 0, TAU); c.fill(); }
+      c.restore();
+      for (let i = 0; i < 500; i++) { c.fillStyle = 'rgba(255,255,255,' + (0.35 + rnd() * 0.5) + ')'; c.beginPath(); c.arc(rnd() * VW, rnd() * VH, 0.6 + rnd() * 1.5, 0, TAU); c.fill(); }
+    }
     const vg = c.createRadialGradient(VW / 2, OY + FW * Z / 2, 200, VW / 2, OY + FW * Z / 2, 860);
-    vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,.28)');
+    vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,' + th.vig + ')');
     c.fillStyle = vg; c.fillRect(64, 92, VW - 128, VH - 126);
     // markings
     c.save(); c.translate(OX, OY); c.scale(Z, Z);
-    c.strokeStyle = 'rgba(255,255,255,.86)'; c.lineWidth = 2.5; c.lineJoin = 'round';
+    if (th.glow) { c.shadowColor = th.glow; c.shadowBlur = 10 * res; }
+    c.strokeStyle = th.line; c.lineWidth = 2.5; c.lineJoin = 'round';
     const GC = (GY0 + GY1) / 2;
     c.strokeRect(0, 0, FH, FW);
     c.strokeRect(BOXY0, 0, BOXY1 - BOXY0, BOXD);
     c.strokeRect(SIXY0, 0, SIXY1 - SIXY0, SIXD);
-    c.fillStyle = 'rgba(255,255,255,.9)'; c.beginPath(); c.arc(GC, PEN, 3, 0, TAU); c.fill();
+    c.fillStyle = th.line; c.beginPath(); c.arc(GC, PEN, 3, 0, TAU); c.fill();
     const da = Math.acos((BOXD - PEN) / CR);
     c.beginPath(); c.arc(GC, PEN, CR, Math.PI / 2 - da, Math.PI / 2 + da); c.stroke();
     c.beginPath(); c.arc(0, 0, 11, 0, Math.PI / 2); c.stroke();
     c.beginPath(); c.arc(FH, 0, 11, Math.PI / 2, Math.PI); c.stroke();
-    c.fillStyle = 'rgba(10,30,18,.55)'; c.fillRect(GY0, -GD, GY1 - GY0, GD);
+    c.shadowBlur = 0;
+    c.fillStyle = th.net; c.fillRect(GY0, -GD, GY1 - GY0, GD);
     // start spot: 10 yards outside the box, in the centre
     const sy = BOXD + C.TEN;
-    c.strokeStyle = 'rgba(255,230,120,.8)'; c.lineWidth = 2; c.setLineDash([5, 5]);
+    c.strokeStyle = th.mark; c.lineWidth = 2; c.setLineDash([5, 5]);
     c.beginPath(); c.moveTo(GC - 40, sy); c.lineTo(GC + 40, sy); c.stroke();
     c.setLineDash([]);
-    c.fillStyle = 'rgba(255,230,120,.9)'; c.beginPath(); c.arc(GC, sy, 3.5, 0, TAU); c.fill();
+    c.fillStyle = th.mark; c.beginPath(); c.arc(GC, sy, 3.5, 0, TAU); c.fill();
     c.restore();
     return cv;
   }
@@ -83,11 +148,11 @@
     c.strokeStyle = 'rgba(255,255,255,.3)'; c.lineWidth = 0.8; c.beginPath();
     for (let i = -GD; i < w + GD; i += 7) { c.moveTo(GY0 + i, -GD); c.lineTo(GY0 + i + GD, 0); c.moveTo(GY0 + i + GD, -GD); c.lineTo(GY0 + i, 0); }
     c.stroke(); c.restore();
-    c.strokeStyle = '#f4f6f8'; c.lineWidth = 3.2; c.lineJoin = 'round';
+    c.strokeStyle = TH.post; c.lineWidth = 3.2; c.lineJoin = 'round';
     c.beginPath(); c.moveTo(GY0, 0); c.lineTo(GY0, -GD); c.lineTo(GY1, -GD); c.lineTo(GY1, 0); c.stroke();
   }
   function drawPosts(c) {
-    for (const x of [GY0, GY1]) { c.fillStyle = '#ffffff'; c.beginPath(); c.arc(x, 0, 4.6, 0, TAU); c.fill(); c.strokeStyle = 'rgba(0,0,0,.4)'; c.lineWidth = 1; c.stroke(); }
+    for (const x of [GY0, GY1]) { c.fillStyle = TH.post; c.beginPath(); c.arc(x, 0, 4.6, 0, TAU); c.fill(); c.strokeStyle = 'rgba(0,0,0,.4)'; c.lineWidth = 1; c.stroke(); }
   }
 
   function dirOf(face) {
@@ -200,8 +265,8 @@
         for (let i = 0; i < 90; i++) fx.parts.push({ x: Math.random() * FH, y: -40 - Math.random() * 160, vx: (Math.random() - 0.5) * 60, vy: 120 + Math.random() * 140, life: 2.6, max: 2.6, col: [TEAM_COL[e.team], '#ffffff', '#ffe066'][i % 3], g: 0, s: 3 + Math.random() * 3, conf: Math.random() * TAU });
         break;
       case 'save': fx.shake = Math.max(fx.shake, 3); burst(b.x, b.y, 8, ['#ffffff', '#ffe066'], 130, 0.35); text(K.x, K.y + 46, e.slide ? 'SLID IN' : e.smother ? 'SMOTHERED' : e.weak ? 'SPILLED!' : e.catch ? 'CAUGHT!' : 'SAVE!', '#ffe066'); break;
-      case 'tackle': burst(b.x, b.y, 7, ['#bfe8cb', '#4a9c5d'], 110, 0.35); if (e.on) text(P.x, P.y - 52, 'TACKLE', TEAM_COL[e.p.team]); break;
-      case 'lunge': if (e.slide) burst(P.x, P.y, 10, ['#4a9c5d', '#bfe8cb', '#3b8a4d'], 90, 0.45); break;
+      case 'tackle': burst(b.x, b.y, 7, TH.turf, 110, 0.35); if (e.on) text(P.x, P.y - 52, 'TACKLE', TEAM_COL[e.p.team]); break;
+      case 'lunge': if (e.slide) burst(P.x, P.y, 10, TH.turf, 90, 0.45); break;
       case 'beaten': text(P.x, P.y - 52, 'BEATEN', '#ff8a8a'); break;
       case 'skill': text(P.x, P.y - 58, e.name.toUpperCase(), '#ffffff'); break;
       case 'fake': text(P.x, P.y - 58, 'FAKE SHOT', '#ffffff'); break;
@@ -225,7 +290,7 @@
 
   // ------------------------------------------------------------------ frame
   function draw(c, G, V, dt) {
-    if (!pitch) pitch = buildPitch();
+    if (!pitch) pitch = buildPitch(TH);
     fx.t += dt;
     c.save();
     if (fx.shake > 0.2) { c.translate((Math.random() - 0.5) * fx.shake, (Math.random() - 0.5) * fx.shake); fx.shake *= Math.pow(0.004, dt); } else fx.shake = 0;
@@ -310,5 +375,5 @@
     c.beginPath(); for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { c.moveTo(V.aim.x + dx * 5, V.aim.y + dy * 5); c.lineTo(V.aim.x + dx * 14, V.aim.y + dy * 14); } c.stroke();
     c.restore();
   }
-  ISO.Render = { draw, onEvent, reset, VW, VH, TEAM_COL, Z, OX, OY, drawAim };
+  ISO.Render = { draw, onEvent, reset, VW, VH, TEAM_COL, Z, OX, OY, drawAim, setMap, thumb };
 })();

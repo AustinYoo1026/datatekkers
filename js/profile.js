@@ -31,6 +31,10 @@
     { id: 'boxes_5', name: 'Hooked', desc: 'Open 5 boxes', stat: 'boxes', goal: 5, reward: 300 },
     { id: 'collect_15', name: 'Collector', desc: 'Own 15 players', stat: (p) => p.owned.length, goal: 15, reward: 800 },
     { id: 'own_icon', name: 'Icon Pull', desc: 'Pull an Icon from a box', stat: 'iconPulls', goal: 1, reward: 1000 },
+    { id: 'skin_1', name: 'Fresh Fit', desc: 'Buy a skin in the Store', stat: (p) => Object.values(p.skins).reduce((n, l) => n + l.length, 0), goal: 1, reward: 150 },
+    { id: 'prime_1', name: 'Prime Time', desc: 'Upgrade a player to their Prime', stat: (p) => Object.keys(p.prime).length, goal: 1, reward: 500 },
+    { id: 'moves_all', name: 'Full Bag', desc: 'Unlock every skill move', stat: (p) => p.moves.length, goal: Object.values(ISO.MOVE_COST).filter((c) => c > 0).length, reward: 1500 },
+    { id: 'maps_all', name: 'World Tour', desc: 'Own every map', stat: (p) => p.maps.length, goal: ISO.MAPS.length, reward: 1000 },
   ];
 
   // ------------------------------------------------------------ boxes
@@ -80,7 +84,8 @@
   function fresh() {
     return {
       credits: 300, owned: STARTERS.slice(), claimed: {}, pity: 0, career: null,
-      settings: { volume: 0.8, muted: false, crowd: true, speed: 0.75, mouseAim: true, reticle: true, hint: true, diff: 'normal',
+      skins: {}, equip: {}, prime: {}, moves: [], maps: ['stadium'], map: 'stadium',      // store purchases
+      settings: { volume: 0.8, muted: false, crowd: true, speed: 0.75, mouseAim: true, reticle: true, hint: true, diff: 'normal', keys: null,
         admin: { unlocked: false, allChars: false, allAch: false, infCredits: false } },
       stats: { matches: 0, wins: 0, goals: 0, powerGoals: 0, skills: 0, clears: 0, cleanSheets: 0, hardWins: 0,
         boxes: 0, careerWins: 0, careerDone: 0, arenaGoals: 0, iconPulls: 0 },
@@ -94,6 +99,10 @@
     for (const k of Object.keys(f)) if (P[k] === undefined) P[k] = f[k];
     for (const k of Object.keys(f.stats)) if (P.stats[k] === undefined) P.stats[k] = 0;
     P.owned = P.owned.filter((id) => ISO.playerById(id));
+    P.moves = P.moves.filter((id) => ISO.MOVE_COST[id] > 0);
+    P.maps = P.maps.filter((id) => ISO.MAPS.some((m) => m.id === id));
+    if (!P.maps.includes('stadium')) P.maps.unshift('stadium');
+    if (!P.maps.includes(P.map)) P.map = 'stadium';
     if (!P.career) P.career = newCareer();
     if (!P.career.base) P.career.base = newCareer().base;      // older saves
     for (const k of Object.keys(f.settings)) if (P.settings[k] === undefined) P.settings[k] = f.settings[k];
@@ -121,28 +130,34 @@
 
   // ------------------------------------------------------------ matches
   // r: { mode: 'cpu'|'career', won, gf, ga, diff, opp (def), skills, clears, powerGoals }
+  // Beating an easier CPU pays less: the win bonuses (win, clean sheet, career win) are scaled by this.
+  const WIN_MULT = { easy: 0.4, normal: 0.7, hard: 1 };
+  // Quick Match: beating a higher-rated player than yours pays more, a lower-rated one less (+4% per overall point, ×0.5 – ×2).
+  const gapMult = (me, opp) => (me && opp ? Math.round(Math.max(0.5, Math.min(2, 1 + 0.04 * (opp.ovr - me.ovr))) * 100) / 100 : 1);
+  const winMult = (diff, me, opp) => { const d = WIN_MULT[diff] || 1, g = gapMult(me, opp); return { diff: d, gap: g, total: Math.round(d * g * 100) / 100 }; };
   function recordMatch(r) {
-    const before = doneSet(), S = P.stats;
+    const before = doneSet(), S = P.stats, wm = winMult(r.diff, r.mode === 'cpu' ? r.me : null, r.opp), mult = wm.total;
     S.matches++; S.goals += r.gf; S.skills += r.skills; S.clears += r.clears; S.powerGoals += r.powerGoals;
-    let credits = 40 + 15 * r.gf, points = 0;
+    let credits = 40 + 15 * r.gf, points = 0, bonus = 0;
     if (r.won) {
-      S.wins++; credits += 100;
-      if (r.ga === 0) { S.cleanSheets++; credits += 50; }
+      S.wins++; bonus += 100;
+      if (r.ga === 0) { S.cleanSheets++; bonus += 50; }
       if (r.diff === 'hard') S.hardWins++;
     }
     if (r.mode === 'career') {
       const C = P.career;
       if (r.won) {
-        credits += 150 + Math.max(0, (r.opp.ovr - 60) * 4);
+        bonus += 150 + Math.max(0, (r.opp.ovr - 60) * 4);
         points = 3 + Math.floor(C.stage / 3);
         S.careerWins++; C.stage++;
         if (C.stage >= C.ladder.length) S.careerDone = 1;
       } else points = 1;
       C.points += points;
     }
+    credits += Math.round(bonus * mult);
     P.credits += credits;
     save();
-    return { credits, points, ach: newlyDone(before) };
+    return { credits, points, mult: r.won ? mult : 1, wm, ach: newlyDone(before) };
   }
   function recordArenaGoal() {
     const before = doneSet();
@@ -195,6 +210,51 @@
     return { def, rarity, dup, refund, forced, ach: newlyDone(before) };
   }
 
+  // ------------------------------------------------------------ store
+  // Every purchase returns 'ok' or the reason it was refused: 'owned' | 'locked' | 'poor'.
+  function buy(cost, apply) {
+    if (!infinite() && P.credits < cost) return 'poor';
+    const before = doneSet();
+    if (!infinite()) P.credits -= cost;
+    apply(); save();
+    lastAch = newlyDone(before);
+    return 'ok';
+  }
+  let lastAch = [];
+  const ownsSkin = (pid, sid) => sid === 'home' || (P.skins[pid] || []).includes(sid);
+  const skinOf = (pid) => (ownsSkin(pid, P.equip[pid] || 'home') ? P.equip[pid] || 'home' : 'home');
+  function buySkin(pid, sid) {
+    const sk = ISO.SKINS.find((x) => x.id === sid);
+    if (!sk || !ISO.playerById(pid) || !owns(pid)) return 'locked';
+    if (ownsSkin(pid, sid)) return 'owned';
+    return buy(sk.cost, () => { (P.skins[pid] = P.skins[pid] || []).push(sid); P.equip[pid] = sid; });
+  }
+  function equipSkin(pid, sid) { if (!ownsSkin(pid, sid)) return false; P.equip[pid] = sid; save(); return true; }
+  const isPrime = (pid) => !!P.prime[pid];
+  function buyPrime(pid) {
+    const d = ISO.playerById(pid);
+    if (!d || !owns(pid)) return 'locked';
+    if (isPrime(pid)) return 'owned';
+    return buy(ISO.primeCost(d), () => { P.prime[pid] = true; });
+  }
+  // the character as you field them: prime stats and the equipped skin
+  const outfit = (d) => ISO.outfit(d, isPrime(d.id), skinOf(d.id));
+  const hasMove = (id) => !ISO.MOVE_COST[id] || P.moves.includes(id);
+  function buyMove(id) {
+    if (ISO.MOVE_COST[id] === undefined) return 'locked';
+    if (hasMove(id)) return 'owned';
+    return buy(ISO.MOVE_COST[id], () => { P.moves.push(id); });
+  }
+  const moveSet = () => new Set(Object.keys(ISO.MOVE_COST).filter(hasMove));
+  const ownsMap = (id) => P.maps.includes(id);
+  function buyMap(id) {
+    const m = ISO.MAPS.find((x) => x.id === id);
+    if (!m) return 'locked';
+    if (ownsMap(id)) return 'owned';
+    return buy(m.cost, () => { P.maps.push(id); P.map = id; });
+  }
+  function setMap(id) { if (!ownsMap(id)) return false; P.map = id; save(); return true; }
+
   // ------------------------------------------------------------ career player
   function careerDef() {
     const C = P.career, look = Object.assign({ h: 1, w: 1 }, CAREER_LOOKS[C.look % CAREER_LOOKS.length]);
@@ -205,10 +265,11 @@
       kit: { a, b, pat: 'cstripe', shorts: b, socks: a },
     };
   }
-  // Slide an attribute to `target`: raising spends points (as far as they go), lowering refunds them,
-  // but never below the value the career started with. Returns the new value.
+  // Slide an attribute to `target`: raising spends points (as far as they go), lowering refunds them —
+  // even below the value the career started with, down to ATTR_MIN, so points can be moved between stats.
+  const ATTR_MIN = 30;
   function setAttr(k, target) {
-    const C = P.career, lo = C.base[k];
+    const C = P.career, lo = Math.min(ATTR_MIN, C.attr[k]);
     target = Math.max(lo, Math.min(99, Math.round(target)));
     while (C.attr[k] < target && C.points >= upgradeCost(C.attr[k])) { C.points -= upgradeCost(C.attr[k]); C.attr[k]++; }
     while (C.attr[k] > target) { C.attr[k]--; C.points += upgradeCost(C.attr[k]); }
@@ -236,12 +297,14 @@
   load();
   ISO.Profile = {
     get data() { return P; }, save, ACH, BOXES, PITY, statOf, isDone, claim, recordMatch, recordArenaGoal,
-    canOpen, openBox, filler, owns, infinite, ownedCount: () => ISO.PLAYERS.filter((d) => owns(d.id)).length,
+    WIN_MULT, winMult, canOpen, openBox, filler, owns, infinite, ownedCount: () => ISO.PLAYERS.filter((d) => owns(d.id)).length,
+    ownsSkin, skinOf, buySkin, equipSkin, isPrime, buyPrime, outfit, hasMove, buyMove, moveSet, ownsMap, buyMap, setMap,
+    takeAch() { const l = lastAch; lastAch = []; return l; },      // achievements completed by the last purchase
     setSetting(k, v) { P.settings[k] = v; save(); },
     setAdmin(k, v) { P.settings.admin[k] = v; save(); },
     adminLogin(pw) { if (pw === 'datatekkers') { P.settings.admin.unlocked = true; save(); return true; } return false; },
     adminLogout() { P.settings.admin.unlocked = false; save(); },
-    careerDef, careerOpponent, careerDiff, upgrade, upgradeCost, setAttr, reach, resetCareer, cycleLook, cycleKit, careerOvr,
+    ATTR_MIN, careerDef, careerOpponent, careerDiff, upgrade, upgradeCost, setAttr, reach, resetCareer, cycleLook, cycleKit, careerOvr,
     reset() { const st = P.settings; P = fresh(); P.career = newCareer(); P.settings = st; save(); },
   };
 })();

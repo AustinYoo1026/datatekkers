@@ -41,25 +41,45 @@
   <section id="menu" class="screen">
     <div class="menu-box">
       <div class="kicker">1 v 1 · FIRST TO FIVE</div>
-      <div class="ver">ALPHA V1</div>
+      <div class="ver">BETA 2.0</div>
       <h1>ISO <em>FOOTBALL</em></h1>
       <p class="tagline">Two footballers. One ball. One goal. Win the rebound.</p>
       <div class="menu-btns">
-        <button class="btn primary wide" data-act="mode-career">MYCAREER <small>climb the ladder · build your player</small></button>
-        <button class="btn" data-act="mode-cpu">QUICK MATCH <small>vs CPU</small></button>
-        <button class="btn boxbtn" data-act="boxes">BOX DRAW <small>unlock players</small></button>
-        <button class="btn" data-act="achievements">ACHIEVEMENTS <span id="achBadge" class="badge hidden">!</span></button>
-        <button class="btn" data-act="mode-arena">TESTING ARENA <small>practice</small></button>
+        <button class="btn primary wide playbtn" data-act="play">PLAY</button>
+        <button class="btn storebtn wide" data-act="store">STORE<span id="achBadge" class="badge hidden">!</span></button>
         <button class="btn ghost" data-act="settings">SETTINGS</button>
         <button class="btn ghost" data-act="controls">CONTROLS</button>
       </div>
     </div>
   </section>
 
+  <!-- play hub -->
+  <section id="play" class="screen meta hidden">
+    <header class="sel-head">
+      <button class="btn small ghost" data-act="back-menu">‹ MENU</button>
+      <h2>PLAY</h2>
+      <div class="sel-mode"></div>
+    </header>
+    <div class="playgrid">
+      <button class="playcard career" data-act="mode-career">
+        <span class="pc-k">BUILD YOUR PLAYER</span><span class="pc-t">MYCAREER</span>
+        <span class="pc-d">Climb a 12-opponent ladder from squad players to the greatest icons. Wins earn upgrade points for your stats.</span>
+        <span class="pc-s" id="playCareer"></span></button>
+      <button class="playcard quick" data-act="mode-cpu">
+        <span class="pc-k">VS CPU · FIRST TO FIVE</span><span class="pc-t">QUICK MATCH</span>
+        <span class="pc-d">Pick any footballer you own — Prime upgrades and skins included — and take on the CPU on easy, normal or hard.</span>
+        <span class="pc-s" id="playQuick"></span></button>
+      <button class="playcard arena" data-act="mode-arena">
+        <span class="pc-k">PRACTICE</span><span class="pc-t">TESTING ARENA</span>
+        <span class="pc-d">Just you, the ball and the keeper. Every skill move unlocked, no score limit — drill your chords and finishing.</span>
+        <span class="pc-s">EVERY MOVE UNLOCKED</span></button>
+    </div>
+  </section>
+
   <!-- player selection -->
   <section id="select" class="screen hidden">
     <header class="sel-head">
-      <button class="btn small ghost" data-act="back-menu">‹ MENU</button>
+      <button class="btn small ghost" data-act="play">‹ PLAY</button>
       <h2>SELECT FOOTBALLERS</h2>
       <div class="sel-mode" id="selMode"></div>
     </header>
@@ -77,10 +97,11 @@
       <button class="btn small ghost" data-act="random">RANDOM</button>
       <div class="seg" id="diffSeg">
         <span class="seg-label">CPU</span>
-        <button class="segb" data-act="diff-easy" id="segDiff-easy">EASY</button>
-        <button class="segb" data-act="diff-normal" id="segDiff-normal">NORMAL</button>
-        <button class="segb" data-act="diff-hard" id="segDiff-hard">HARD</button>
+        <button class="segb" data-act="diff-easy" id="segDiff-easy" title="Win bonus ×0.4">EASY <small>×0.4 CR</small></button>
+        <button class="segb" data-act="diff-normal" id="segDiff-normal" title="Win bonus ×0.7">NORMAL <small>×0.7 CR</small></button>
+        <button class="segb" data-act="diff-hard" id="segDiff-hard" title="Win bonus ×1">HARD <small>×1 CR</small></button>
       </div>
+      <div class="sel-reward" id="selReward" title="Beating a higher-rated opponent, on a harder CPU, pays a bigger win bonus"></div>
       <button class="btn primary" data-act="kickoff">START ›</button>
     </footer>
   </section>
@@ -89,7 +110,7 @@
   <!-- MyCareer -->
   <section id="career" class="screen meta hidden">
     <header class="sel-head">
-      <button class="btn small ghost" data-act="back-menu">‹ MENU</button>
+      <button class="btn small ghost" data-act="play">‹ PLAY</button>
       <h2>MYCAREER</h2>
       <div class="sel-mode" id="careerSub"></div>
     </header>
@@ -115,22 +136,32 @@
         <div class="cn-meta" id="careerOppMeta"></div>
         <div class="cn-diff" id="careerOppDiff"></div>
         <button class="btn primary" id="careerPlay" data-act="career-play">PLAY ›</button>
-        <p class="note">Win to climb and earn upgrade points and credits. Lose and you still get a point — spend them on your stats and go again.</p>
+        <p class="note">Win to climb and earn upgrade points and credits. Lose and you still get a point — spend them on your stats and go again. Drop any stat as low as 30 to free up points for the ones you care about.</p>
         <button class="btn small ghost" data-meta="career-reset">NEW CAREER</button>
       </aside>
     </div>
   </section>
 
-  <!-- box draw -->
-  <section id="boxes" class="screen meta hidden">
+  <!-- store -->
+  <section id="store" class="screen meta hidden">
     <header class="sel-head">
       <button class="btn small ghost" data-act="back-menu">‹ MENU</button>
-      <h2>BOX DRAW</h2>
-      <div class="sel-mode" id="boxCollection"></div>
+      <h2>STORE</h2>
+      <div class="seg" id="storeTabs">
+        <button class="segb" data-st="tab" data-id="players">PLAYERS</button>
+        <button class="segb" data-st="tab" data-id="boxes">BOX DRAW</button>
+        <button class="segb" data-st="tab" data-id="moves">SKILL MOVES</button>
+        <button class="segb" data-st="tab" data-id="maps">MAPS</button>
+        <button class="segb" data-st="tab" data-id="ach">ACHIEVEMENTS<i id="achDot" class="tabdot hidden"></i></button>
+      </div>
     </header>
+    <div class="store-sub" id="storeSub"></div>
+    <div class="store-body" id="storeBody"></div>
+    <div class="store-pane hidden" id="storeBoxes">
     <div class="pity"><span id="boxPityTxt"></span><div class="pitybar"><i id="boxPity"></i></div></div>
     <div class="boxgrid" id="boxGrid"></div>
-    <p class="note center">Earn credits by playing matches and claiming achievements. Boxes unlock as you complete achievements. Duplicates are refunded in credits.</p>
+    </div>
+    <div class="store-pane hidden" id="storeAch"><div class="achlist" id="achList"></div></div>
   </section>
 
   <!-- box opening -->
@@ -146,16 +177,6 @@
         <button class="btn rev-only" data-meta="close-open">BACK</button>
       </div>
     </div>
-  </section>
-
-  <!-- achievements -->
-  <section id="ach" class="screen meta hidden">
-    <header class="sel-head">
-      <button class="btn small ghost" data-act="back-menu">‹ MENU</button>
-      <h2>ACHIEVEMENTS</h2>
-      <div class="sel-mode" id="achSub"></div>
-    </header>
-    <div class="achlist" id="achList"></div>
   </section>
 
   <!-- settings -->
@@ -174,13 +195,14 @@
         <h3>GAMEPLAY</h3>
         <label class="set-row"><span>Game speed</span><input type="range" min="50" max="110" step="5" id="setSpeed"><b id="setSpeedVal"></b></label>
         <label class="set-row"><span>Default CPU difficulty</span><select id="setDiff"><option value="easy">Easy</option><option value="normal">Normal</option><option value="hard">Hard</option></select></label>
-        <label class="set-row"><span>Mouse aiming</span><input type="checkbox" class="tog" id="setMouse"></label>
+        <label class="set-row"><span>Mouse aiming &amp; click to shoot</span><input type="checkbox" class="tog" id="setMouse"></label>
         <label class="set-row"><span>Aim reticle</span><input type="checkbox" class="tog" id="setReticle"></label>
         <label class="set-row"><span>In-match controls hint</span><input type="checkbox" class="tog" id="setHint"></label>
         <h3>PROGRESS</h3>
-        <div class="set-row"><span>Reset credits, players, achievements and career</span><button class="btn small ghost" data-meta="reset-all">RESET</button></div>
-      </div>
-      <div class="panel set-col">
+        <div class="set-reset">
+          <p>Wipes credits, unlocked players, skins, Prime upgrades, skill moves, maps, achievements and your MyCareer. Settings and key bindings are kept. This can't be undone.</p>
+          <button class="btn danger" data-meta="reset-all">RESET ALL PROGRESS</button>
+        </div>
         <h3>ADMIN</h3>
         <div id="adminLogin">
           <p class="note">Enter the admin code to unlock developer switches.</p>
@@ -195,6 +217,12 @@
           <button class="btn small ghost" data-meta="admin-logout">LOCK ADMIN</button>
         </div>
       </div>
+      <div class="panel set-col">
+        <h3>KEYBOARD</h3>
+        <p class="note">Click a key, then press the new one. <kbd>Esc</kbd> cancels, <kbd>Backspace</kbd> clears the slot. A key already in use swaps places.</p>
+        <div class="keybinds" id="keyBinds"></div>
+        <div class="set-row"><span>Mouse buttons follow Shoot and Power shot</span><button class="btn small ghost" data-meta="keys-reset">RESET TO DEFAULT</button></div>
+      </div>
     </div>
   </section>
 
@@ -206,6 +234,7 @@
       <button class="btn" data-act="restart">RESTART MATCH</button>
       <button class="btn" data-act="controls">CONTROLS</button>
       <button class="btn" data-act="sound" id="soundBtn">SOUND: ON</button>
+      <button class="btn" data-act="mouse" id="mouseBtn">MOUSE AIM: ON</button>
       <button class="btn ghost" data-act="quit">CHANGE PLAYERS</button>
       <button class="btn ghost" data-act="quit-menu">MAIN MENU</button>
     </div>
@@ -239,18 +268,7 @@
       <div class="guide-cols">
         <div>
           <h3>KEYS</h3>
-          <table class="keys">
-            <tr><th>Action</th><th>Keys</th></tr>
-            <tr><td>Move</td><td><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> / arrows</td></tr>
-            <tr><td>Sprint</td><td><kbd>Shift</kbd></td></tr>
-            <tr><td>Aim</td><td>Mouse (optional)</td></tr>
-            <tr><td>Shoot · Tackle</td><td><kbd>Space</kbd> / left click</td></tr>
-            <tr><td>Finesse shot</td><td><kbd>F</kbd></td></tr>
-            <tr><td>Power shot (long wind-up)</td><td><kbd>Q</kbd> / right click</td></tr>
-            <tr><td>Skill moves</td><td><kbd>J</kbd> <kbd>K</kbd> <kbd>L</kbd> (alone or together)</td></tr>
-            <tr><td>Jockey · Shield</td><td><kbd>Ctrl</kbd> / <kbd>C</kbd></td></tr>
-            <tr><td>Pause</td><td><kbd>Esc</kbd></td></tr>
-          </table>
+          <table class="keys" id="keysTable"></table>
           <p class="note">Gamepads work too (stick, A shoot, B finesse, Y power shot, X stepovers, RT sprint, LT jockey).</p>
           <h3>WITH THE BALL</h3>
           <ul>
@@ -258,33 +276,33 @@
             <li><b>Tap</b> a shot key with the ball for a <b>fake shot</b>: defenders may bite.</li>
             <li>Hold <b>up / down</b> while shooting to pick a corner.</li>
             <li>Hold a shot key as a loose ball arrives for a <b>first-time shot</b>.</li>
-            <li>Press a <b>skill key</b> (J / K / L) while charging to cancel the shot.</li>
+            <li>Press a <b>skill key</b> while charging to cancel the shot.</li>
             <li>Sprinting knocks the ball further ahead — a defender can nick it.</li>
             <li><b>Jockey</b> with the ball to shield it from the defender.</li>
           </ul>
           <h3>WITHOUT THE BALL</h3>
           <ul>
-            <li><kbd>Space</kbd> — <b>standing tackle</b>. Get close; a tap also pokes at a loose ball.</li>
-            <li><kbd>Sprint</kbd> + direction + <kbd>Space</kbd> — <b>sliding tackle</b>. Long reach, slow recovery.</li>
+            <li><kbd data-k="shoot">Space</kbd> — <b>standing tackle</b>. Get close; a tap also pokes at a loose ball.</li>
+            <li><kbd data-k="sprint">Sprint</kbd> + direction + <kbd data-k="shoot">Space</kbd> — <b>sliding tackle</b>. Long reach, slow recovery.</li>
             <li><b>Jockey</b> to face the ball and shuffle; tackles from a jockey are stronger.</li>
             <li>Stand in the way to <b>block</b> shots.</li>
           </ul>
         </div>
         <div>
           <h3>SKILL MOVES</h3>
-          <p class="note">Skill moves are <b>chords</b> of <kbd>J</kbd> <kbd>K</kbd> <kbd>L</kbd>: press them together (within a split second) with the ball at your feet. Hold <kbd>Sprint</kbd> with a single key for the other three. Steer with the stick to choose the exit direction. In a match, players without enough skill stars do a simpler move; the testing arena unlocks every move. Tackles fail against a well-timed move — and land easily on a badly timed one.</p>
+          <p class="note">Skill moves are <b>chords</b> of <kbd data-k="j">J</kbd> <kbd data-k="k">K</kbd> <kbd data-k="l">L</kbd>: press them together (within a split second) with the ball at your feet. Hold <kbd data-k="sprint">Sprint</kbd> with a single key for the other three. Steer with the stick to choose the exit direction. Only <b>Body feint</b> and <b>Stepovers</b> are free: buy the rest in the <b>Store</b>. In a match, a move you have not unlocked — or one your player lacks the skill stars for — becomes a simpler one; the testing arena unlocks every move. Tackles fail against a well-timed move — and land easily on a badly timed one.</p>
           <table class="keys skills">
             <tr><th>Input</th><th>Move</th><th>★</th></tr>
-            <tr><td><kbd>J</kbd></td><td>Stepovers</td><td>2</td></tr>
-            <tr><td><kbd>K</kbd></td><td>Body feint</td><td>1</td></tr>
-            <tr><td><kbd>L</kbd></td><td>Ball roll</td><td>2</td></tr>
-            <tr><td><kbd>J</kbd> + <kbd>K</kbd></td><td>La Croqueta</td><td>3</td></tr>
-            <tr><td><kbd>J</kbd> + <kbd>L</kbd></td><td>Roulette</td><td>3</td></tr>
-            <tr><td><kbd>K</kbd> + <kbd>L</kbd></td><td>Elastico</td><td>5</td></tr>
-            <tr><td><kbd>J</kbd> + <kbd>K</kbd> + <kbd>L</kbd></td><td>Rainbow flick</td><td>5</td></tr>
-            <tr><td><kbd>Sprint</kbd> + <kbd>J</kbd></td><td>Heel-to-heel</td><td>4</td></tr>
-            <tr><td><kbd>Sprint</kbd> + <kbd>K</kbd></td><td>Drag back</td><td>2</td></tr>
-            <tr><td><kbd>Sprint</kbd> + <kbd>L</kbd></td><td>Nutmeg</td><td>4</td></tr>
+            <tr><td><kbd data-k="j">J</kbd></td><td>Stepovers</td><td>2</td></tr>
+            <tr><td><kbd data-k="k">K</kbd></td><td>Body feint</td><td>1</td></tr>
+            <tr><td><kbd data-k="l">L</kbd></td><td>Ball roll</td><td>2</td></tr>
+            <tr><td><kbd data-k="j">J</kbd> + <kbd data-k="k">K</kbd></td><td>La Croqueta</td><td>3</td></tr>
+            <tr><td><kbd data-k="j">J</kbd> + <kbd data-k="l">L</kbd></td><td>Roulette</td><td>3</td></tr>
+            <tr><td><kbd data-k="k">K</kbd> + <kbd data-k="l">L</kbd></td><td>Elastico</td><td>5</td></tr>
+            <tr><td><kbd data-k="j">J</kbd> + <kbd data-k="k">K</kbd> + <kbd data-k="l">L</kbd></td><td>Rainbow flick</td><td>5</td></tr>
+            <tr><td><kbd data-k="sprint">Sprint</kbd> + <kbd data-k="j">J</kbd></td><td>Heel-to-heel</td><td>4</td></tr>
+            <tr><td><kbd data-k="sprint">Sprint</kbd> + <kbd data-k="k">K</kbd></td><td>Drag back</td><td>2</td></tr>
+            <tr><td><kbd data-k="sprint">Sprint</kbd> + <kbd data-k="l">L</kbd></td><td>Nutmeg</td><td>4</td></tr>
           </table>
           <h3>RULES</h3>
           <ul>

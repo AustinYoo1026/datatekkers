@@ -54,6 +54,11 @@
     if (kit.pat === 'vstripes') { for (let i = 0, sx = x - 0.4; sx < x + w; sx += 2.5, i++) if (i % 2) c.fillRect(sx, y, 2.5, h); }
     else if (kit.pat === 'hoops') { for (let i = 0, sy = y; sy < y + h; sy += 2.4, i++) if (i % 2) c.fillRect(x, sy, w, 2.4); }
     else if (kit.pat === 'cstripe') c.fillRect(x + w / 2 - w * 0.17, y, w * 0.34, h);
+    else if (kit.pat === 'pin') { for (let sx = x + 1.2; sx < x + w; sx += 2.4) c.fillRect(sx, y, 0.55, h); }
+    else if (kit.pat === 'halves') c.fillRect(x + w / 2, y, w / 2, h);
+    else if (kit.pat === 'quarters') { c.fillRect(x + w / 2, y, w / 2, h / 2); c.fillRect(x, y + h / 2, w / 2, h / 2); }
+    else if (kit.pat === 'sash') { c.beginPath(); c.moveTo(x, y); c.lineTo(x + w * 0.3, y); c.lineTo(x + w, y + h * 0.75); c.lineTo(x + w, y + h); c.lineTo(x + w * 0.7, y + h); c.lineTo(x, y + h * 0.25); c.closePath(); c.fill(); }
+    else if (kit.pat === 'chevron') { c.beginPath(); c.moveTo(x, y + h * 0.15); c.lineTo(x + w / 2, y + h * 0.55); c.lineTo(x + w, y + h * 0.15); c.lineTo(x + w, y + h * 0.42); c.lineTo(x + w / 2, y + h * 0.82); c.lineTo(x, y + h * 0.42); c.closePath(); c.fill(); }
     else c.fillRect(x, y, w, 1.5);     // collar trim
     // hard-edged shadow plane and a hatched panel, like the poster's overlapping slabs
     c.fillStyle = 'rgba(31,36,51,.32)'; c.beginPath(); c.moveTo(x + w * 0.62, y); c.lineTo(x + w, y); c.lineTo(x + w, y + h); c.lineTo(x + w * 0.3, y + h); c.closePath(); c.fill();
@@ -265,7 +270,7 @@
 
   // Build (or fetch) the sheet for a footballer; optionally swap in a professional PNG.
   function forPlayer(def, kit, slot) {
-    const key = def.id + ':' + slot + ':' + kit.a + kit.b + kit.pat;
+    const key = def.id + ':' + slot + ':' + kit.a + kit.b + kit.pat + (def.look.boot || '');
     const fresh = !cache.has(key);
     const entry = getSheet(key, Object.assign({ num: def.num }, def.look), kit, false);
     const url = fresh && ISO.SPRITE_OVERRIDES && ISO.SPRITE_OVERRIDES[def.id];
@@ -294,7 +299,7 @@
 
   const portraits = new Map();
   function portrait(def, size, kitOverride) {
-    const kit = kitOverride || def.kit, key = def.id + size + kit.a + kit.pat;
+    const kit = kitOverride || def.kit, key = def.id + size + kit.a + kit.b + kit.pat + (def.look.boot || '');
     let cv = portraits.get(key);
     if (cv) return cv;
     cv = canvas(size * 2, size * 2);
