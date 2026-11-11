@@ -532,7 +532,7 @@
 
   function focusSteer(G, p, hasIn, maxV, dt) {
     const b = G.ball, o = b.owner && b.owner.team !== p.team ? b.owner : null;
-    const gx = FW, tx0 = o ? o.x + o.vx * 0.12 : b.x, ty0 = o ? o.y + o.vy * 0.12 : b.y;      // aim where they are about to be, not where they were
+    const gx = FW, tx0 = o ? o.x + o.vx * 0.05 : b.x, ty0 = o ? o.y + o.vy * 0.05 : b.y;      // aim where they are about to be, not where they were
     const dx = gx - tx0, dy = GCY - ty0, dl = hyp(dx, dy) || 1;
     const L = shotLine(G, p);
     if (L) {      // a shot is on its way: get onto its path
@@ -545,15 +545,18 @@
     const gap = o ? clamp(dl * 0.2, 46, 96) + 10 * (1 - q(p.a.tck)) : 70;
     const ux = dx / dl, uy = dy / dl;
     let tx = tx0 + ux * Math.min(gap, dl), ty = ty0 + uy * Math.min(gap, dl);
+    // not a perfect read: the cover drifts off the line to one side and the other, worse for poor tacklers
+    const drift = (Math.sin(G.t * 1.9 + p.idx * 2.1) + 0.6 * Math.sin(G.t * 4.3 + 1)) * (20 - 8 * q(p.a.tck));
+    tx += -uy * drift; ty += ux * drift;
     // never cut through the dribbler: if you are level with or behind them, swing round the side to get goal-side again
     const rx = p.x - tx0, ry = p.y - ty0, along = rx * ux + ry * uy, side = rx * -uy + ry * ux;
     if (o && along < gap * 0.6) { const sg2 = side >= 0 ? 1 : -1, sw = clamp(1 - along / (gap * 0.6), 0, 1.5); tx += -uy * sg2 * 44 * sw; ty += ux * sg2 * 44 * sw; }
     const ex = tx - p.x, ey = ty - p.y, ed = hyp(ex, ey);
     // desired velocity: travel with the dribbler, plus whatever closes the gap to the spot between them and the goal
-    let vx = (o ? o.vx : 0) + ex * 9, vy = (o ? o.vy : 0) + ey * 9;
+    let vx = (o ? o.vx : 0) + ex * 7.5, vy = (o ? o.vy : 0) + ey * 7.5;
     const vl = hyp(vx, vy);
     const behind = o && along < 0;
-    const cap = behind ? maxV * 1.08 : maxV;       // caught behind the dribbler: sprint to get back at them
+    const cap = behind ? maxV * 1.05 : maxV;       // caught behind the dribbler: sprint to get back at them
     if (vl > cap) { vx *= cap / vl; vy *= cap / vl; }
     const k = 1 - Math.exp(-(hasIn ? 9 : 20) * dt);       // your keys still steer a little; with none held the assist does the work
     p.vx += (vx - p.vx) * k; p.vy += (vy - p.vy) * k;
@@ -684,8 +687,8 @@
       if (jock) {
         maxV = p.jog * (owner ? 0.6 : 0.92);      // a jockeying defender backs off almost as fast as they jog
         if (owner) p.shield = true; else { p.jock = true; p.wasJockey = 0.4; }
-        if (foc) { const ob = b.owner && b.owner.team !== p.team ? b.owner : null; if (ob) maxV = clamp(hyp(ob.vx, ob.vy) * 1.15, p.top * 0.85, p.top * 1.02); }      // focus matches the dribbler's pace
-        if (foc && !b.owner && shotLine(G, p)) maxV = p.top;
+        if (foc) { const ob = b.owner && b.owner.team !== p.team ? b.owner : null; if (ob) maxV = clamp(hyp(ob.vx, ob.vy) * 0.97, p.top * 0.66, p.top * 0.85); }      // focus matches the dribbler's pace
+        if (foc && !b.owner && shotLine(G, p)) maxV = p.top * 0.86;
         if (foc) { p.focus = true; p.wasFocus = 0.45; p.stam = Math.max(0, p.stam - 8 * dt); tickFocus(G, p, dt); }
       } else if (inp.sprint && hasIn && !p.exhausted) { maxV = p.top; p.sprinting = true; }
       else maxV = p.jog;
