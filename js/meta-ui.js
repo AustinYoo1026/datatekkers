@@ -102,7 +102,8 @@
       const st = PF.canOpen(b);
       const odds = RANKS.filter((r) => b.odds[r] > 0).map((r) => '<li style="color:' + RR[r].col + '"><span>' + RR[r].name + '</span><b>' + +(b.odds[r] * 100).toFixed(1) + '%</b></li>').join('');
       const btn = st === 'locked' ? '<div class="breq">🔒 COMPLETE “' + esc(achName(b.req)) + '”</div>'
-        : '<button class="btn ' + (st === 'ok' ? 'primary' : '') + '" data-open="' + b.id + '"' + (st === 'ok' ? '' : ' disabled') + '>OPEN · ' + b.cost.toLocaleString() + ' CR</button>';
+        : '<button class="btn ' + (st === 'ok' ? 'primary' : '') + '" data-open="' + b.id + '"' + (st === 'ok' ? '' : ' disabled') + '>OPEN · ' + b.cost.toLocaleString() + ' CR</button>' +
+          '<button class="btn small ' + (PF.canOpen(b, 5) === 'ok' ? 'primary' : '') + '" data-open5="' + b.id + '"' + (PF.canOpen(b, 5) === 'ok' ? '' : ' disabled') + '>OPEN ×5 · ' + (b.cost * 5).toLocaleString() + ' CR</button>';
       return '<div class="boxcard ' + (st === 'locked' ? 'locked' : '') + '" style="--bc:' + b.col + '">' +
         '<div class="boxart"><div class="lid"></div><div class="body"><span>?</span></div></div>' +
         '<h3>' + b.name + '</h3><ul class="odds">' + odds + '</ul>' + btn + '</div>';
@@ -182,6 +183,25 @@
       host.appendChild(s);
     }
   }
+  function openFive(id) {
+    const box = PF.BOXES.find((b) => b.id === id);
+    if (!box || PF.canOpen(box, 5) !== 'ok') { ISO.Audio.play('deny'); return; }
+    const rs = PF.openBoxes(id, 5);
+    if (!rs.length) { ISO.Audio.play('deny'); return; }
+    App.updateCredits(); renderBoxes();
+    let best = 0, refund = 0;
+    $('multiGrid').innerHTML = rs.map((r) => {
+      best = Math.max(best, RANKS.indexOf(r.rarity)); refund += r.refund;
+      const d = r.def;
+      return '<div class="rcard won r-' + r.rarity + ' multi-card" style="--rc:' + RR[r.rarity].col + '"><img src="' + face(d) + '" alt=""><b>' + d.ovr + '</b><span>' + esc(d.short) + '</span><i>' + RR[r.rarity].name + '</i>' +
+        (r.dup ? '<em class="dup">DUP +' + r.refund + '</em>' : '<em class="new">NEW</em>') + '</div>';
+    }).join('');
+    $('multiTitle').textContent = box.name + ' ×' + rs.length + (refund ? ' · +' + refund + ' CR FROM DUPLICATES' : '');
+    $('multi').classList.remove('hidden');
+    ISO.Audio.play('reveal', { rank: best });
+    if (refund) setTimeout(() => ISO.Audio.play('coin'), 500);
+    rs.forEach((r) => App.achToasts(r.ach));
+  }
   function closeOpening() { spin = null; $('opening').classList.add('hidden'); renderBoxes(); }
 
   // ---------------------------------------------------------------- store
@@ -239,7 +259,7 @@
       return '<div class="st-card move' + (own ? ' on' : '') + '"><div class="st-stars">' + '★'.repeat(m.star) + '<i>' + '★'.repeat(5 - m.star) + '</i></div><h4>' + esc(m.name.toUpperCase()) + '</h4>' +
         '<div class="st-chord">' + chordOf(id) + '</div><p>' + MOVE_DESC[id] + '</p>' +
         '<small class="' + (can ? '' : 'warn') + '">' + (can ? can + ' of your players can do it' : 'None of your players has ' + m.star + '★ skills yet') + '</small>' + act + '</div>';
-    }).join('') + '</div><p class="note center">A move needs to be unlocked here <b>and</b> your player needs enough skill stars. Until then the input does a simpler move. Every move is free to try in the Testing Arena.</p>';
+    }).join('') + '</div><p class="note center">Every move is unlocked, but your player needs enough skill stars to pull it off. Until then the input does a simpler move.</p>';
   }
   const mapImg = new Map();
   function storeMaps() {
@@ -429,10 +449,11 @@
 
   // ---------------------------------------------------------------- events
   document.addEventListener('click', (e) => {
-    const t = e.target.closest('[data-up],[data-open],[data-claim],[data-again],[data-meta]');
+    const t = e.target.closest('[data-up],[data-open],[data-open5],[data-claim],[data-again],[data-meta]');
     if (!t) return;
     ISO.Audio.init();
     if (t.dataset.up) { if (PF.upgrade(t.dataset.up)) { ISO.Audio.play('coin'); renderCareer(); } else ISO.Audio.play('deny'); }
+    else if (t.dataset.open5) openFive(t.dataset.open5);
     else if (t.dataset.open) openBox(t.dataset.open);
     else if (t.dataset.again) { if (!t.disabled) openBox(t.dataset.again); }
     else if (t.dataset.claim) { const cr = PF.claim(t.dataset.claim); if (cr) { ISO.Audio.play('coin'); App.toast('+' + cr + ' CREDITS', 'Achievement reward claimed', '#ffcf4d'); App.updateCredits(); renderAch(); updateBadge(); } }
@@ -450,6 +471,7 @@
     else if (t.dataset.meta === 'keys-reset') { saveKeys(null); PF.setSetting('keys', null); renderKeys(); App.toast('CONTROLS RESET', 'Default keys restored', '#35e08a'); }
     else if (t.dataset.meta === 'admin-logout') { PF.adminLogout(); App.updateCredits(); renderSettings(); }
     else if (t.dataset.meta === 'reset-all') { if (window.confirm('Reset ALL progress?\n\nCredits, unlocked players, skins, Prime upgrades, skill moves, maps, achievements and your MyCareer will be wiped. Settings and key bindings are kept.\n\nThis cannot be undone.')) { PF.reset(); ISO.Render.setMap(PF.data.map); App.updateCredits(); App.toast('PROGRESS RESET', 'Fresh start — everything is back to day one', '#f1735f'); updateBadge(); renderSettings(); } }
+    else if (t.dataset.meta === 'close-multi') { $('multi').classList.add('hidden'); renderBoxes(); }
     else if (t.dataset.meta === 'skip') { if (spin && !spin.done) finish(); }
     else if (t.dataset.meta === 'close-open') { if (!spin || spin.done) closeOpening(); }
   });

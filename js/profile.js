@@ -34,19 +34,18 @@
     { id: 'own_icon', name: 'Icon Pull', desc: 'Pull an Icon from a box', stat: 'iconPulls', goal: 1, reward: 1000 },
     { id: 'skin_1', name: 'Fresh Fit', desc: 'Buy a skin in the Store', stat: (p) => Object.values(p.skins).reduce((n, l) => n + l.length, 0), goal: 1, reward: 150 },
     { id: 'prime_1', name: 'Prime Time', desc: 'Upgrade a player to their Prime', stat: (p) => Object.keys(p.prime).length, goal: 1, reward: 500 },
-    { id: 'moves_all', name: 'Full Bag', desc: 'Unlock every skill move', stat: (p) => p.moves.length, goal: Object.values(ISO.MOVE_COST).filter((c) => c > 0).length, reward: 1500 },
     { id: 'maps_all', name: 'World Tour', desc: 'Own every map', stat: (p) => p.maps.length, goal: ISO.MAPS.length, reward: 1000 },
   ];
 
   // ------------------------------------------------------------ boxes
   const BOXES = [
-    { id: 'bronze', name: 'BRONZE BOX', cost: 250, req: 'first_match', col: '#c98a5a',
+    { id: 'bronze', name: 'BRONZE BOX', cost: 150, req: 'first_match', col: '#c98a5a',
       odds: { common: 0.7, rare: 0.26, epic: 0.035, legend: 0.005, icon: 0 } },
-    { id: 'silver', name: 'SILVER BOX', cost: 700, req: 'first_win', col: '#c9d2de',
+    { id: 'silver', name: 'SILVER BOX', cost: 400, req: 'first_win', col: '#c9d2de',
       odds: { common: 0.25, rare: 0.5, epic: 0.2, legend: 0.045, icon: 0.005 } },
-    { id: 'gold', name: 'GOLD BOX', cost: 1600, req: 'career_3', col: '#ffcf4d',
+    { id: 'gold', name: 'GOLD BOX', cost: 950, req: 'career_3', col: '#ffcf4d',
       odds: { common: 0, rare: 0.35, epic: 0.45, legend: 0.17, icon: 0.03 } },
-    { id: 'icon', name: 'ICON BOX', cost: 4000, req: 'career_8', col: '#f1735f',
+    { id: 'icon', name: 'ICON BOX', cost: 2400, req: 'career_8', col: '#f1735f',
       odds: { common: 0, rare: 0, epic: 0.4, legend: 0.35, icon: 0.25 } },
   ];
   const RANKS = ['common', 'rare', 'epic', 'legend', 'icon'];
@@ -201,9 +200,9 @@
     const pool = poolOf(pick(box.odds, rand));
     return pool[(rand() * pool.length) | 0];
   }
-  function canOpen(box) {
+  function canOpen(box, n) {
     if (!isDone(box.req)) return 'locked';
-    if (!infinite() && P.credits < box.cost) return 'poor';
+    if (!infinite() && P.credits < box.cost * (n || 1)) return 'poor';
     return 'ok';
   }
   function openBox(boxId, rand) {
@@ -223,6 +222,13 @@
     if (rarity === 'icon') P.stats.iconPulls++;
     save();
     return { def, rarity, dup, refund, forced, ach: newlyDone(before) };
+  }
+
+  // Open several boxes in a row (stops early if you run out of credits). Returns the list of results.
+  function openBoxes(boxId, n, rand) {
+    const out = [];
+    for (let i = 0; i < n; i++) { const r = openBox(boxId, rand); if (!r) break; out.push(r); }
+    return out;
   }
 
   // ------------------------------------------------------------ store
@@ -312,7 +318,7 @@
   load();
   ISO.Profile = {
     get data() { return P; }, save, ACH, BOXES, PITY, statOf, isDone, claim, recordMatch, recordArenaGoal, recordDrill,
-    WIN_MULT, winMult, canOpen, openBox, filler, owns, infinite, ownedCount: () => ISO.PLAYERS.filter((d) => owns(d.id)).length,
+    WIN_MULT, winMult, canOpen, openBox, openBoxes, filler, owns, infinite, ownedCount: () => ISO.PLAYERS.filter((d) => owns(d.id)).length,
     ownsSkin, skinOf, buySkin, equipSkin, isPrime, buyPrime, outfit, hasMove, buyMove, moveSet, ownsMap, buyMap, setMap,
     takeAch() { const l = lastAch; lastAch = []; return l; },      // achievements completed by the last purchase
     setSetting(k, v) { P.settings[k] = v; save(); },

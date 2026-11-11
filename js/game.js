@@ -393,17 +393,13 @@
   }
   function doPass(G, p, mx, my, hasIn) {
     const b = G.ball;
-    // the target is the closest teammate in the direction the passer is facing (within 60 degrees either side);
-    // if nobody is there, simply the closest teammate
-    const fx = Math.cos(p.face), fy = Math.sin(p.face);
-    let best = null, bd = 1e9, near = null, nd = 1e9;
+    // auto-aim: the pass always goes to your teammate, wherever you are facing
+    let best = null, bd = 1e9;
     for (const t of G.players) {
       if (t === p || t.team !== p.team || t.state === 'away') continue;
-      const dx = t.x - p.x, dy = t.y - p.y, d = hyp(dx, dy) || 1;
-      if (d < nd) { nd = d; near = t; }
-      if ((dx * fx + dy * fy) / d >= 0.5 && d < bd) { bd = d; best = t; }
+      const d = hyp(t.x - p.x, t.y - p.y);
+      if (d < bd) { bd = d; best = t; }
     }
-    best = best || near;
     if (!best) return;
     let d = hyp(best.x - p.x, best.y - p.y);
     const lead = Math.min(0.55, d / 450);
@@ -1258,7 +1254,8 @@
     b.x = SPOTX + 12; b.y = GCY; b.owner = A; b.lastTouch = atk;
     if (G.solo) { D.x = D.y = -900; D.state = 'away'; }       // testing arena: nobody else on the pitch
     G.attacker = atk; G.guard = null; G.shotTaken = false; G.armed = false; G.rep++;
-    G.phase = 'countdown'; G.cdTick = first ? 0.6 : G.drill ? 0.3 : 0.34;      // sim seconds per count: 3-2-1 takes 3 s of real time at kick-off, under 2 s after that G.phaseT = 3 * G.cdTick; G.lastCount = 4;
+    G.phase = 'countdown'; G.cdTick = first ? 0.6 : G.drill ? 0.3 : 0.34;      // sim seconds per count: 3-2-1 takes 3 s of real time at kick-off, under 2 s after that
+    G.phaseT = 3 * G.cdTick; G.lastCount = 4;
     G.msg = null; G.outInfo = null;
     if (G.drill) setupDrill(G);
   }
@@ -1426,6 +1423,7 @@
         else if (line && line.y > GY0 - 22 && line.y < GY1 + 22 && line.z < BAR + 20) {
           const pr = predict(b, k.x, sf) || line;
           if (pr.z > 46 && b.shot && b.shot.type === 'chip') { k.chip = true; k.reactT = 0.05; }      // only a scooped chip is met by standing tall; every other shot gets a dive, high if it is up
+          else if (pr.t > 0.42) k.reactT = pr.t - 0.4;      // a slow or long shot: wait and time the dive to arrive with the ball, instead of diving early and lying on the ground
           else {
             const err = G.gauss() * (42 - 18 * q(a.pos)) * clamp(pr.t * 2.5, 0.25, 1) * (fin ? 1.3 : 1) * (k.wide ? 1.25 : 1);
             const dy = pr.y + err - k.y;
@@ -1530,7 +1528,10 @@
         const c = Math.ceil(G.phaseT / G.cdTick);
         if (c !== G.lastCount && c > 0) { G.lastCount = c; ev(G, 'beep', { n: c }); }
       }
-      if (G.phaseT <= 0) { G.phase = 'play'; G.msg = null; if (ph === 'countdown') ev(G, 'whistle'); }
+      if (G.phaseT <= 0) {
+        if (ph === 'countdown') { G.phase = 'ready'; G.phaseT = 0.5; G.msg = null; G.beat = true; }      // a short beat after the count before the kick-off
+        else { G.phase = 'play'; G.msg = null; if (G.beat) { G.beat = false; ev(G, 'whistle'); } }
+      }
       return;
     }
     const live = ph === 'play';

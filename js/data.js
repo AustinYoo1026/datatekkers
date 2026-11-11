@@ -454,7 +454,7 @@
   };
 
   // Skill moves the player has to unlock in the store (the CPU is only limited by skill stars).
-  ISO.MOVE_COST = { feint: 0, knock: 0, stepover: 0, roll: 300, dragback: 300, croqueta: 600, roulette: 600, heel: 1000, nutmeg: 1000, elastico: 1600, rainbow: 1600 };
+  ISO.MOVE_COST = { feint: 0, knock: 0, stepover: 0, roll: 0, dragback: 0, croqueta: 0, roulette: 0, heel: 0, nutmeg: 0, elastico: 0, rainbow: 0 };      // every skill move is unlocked from the start
 
   // Maps are cosmetic pitches; render.js paints them from these themes.
   ISO.MAPS = [
