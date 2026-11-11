@@ -71,8 +71,10 @@
     const sorted = ISO.PLAYERS.slice().sort((a, b) => a.ovr - b.ovr);
     const ladder = [];
     for (let i = 0; i < CAREER_STAGES; i++) {
-      const idx = Math.round((i / (CAREER_STAGES - 1)) * (sorted.length - 1));
-      let j = idx; while (ladder.includes(sorted[j].id)) j++;
+      // climb evenly by rating, not by position in the roster (which is top-heavy with stars and icons)
+      const want = sorted[0].ovr + (i / (CAREER_STAGES - 1)) * (sorted[sorted.length - 1].ovr - sorted[0].ovr);
+      let idx = sorted.findIndex((d) => d.ovr >= want); if (idx < 0) idx = sorted.length - 1;
+      let j = idx; while (j < sorted.length - 1 && ladder.includes(sorted[j].id)) j++;
       ladder.push(sorted[Math.min(j, sorted.length - 1)].id);
     }
     const attr = {};
