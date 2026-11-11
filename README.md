@@ -51,9 +51,9 @@ The main menu has four buttons: **Play**, **Store**, **Settings** and **Controls
 - **Smooth drawing** — every frame is drawn part-way between the last two simulation steps (`js/smooth.js`), so motion is even on 60, 120 and 144 Hz screens.
 - **Movement** — velocity eases straight toward the stick: most of a start, stop or cut happens in the first tenth of a second, with no turning phase. Everyone is quick; pace and acceleration ratings separate players (a 50-rated runner has about 83% of the top speed of a 99) without making weak players sluggish.
 - **Input buffering** — a skill chord or a shoot / tackle press made a moment early (mid-move, mid-lunge, while stumbling) is held for a fraction of a second and fires the instant it can, so moves chain into moves and into shots. A buffered shot keeps charging while the key is held.
-- **Quick recoveries** — skill moves are short, a missed tackle or slide costs a beat rather than a second, and a player whose ankles are broken is back up in well under a second.
+- **Quick recoveries** — skill moves are short and a missed tackle or slide costs a beat rather than a second.
 - **Characters** — drawn live from a small rig (`js/sprites.js`) and a blended pose (`js/render.js`), so every movement eases into the next and figures stay sharp at any zoom.
-- **Ankle breakers** — a skill move close to a defender can put them on the floor for a moment. Close range, a skilful dribbler, and a defender who is lunging, recovering or running the wrong way all raise the odds; keeping your distance or jockeying keeps your balance.
+- **Ankle breakers** — only when a defender commits to a lunge or slide and the attacker dodges it with a skill move: the defender goes down for about 0.9 s. Nothing else breaks ankles.
 - **Goal replays** — every match goal (not drills, not the Testing Arena) is replayed through a low cinematic camera, the finish in slow motion. Offline, the shoot key skips it. The replay is a recording kept by the renderer: it never touches the match.
 - **Penalty shootout controls** — your kick: aim with left / right (or the mouse) and hold shoot for power. Their kick: you are the keeper — left / right to move along the line, hold a side and press shoot to dive, add up to dive high. Watch the run-up: it often gives the side away.
 
@@ -62,7 +62,7 @@ The main menu has four buttons: **Play**, **Store**, **Settings** and **Controls
 Play > Online (needs the server in `server/`, see `render.yaml`). Your client predicts the match locally (same simulation, same dice as the server) and re-simulates from each server snapshot, so your own player answers at once whatever the ping; corrections to other players are blended in. Client and server must run the same version: redeploy the server after pulling. Tests: `cd server && node test.js && node test-determinism.js && node test-lag.js 50 10`. Create a room and share the four-letter code, or use Quick Match. Pick **1V1** or **2V2** at the top of the lobby.
 
 - **2V2** needs four players. Seats alternate between teams (players 1 and 3 against 2 and 4); new arrivals fill the smaller team, and **Switch Team** in the lobby moves you across if the other team has a free seat. Each team shares one kit.
-- **Pass** (default `R`, rebindable in Settings, Gamepad back button) sends a ground pass to the teammate you are pointing at (the nearest with no direction held). The ball carrier alternates between teammates at each restart.
+- **Pass** (default `R`, rebindable in Settings, Gamepad back button) sends a ground pass to the closest teammate in the direction you are facing (within 60° either side), or simply the closest teammate if nobody is there. The ball carrier alternates between teammates at each restart.
 - If anyone leaves mid-match the match ends and the room reopens. Online matches are friendlies: no credits or career progress.
 
 ## Credits
@@ -93,7 +93,7 @@ The full controls guide is in the main menu and the pause menu (`Esc`), and show
 | Jockey · Shield | Ctrl / C |
 | Pause | Esc |
 
-Sliding tackle: Sprint + direction + tackle. Skill moves are chords of J, K and L: J stepovers, K body feint, L ball roll, J+K La Croqueta, J+L roulette, K+L elastico, J+K+L rainbow flick; Sprint + J / K / L gives heel-to-heel, drag back and nutmeg.
+Sliding tackle: Sprint + direction + tackle. Skill moves are chords of J, K and L: J stepovers, K body feint, L knock on (a burst forward; with a sideways direction held, the ball roll), J+K La Croqueta, J+L roulette, K+L elastico, J+K+L rainbow flick; Sprint + J / K / L gives heel-to-heel, drag back and nutmeg.
 
 ## Running the online server
 

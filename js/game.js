@@ -86,6 +86,7 @@
   const SK = {
     stepover: { name: 'Stepover', star: 2, dur: 0.33, cost: 3, exit: 1.25, prot: [0.3, 1], fake: true },
     feint:    { name: 'Body Feint', star: 1, dur: 0.25, cost: 2, exit: 1.2, prot: [0.4, 1], fake: true },
+    knock:    { name: 'Knock On', star: 1, dur: 0.22, cost: 3, exit: 1.5, prot: [0, 0.45] },
     roll:     { name: 'Ball Roll', star: 2, dur: 0.27, cost: 2, exit: 1.0, prot: [0.1, 1] },
     croqueta: { name: 'La Croqueta', star: 3, dur: 0.22, cost: 3, exit: 1.2, prot: [0, 1] },
     roulette: { name: 'Roulette', star: 3, dur: 0.42, cost: 4, exit: 1.15, prot: [0.1, 1] },
@@ -96,16 +97,18 @@
     nutmeg:   { name: 'Nutmeg', star: 4, dur: 0.36, cost: 3, exit: 1.3, prot: [0, 0] },
   };
   const SK_FALLBACK = { roulette: 'stepover', heel: 'feint', elastico: 'croqueta', rainbow: 'dragback', nutmeg: 'feint',
-    croqueta: 'roll', stepover: 'feint', roll: 'feint', dragback: 'feint' };
+    croqueta: 'knock', stepover: 'feint', roll: 'knock', dragback: 'feint' };
 
   // Each move returns, for progress u (0..1): player velocity in the move's local
   // frame (vf forward, vs sideways), the ball offset from the player (bf, bs, bz)
   // and optionally the facing angle and a body-lean hint for the renderer.
   const SKFN = {
-    stepover: (u, s) => ({ vf: s.v0 * 0.55, vs: 0, bf: 17, bs: 3.5 * Math.sin(u * Math.PI * 4), lean: Math.sin(u * Math.PI * 4) }),
-    feint: (u, s) => ({ vf: s.v0 * 0.7, vs: u < 0.45 ? -105 : 265, bf: 16,
+    stepover: (u, s) => ({ vf: s.v0 * 0.85, vs: 0, bf: 17, bs: 3.5 * Math.sin(u * Math.PI * 4), lean: Math.sin(u * Math.PI * 4) }),
+    feint: (u, s) => ({ vf: s.v0, vs: u < 0.45 ? -105 : 265, bf: 16,
       bs: u < 0.45 ? -5 * seg(u, 0, 0.45) : lerp(-5, 7, seg(u, 0.45, 1)), lean: u < 0.45 ? -1 : 1 }),
-    roll: (u, s) => ({ vf: s.v0 * 0.3, vs: 205, bf: 12, bs: 5 + 8 * Math.sin(u * Math.PI) }),
+    // knock on: push the ball ahead and burst after it, straight where the keys point
+    knock: (u, s) => ({ vf: s.v0 + 170 * sm(u), vs: 0, bf: lerp(15, 34, sm(u)) }),
+    roll: (u, s) => ({ vf: s.v0 * 0.6, vs: 205, bf: 12, bs: 5 + 8 * Math.sin(u * Math.PI) }),
     croqueta: (u, s) => ({ vf: s.v0 * 0.45 + 70, vs: 310, bf: 14, bs: lerp(-9, 10, sm(u)) }),
     roulette: (u, s) => {
       const an = u * Math.PI * 2;
@@ -126,7 +129,8 @@
 
   // Which move does this input select? (also used by the UI hint)
   // Skill moves are chosen by chord: J, K and L alone or together (bit 1 = J, 2 = K, 4 = L); Sprint swaps the single keys for the heel / drag back / nutmeg.
-  const CHORD = { 1: 'stepover', 2: 'feint', 4: 'roll', 3: 'croqueta', 5: 'roulette', 6: 'elastico', 7: 'rainbow' };
+  // L alone is the forward burst (knock on); with a sideways direction held it is the ball roll, for players who have it.
+  const CHORD = { 1: 'stepover', 2: 'feint', 4: 'knock', 3: 'croqueta', 5: 'roulette', 6: 'elastico', 7: 'rainbow' };
   const CHORD_SPRINT = { 1: 'heel', 2: 'dragback', 4: 'nutmeg' };
   function pickSkill(G, p, inp, mx, my, hasIn, mask) {
     const opp = other(G, p);
@@ -144,6 +148,7 @@
     const oppAhead = od < 85 && (ox * fx + oy * fy) / od > 0.8;
     const spd = hyp(p.vx, p.vy);
     let id = (inp.sprint && CHORD_SPRINT[mask]) || CHORD[mask] || 'stepover';
+    if (id === 'knock' && rel === 'side') id = 'roll';
     // p.moves (optional) is the set of moves this player has unlocked; anything else falls back to a simpler one
     while (SK[id].star > stars || (p.moves && !G.solo && !p.moves.has(id) && SK_FALLBACK[id])) id = SK_FALLBACK[id];
     return { id, rel, sd, inAng, od };
@@ -158,6 +163,7 @@
     let exit = p.face;
     if (id === 'stepover') exit = hasIn && pk.rel !== 'back' ? pk.inAng : p.face + sd * 0.6;
     else if (id === 'feint') exit = p.face + sd * 0.7;
+    else if (id === 'knock') exit = hasIn && pk.rel !== 'back' ? pk.inAng : p.face;
     else if (id === 'croqueta') exit = p.face + sd * 0.35;
     else if (id === 'elastico') exit = p.face + sd * 0.85;
     else if (id === 'dragback') exit = pk.rel === 'back' ? pk.inAng : p.face + Math.PI;
@@ -167,6 +173,7 @@
       fakeX: fx * 0.4 + fy * sd, fakeY: fy * 0.4 - fx * sd,
     });
     if (id === 'dragback') { s.fakeX = fx; s.fakeY = fy; }
+    if (id === 'knock') { s.d0x = Math.cos(exit); s.d0y = Math.sin(exit); s.a0 = exit; p.face = exit; }
     // a move you ask for is a move you get: only a tired or clumsy player ever loses the ball doing it
     const pBotch = clamp(0.05 - 0.06 * q(a.skl) + (def.star - 1) * 0.008 - 0.02 * q(a.dri) + (p.stam < 25 ? 0.08 : 0), 0, 0.14);
     s.botch = G.rand() < pBotch;
@@ -187,29 +194,22 @@
     ev(G, 'skill', { p, name: def.name, id });
   }
 
-  // A move that lands on a defender close enough to bite breaks their ankles: they go down for a moment.
-  // Close range, a skilful dribbler and a defender who is committed (lunging, recovering, or running the wrong way)
-  // all push the odds up; a defender who keeps his distance or jockeys keeps most of his balance.
-  const ANKLE = { stepover: 0.2, feint: 0.18, roll: 0.15, croqueta: 0.25, roulette: 0.28, elastico: 0.38, heel: 0.18, rainbow: 0.22, dragback: 0.2 };
-  const ANKLE_R = 76, ANKLE_T = 0.42;       // down and straight back up: long enough to be beaten, short enough to stay in the game
+  // Ankles are broken only when the defender commits to a defensive move (a lunge or a slide) and the attacker dodges it
+  // with a skill move: either the challenge arrives while the move protects the ball, or the move lands on a defender
+  // who is still lunging, sliding or recovering from a miss close by. Nothing else puts a defender on the floor.
+  const ANKLE = { stepover: 1, feint: 1, knock: 1, roll: 1, croqueta: 1, roulette: 1, elastico: 1, heel: 1, rainbow: 1, dragback: 1 };
+  const ANKLE_R = 76, ANKLE_T = 0.92;
   function tryAnkles(G, p, s) {
     const o = other(G, p);
-    if (G.solo || !ANKLE[s.id] || o.state === 'down' || o.state === 'ankle' || o.state === 'celebrate' || o.state === 'slide' || o.state === 'away') return;
-    const dx = o.x - p.x, dy = o.y - p.y, d = hyp(dx, dy);
-    if (d > ANKLE_R) return;
-    let P = ANKLE[s.id] + 0.4 * q(p.a.skl) + 0.22 * q(p.a.dri) + 0.12 * q(p.a.agi) - 0.3 * q(o.a.agi) - 0.12 * q(o.a.bal);
-    P += 0.2 * (1 - d / ANKLE_R);                                         // the closer the defender, the harder the move bites
-    if (o.jock) P -= 0.2;                                                   // jockeying: balanced, harder to fool
-    if (o.state === 'tackle' || o.state === 'recover') P += 0.35;           // committed to a challenge
-    const os = hyp(o.vx, o.vy), ex = Math.cos(s.exit), ey = Math.sin(s.exit);
-    if (os > 60) {
-      const along = (o.vx * ex + o.vy * ey) / os, fake = (o.vx * s.fakeX + o.vy * s.fakeY) / (os * (hyp(s.fakeX, s.fakeY) || 1));
-      if (along < -0.25 || (s.def.fake && fake > 0.45)) P += 0.24;         // moving the wrong way: went with the fake, or against the exit
-      if (o.sprinting) P += 0.06;
-    }
-    if (G.rand() >= clamp(P, 0.06, 0.9)) return;
+    if (G.solo || !ANKLE[s.id]) return;
+    if (!(o.state === 'tackle' || o.state === 'slide' || (o.state === 'recover' && !o.won))) return;
+    if (hyp(o.x - p.x, o.y - p.y) > ANKLE_R) return;
+    breakAnkles(G, p, o, s);
+  }
+  function breakAnkles(G, p, o, s) {
+    if (G.solo || !ANKLE[s.id] || o.state === 'ankle' || o.state === 'celebrate' || o.state === 'away') return;
     o.charge = null; o.skill = null; o.noCtrl = ANKLE_T;
-    o.vx *= 0.15; o.vy *= 0.15; o.fallDir = Math.atan2(dy, dx);
+    o.vx *= 0.15; o.vy *= 0.15; o.fallDir = Math.atan2(o.y - p.y, o.x - p.x);
     setState(o, 'ankle', ANKLE_T);
     p.boost = Math.max(p.boost, 0.9);                                       // the attacker bursts into the space
     G.stats.ankles = (G.stats.ankles || 0) + 1;
@@ -374,13 +374,13 @@
     else if (inp.skill && !pr.skill) p.charge = null;        // fake shot: skill key cancels the wind-up
     else if (!inp[c.key] && c.t < 0.18) {         // a quick tap is a fake shot: the swing without the strike
       const bs = Math.sign(b.y - p.y) || (Math.sin(p.face) >= 0 ? 1 : -1);      // the side the ball is on now
-      p.charge = null; p.kickT = 0; p.fakeT = 0.4; p.fakeDrag = -bs; p.vx *= 0.6; p.vy *= 0.6; p.stam = Math.max(0, p.stam - 1);
+      p.charge = null; p.kickT = 0; p.fakeT = 0.4; p.fakeDrag = -bs; p.ballSd = -bs; p.vx *= 0.6; p.vy *= 0.6; p.stam = Math.max(0, p.stam - 1);
       ev(G, 'fake', { p });
     } else if (!inp[c.key] || c.t > C.CHG[c.type].max) shoot(G, p, c.type, clamp(c.t / C.CHG[c.type].full, 0.3, 1), false, mx, my, hasIn);
   }
 
   // ------------------------------------------------------------------ passing (2v2)
-  // A ground pass to a teammate: the one closest to where you are pointing (the nearest, with no input), led by their run.
+  // A ground pass to a teammate, led by their run.
   function passSpeed(d) {       // launch speed that carries a rolling ball d pixels and leaves it arriving at ~170 px/s
     for (let v = 200; v < 1000; v += 10) {
       const t = Math.log((v + 40) / (170 + 40)) / 0.7;       // drag: k1 = 0.7, k0 = 28, so k0 / k1 = 40
@@ -390,14 +390,17 @@
   }
   function doPass(G, p, mx, my, hasIn) {
     const b = G.ball;
-    let best = null, bs = -1e9;
+    // the target is the closest teammate in the direction the passer is facing (within 60 degrees either side);
+    // if nobody is there, simply the closest teammate
+    const fx = Math.cos(p.face), fy = Math.sin(p.face);
+    let best = null, bd = 1e9, near = null, nd = 1e9;
     for (const t of G.players) {
       if (t === p || t.team !== p.team || t.state === 'away') continue;
       const dx = t.x - p.x, dy = t.y - p.y, d = hyp(dx, dy) || 1;
-      let sc = -d * 0.01;
-      if (hasIn) sc += ((dx * mx + dy * my) / (d * (hyp(mx, my) || 1))) * 3;
-      if (sc > bs) { bs = sc; best = t; }
+      if (d < nd) { nd = d; near = t; }
+      if ((dx * fx + dy * fy) / d >= 0.5 && d < bd) { bd = d; best = t; }
     }
+    best = best || near;
     if (!best) return;
     let d = hyp(best.x - p.x, best.y - p.y);
     const lead = Math.min(0.55, d / 450);
@@ -448,7 +451,7 @@
     let bonus = 0;
     if (o.state === 'skill' && o.skill) {
       const u = o.skill.t / o.skill.dur, pr = o.skill.def.prot;
-      if (u >= pr[0] && u <= pr[1]) { t.beaten = true; ev(G, 'beaten', { p: t, by: o }); return; }
+      if (u >= pr[0] && u <= pr[1]) { t.beaten = true; ev(G, 'beaten', { p: t, by: o }); breakAnkles(G, o, t, o.skill); return; }
       bonus = 0.18;
     }
     let ch = (slide ? 0.64 : 0.53) + 0.3 * q(t.a.tck)
@@ -504,7 +507,7 @@
       kind: 'p', def, a, team, idx: idx || 0, dir: 1, x: 0, y: 0, vx: 0, vy: 0, face: 0,
       top, jog: top * JOG, state: 'free', stT: 0, stDur: 0, stam: 100, exhausted: false,
       charge: null, skill: null, chord: null, noCtrl: 0, kickT: 0, fakeT: 0, fakeDrag: 0, jostle: 0, skillCd: 0, boost: 0, wasJockey: 0,
-      bufSkill: null, bufKey: null, bufT: 0, bufHold: 0, animDist: 0, runPh: 0, latSign: 0, rollT: 0, rollSd: 0, dribPh: 0, prev: {}, sprinting: false, shield: false, jock: false, contact: false,
+      bufSkill: null, bufKey: null, bufT: 0, bufHold: 0, animDist: 0, runPh: 0, latSign: 0, rollT: 0, rollSd: 0, ballSd: 0, dribPh: 0, prev: {}, sprinting: false, shield: false, jock: false, contact: false,
       tdx: 1, tdy: 0, tackleHit: false, won: false, beaten: false, bodyHit: false, clean: false,
     };
   }
@@ -711,17 +714,24 @@
           const latK = sp > 20 ? Math.abs(p.vy) / sp : 0;
           let side = Math.sin(p.dribPh) * (1.1 + 2.7 * latK) * clamp(sf * 2.2, 0, 1), ry = 0;
           if (p.rollT > 0) ry = p.rollSd * lerp(-7, 3.5, sm(1 - p.rollT / 0.26));      // sole roll on a change of horizontal direction
+          let shielding = false;
           if (p.shield) {
             const o = other(G, p), ox = p.x - o.x, oy = p.y - o.y, od = hyp(ox, oy);
-            if (od < 95 && od > 1) { fx = ox / od; fy = oy / od; lead = 14; side = 0; ry = 0; }
+            if (od < 95 && od > 1) { fx = ox / od; fy = oy / od; lead = 14; side = 0; ry = 0; shielding = true; }
           }
-          // screen-sideways travel (screen horizontal is sim y): the ball stays on the trailing side, by the opposite foot,
-          // which keeps nudging it toward the direction of travel; it is not pushed out ahead of the player
+          // the ball is always carried beside the player on screen (screen horizontal is sim y), never in front of or
+          // behind the body where the figure hides it. Travelling sideways it sits on the trailing side, by the opposite
+          // foot; otherwise it stays on the side it was last on. A fake shot drags it across to the other side.
           let lx = 0, latM = 0;
+          if (!p.ballSd) p.ballSd = b.y >= p.y ? 1 : -1;
           if (!p.shield && sp > 20) latM = clamp((Math.abs(p.vy) / sp - 0.3) / 0.4, 0, 1) * clamp(sf * 2.2, 0, 1);
-          if (latM > 0) lx = Math.sign(p.vy) * (-6 + 2.2 * (1 + Math.sin(p.dribPh))) * latM;
-          if (p.fakeT > 0) lx = p.fakeDrag * 9 * lerp(-1, 1, sm(1 - p.fakeT / 0.4));      // fake shot: drag it to the other side
-          const tx = p.x + fx * lead - fy * side, ty = p.y + fy * lead * (1 - latM) + fx * side + ry + lx;
+          if (latM > 0.5) p.ballSd = -Math.sign(p.vy);
+          if (p.fakeT > 0) lx = p.fakeDrag * 19 * lerp(-1, 1, sm(1 - p.fakeT / 0.4));      // fake shot: drag it to the other side
+          else if (!shielding) lx = p.ballSd * (19 + 1.5 * Math.sin(p.dribPh) * clamp(sf * 2.2, 0, 1));
+          const lk = shielding ? 1 : 0.45;
+          let ax = fx * lead * lk;
+          if (!shielding && ax > 0) ax *= 0.3;      // up the screen the body would cover a ball pushed ahead: keep it level with the feet
+          const tx = p.x + ax - fy * side, ty = p.y + fy * lead * lk * (1 - latM) + fx * side + ry + lx;
           const k = (8 + 7 * dri) * (p.sprinting ? 0.8 : 1);
           const wx = p.vx + (tx - b.x) * k, wy = p.vy + (ty - b.y) * k;
           const bl = Math.min(1, (10 + 10 * q(p.a.bct)) * dt);

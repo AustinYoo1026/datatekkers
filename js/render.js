@@ -246,6 +246,7 @@
       else if (id === 'heel') Object.assign(T, { t1: -0.7, k1: 1.25, t2: 0.5, k2: 0.2, lean: 0.2 });
       else if (id === 'rainbow') { const w = (u - 0.28) / 0.72; if (u < 0.28) Object.assign(T, { t1: 0.45, k1: 0.95, t2: 0.45, k2: 0.95, lean: 0.15 }); else Object.assign(T, { air: Math.sin(Math.PI * w) * 7, t1: -0.5, k1: 1.5, t2: -0.35, k2: 1.4, lean: 0.3, s1: -0.8, s2: -0.8 }); }
       else if (id === 'dragback') { const v = sm(u / 0.6); Object.assign(T, { t1: lerp(0.95, -0.1, v), k1: 0.15, t2: -0.1, k2: 0.35, lean: -0.14 }); }
+      else if (id === 'knock') { stride(T, p.runPh || 0, 1, 0); Object.assign(T, { lean: 0.26 }); }
       else if (id === 'nutmeg' && u < 0.35) Object.assign(T, { t1: 1.1, k1: 0.1, t2: -0.4, k2: 0.5, lean: 0.1 });
       else stride(T, p.runPh || 0, 0.9, 0);
       o.dx = lx * (s.lean || 0) * 2.5; o.dy = ly * (s.lean || 0) * 2.5;
@@ -306,7 +307,7 @@
   }
 
   // frame of a replacement PNG sheet (ISO.SPRITE_OVERRIDES) for a player
-  const SKILL_FRAMES = { stepover: [0, 1, 2, 1, 0, 1], feint: [2, 2, 0, 0], roll: [0, 0, 1, 1], croqueta: [2, 1, 0], roulette: null,
+  const SKILL_FRAMES = { stepover: [0, 1, 2, 1, 0, 1], feint: [2, 2, 0, 0], knock: [3, 1], roll: [0, 0, 1, 1], croqueta: [2, 1, 0], roulette: null,
     elastico: [0, 0, 0, 2, 2], heel: [3, 3, 1], rainbow: [3, 3, 1, 1, 1], dragback: [3, 3, 1], nutmeg: null };
   function drawSheet(c, p, sheet) {
     const sp = hyp(p.vx, p.vy);

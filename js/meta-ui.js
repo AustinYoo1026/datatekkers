@@ -191,7 +191,7 @@
     '" data-st="' + kind + '" data-id="' + id + '">' + (label || 'BUY') + ' · ' + cr(cost) + '</button>';
   const MOVE_DESC = {
     feint: 'Drop the shoulder one way, go the other.', stepover: 'Feet over the ball to freeze the defender.',
-    roll: 'Roll the ball sideways out of a tackle.', dragback: 'Pull it back and turn away from pressure.',
+    knock: 'Push the ball ahead and burst after it.', roll: 'Roll the ball sideways out of a tackle.', dragback: 'Pull it back and turn away from pressure.',
     croqueta: 'Snap the ball from foot to foot past a lunge.', roulette: 'Spin 360° over the ball, shielding it all the way.',
     heel: 'Flick it forward off both heels and burst clear.', nutmeg: 'Slip it through their legs and run round.',
     elastico: 'Out, then in, in one touch. Sells the biggest fake.', rainbow: 'Flick the ball over the defender’s head.',
@@ -200,6 +200,7 @@
     const IN = ISO.Input, G = ISO.Game, keys = (m) => ['j', 'k', 'l'].filter((_, i) => m & (1 << i)).map((k) => '<kbd>' + esc(IN.keyLabel(k)) + '</kbd>').join(' + ');
     for (const m in G.CHORD) if (G.CHORD[m] === id) return keys(+m);
     for (const m in G.CHORD_SPRINT) if (G.CHORD_SPRINT[m] === id) return '<kbd>' + esc(IN.keyLabel('sprint')) + '</kbd> + ' + keys(+m);
+    if (id === 'roll') return keys(4) + ' + sideways';
     return '';
   }
 
