@@ -1,10 +1,16 @@
 # ISO Football
 
-**Beta 2.0** — Store Update, Control Updates, MyCareer, Gameplay Changes
+**Beta 2.2** — New card artwork, front-facing dribbling
 
 A 2D, top-down, 1v1 football game for the browser. Rebound drill with the goal at the top: the attacker starts 10 yards outside the 18-yard box, in the centre, with the defender in front; a keeper catch is thrown back out for either player to win. After a shot, win the rebound and clear it outside the box. First to five goals wins.
 
-## What's new in Beta 2.0
+## What's new in Beta 2.2
+
+- **New card artwork** — Online 1v1, Testing Arena, Penalty Shootout, Target Practice and Chip Challenge now use flat-vector illustrations in the same style as MyCareer, Quick Match and Drills.
+- **Dribbling** — players no longer swing into a full side profile. Moving left or right, the ball stays on the trailing side and the opposite foot nudges it along. A fake shot now drags the ball to the other side.
+
+## Beta 2.0
+
 
 - **Store Update** — one Store for everything you spend credits on: Players (skins and Prime upgrades), Box Draw, Skill Moves, Maps and Achievements.
 - **Control Updates** — rebind every key in Settings, switch mouse aiming on and off (also from the pause menu).
