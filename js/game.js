@@ -15,7 +15,7 @@
     GD: 34,                       // goal depth
     BAR: 60,                      // crossbar height (ball z)
     PR: 12, BR: 6,                // player / ball radius
-    BOXD: 190, BOXY0: 110, BOXY1: 610, PEN: 127,
+    BOXD: 190, BOXY0: 110, BOXY1: 610, PEN: 156,
     SIXD: 64, SIXY0: 250, SIXY1: 470,
     TEN: 105,                     // 10 yards (the box is 18)
     K_CATCH: 0.7,                // keepers hold shots less often than they spill them: rebounds are the point
@@ -977,6 +977,13 @@
     }
     if (!live) return;
 
+    if (G.walls) {      // futsal: the ball rebounds off every wall; only the goal mouth is open
+      const e = 0.82;
+      if (b.y < BR) { b.y = BR; b.vy = Math.abs(b.vy) * e; b.spin *= 0.5; ev(G, 'post', { power: 0.3 }); }
+      else if (b.y > FH - BR) { b.y = FH - BR; b.vy = -Math.abs(b.vy) * e; b.spin *= 0.5; ev(G, 'post', { power: 0.3 }); }
+      if (b.x < BR) { b.x = BR; b.vx = Math.abs(b.vx) * e; ev(G, 'post', { power: 0.3 }); }
+      if (b.x > FW + BR && !(b.y > GY0 && b.y < GY1 && b.z <= BAR + 5)) { b.x = FW + BR - 1; b.vx = -Math.abs(b.vx) * e; ev(G, 'post', { power: 0.3 }); }
+    }
     if (b.x > FW + BR) {
       if (b.y > GY0 && b.y < GY1) {
         if (b.z > BAR + 5) return ballOut(G, 'out');
@@ -1050,6 +1057,11 @@
     penalty: { name: 'PENALTY SHOOTOUT', total: 5, max: 5 },
     target:  { name: 'TARGET PRACTICE', total: 10, max: 30 },
     chip:    { name: 'CHIP CHALLENGE', total: 6, max: 6 },
+    freekick: { name: 'FREE KICKS', total: 6, max: 6, tip: 'FREE KICK OVER THE WALL' },
+    oneonone: { name: 'ONE ON ONE', total: 6, max: 6, tip: 'BEAT THE KEEPER ONE ON ONE' },
+    longshot: { name: 'LONG SHOTS', total: 6, max: 12, tip: 'SHOOT FROM DISTANCE · POWER SHOT SCORES DOUBLE' },
+    finesse:  { name: 'FINESSE CURLERS', total: 6, max: 12, tip: 'CURL IT IN FROM THE WING · FINESSE SCORES DOUBLE' },
+    power:    { name: 'POWER BLASTS', total: 6, max: 6, tip: 'ONLY THE POWER SHOT COUNTS' },
   };
   // the four target boxes in the goal mouth: y range along the line and ball-height range
   const TARGETS = [
@@ -1059,7 +1071,7 @@
   ISO.DRILLS = DRILLS; ISO.TARGETS = TARGETS;
   function makeDrill(kind, opts) {
     const d = DRILLS[kind];
-    const D = { kind, name: d.name, total: d.total, max: d.max, n: 0, goals: 0, points: 0, results: [], target: -1, t: 0, still: 0, msg: '', sub: '' };
+    const D = { kind, name: d.name, tip: d.tip || '', total: d.total, max: d.max, n: 0, goals: 0, points: 0, results: [], target: -1, t: 0, still: 0, msg: '', sub: '' };
     // Penalty shootout: you and an opposing team take turns. `so` holds the shootout: whose turn it is, every kick so far,
     // the opposing takers and the plan of the one about to shoot.
     if (kind === 'penalty') D.so = { turn: 'shoot', kicks: [[], []], takers: (opts && opts.takers) || null, ti: 0, ai: null, sudden: false };
@@ -1148,6 +1160,15 @@
     let x, y = GCY;
     if (D.kind === 'penalty') x = FW - C.PEN;
     else if (D.kind === 'target') { x = FW - (175 + G.rand() * 55); y = GCY + (G.rand() - 0.5) * 220; k.dummy = true; D.target = (G.rand() * 4) | 0; }
+    else if (D.kind === 'freekick') {      // a free kick from a central-ish spot with a one-man wall (the second player, standing still)
+      x = FW - (225 + G.rand() * 70); y = GCY + (G.rand() - 0.5) * 330;
+      const W = G.players[1], gx = FW, dx = gx - x, dy = GCY - y, d = hyp(dx, dy) || 1;
+      W.state = 'free'; W.x = x + (dx / d) * 78; W.y = y + (dy / d) * 78; W.vx = W.vy = 0; W.face = Math.atan2(-dy, -dx); W.noCtrl = 99; W.charge = null;
+    }
+    else if (D.kind === 'oneonone') { x = FW - (105 + G.rand() * 70); y = GCY + (G.rand() - 0.5) * 220; }
+    else if (D.kind === 'longshot') { x = FW - (330 + G.rand() * 70); y = GCY + (G.rand() - 0.5) * 260; }
+    else if (D.kind === 'finesse') { x = FW - (170 + G.rand() * 60); y = GCY + (G.rand() < 0.5 ? -1 : 1) * (175 + G.rand() * 80); }
+    else if (D.kind === 'power') { x = FW - (235 + G.rand() * 60); y = GCY + (G.rand() - 0.5) * 220; }
     else { x = FW - (150 + G.rand() * 70); y = GCY + (G.rand() - 0.5) * 160; k.dummy = true; k.x = FW - (58 + G.rand() * 22); k.y = GCY + (G.rand() - 0.5) * 36; }
     A.x = x - 12; A.y = y; A.face = 0;
     b.x = x; b.y = y;
@@ -1192,7 +1213,10 @@
     if (D.kind === 'target') {
       const T = TARGETS[D.target], hit = b.y >= T.y0 && b.y <= T.y1 && b.z >= T.z0 && b.z <= T.z1;
       if (hit) { pts = 3; msg = 'BULLSEYE!'; sub = '+3'; } else { sub = '+1'; }
-    } else if (D.kind === 'chip' && st !== 'chip') { pts = 0; msg = 'GOAL — BUT USE THE CHIP'; }
+    } else if (D.kind === 'longshot') { if (st === 'power') { pts = 2; sub = '+2'; } }
+    else if (D.kind === 'finesse') { if (st === 'finesse') { pts = 2; msg = 'WHAT A CURLER!'; sub = '+2'; } }
+    else if (D.kind === 'power' && st !== 'power') { pts = 0; msg = 'GOAL — BUT USE THE POWER SHOT'; }
+    else if (D.kind === 'chip' && st !== 'chip') { pts = 0; msg = 'GOAL — BUT USE THE CHIP'; }
     else if (D.kind === 'chip') { msg = 'CHEEKY CHIP!'; }
     D.goals++; D.points += pts; D.n++; G.score[0] = D.points; D.msg = msg; D.sub = sub;
     D.results.push({ res: 'goal', pts });
@@ -1503,7 +1527,7 @@
       keeper: makeKeeper(1, nerfKeeper((opts.keepers || ISO.KEEPERS)[1], opts.keeperNerf || 0)),
       ball: { x: SPOTX, y: GCY, z: 0, vx: 0, vy: 0, vz: 0, spin: 0, rot: 0, seq: 0, lastTouch: 0 },
       stats: { poss: [0, 0], shots: [0, 0], onTarget: [0, 0], saves: [0, 0], tackles: [0, 0], skills: [0, 0], clears: [0, 0], powerGoals: [0, 0] },
-      drill: opts.drill && DRILLS[opts.drill] ? makeDrill(opts.drill, opts) : null, solo: !!opts.solo, replay: !!opts.replay && !opts.solo && !opts.drill, goalDur: C.GOAL_T, win: opts.solo ? 1e9 : opts.win || C.WIN, attacker: opts.kickoff || 0, next: 0, rep: 0, shotTaken: false, armed: false,
+      drill: opts.drill && DRILLS[opts.drill] ? makeDrill(opts.drill, opts) : null, solo: !!opts.solo, walls: !!opts.walls, replay: !!opts.replay && !opts.solo && !opts.drill, goalDur: C.GOAL_T, win: opts.solo ? 1e9 : opts.win || C.WIN, attacker: opts.kickoff || 0, next: 0, rep: 0, shotTaken: false, armed: false,
     };
     if (opts.moves) G.players.forEach((p, i) => { p.moves = opts.moves[i] || null; });
     G.keepers = [G.keeper];

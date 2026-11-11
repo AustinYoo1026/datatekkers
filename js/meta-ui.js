@@ -34,7 +34,7 @@
     $('careerLadder').innerHTML = C.ladder.map((id, i) => {
       const d = ISO.playerById(id), st = i < C.stage ? 'beaten' : i === C.stage ? 'next' : 'ahead';
       return '<div class="lrow ' + st + ' r-' + ISO.rarityOf(d) + '"><span class="ln">' + (i + 1) + '</span><img src="' + face(d) + '" alt="">' +
-        '<span class="lname">' + esc(d.name) + '<small>' + esc(d.club) + '</small></span><span class="lovr">' + d.ovr + '</span>' +
+        '<span class="lname">' + esc(d.name) + '<small>' + esc(d.club) + (C.ladder.indexOf(id) < i ? ' · REMATCH' : '') + '</small></span><span class="lovr">' + d.ovr + '</span>' +
         '<span class="lst">' + (st === 'beaten' ? '✓' : st === 'next' ? 'NEXT' : '') + '</span></div>';
     }).join('');
     if (opp) {
@@ -263,27 +263,43 @@
   }
   const mapImg = new Map();
   function storeMaps() {
-    return '<div class="st-maps">' + ISO.MAPS.map((m) => {
+    const card = (m) => {
       if (!mapImg.has(m.id)) mapImg.set(m.id, ISO.Render.thumb(m.id).toDataURL());
       const own = PF.ownsMap(m.id), on = PF.data.map === m.id;
       const act = on ? '<span class="st-tag on">✓ SELECTED</span>' : own ? '<button class="btn small" data-st="setmap" data-id="' + m.id + '">PLAY HERE</button>' : buyBtn('map', m.id, m.cost);
-      return '<div class="st-card map' + (on ? ' on' : '') + '"><img src="' + mapImg.get(m.id) + '" alt=""><h4>' + m.name + '</h4><p>' + m.desc + '</p>' + act + '</div>';
-    }).join('') + '</div><p class="note center">Maps change the look of every match — Quick Match, MyCareer and the Testing Arena. The pitch plays the same everywhere.</p>';
+      return '<div class="st-card map' + (on ? ' on' : '') + '"><img src="' + mapImg.get(m.id) + '" alt=""><h4>' + m.name + (m.walls ? ' <small class="walltag">WALLS</small>' : '') + '</h4><p>' + m.desc + '</p>' + act + '</div>';
+    };
+    const group = (title, list) => '<h3 class="st-cat">' + title + '</h3><div class="st-maps">' + list.map(card).join('') + '</div>';
+    return group('PITCHES', ISO.MAPS.filter((m) => !m.cat)) + group('FUTSAL · WALLED COURTS (the ball bounces off the walls · offline modes)', ISO.MAPS.filter((m) => m.cat === 'futsal')) +
+      '<p class="note center">Maps change the look of every match — Quick Match, MyCareer and the Testing Arena. Pitches play the same everywhere; futsal courts add walls the ball bounces off.</p>';
+  }
+  const ballImg = new Map();
+  function ballPic(id) {
+    if (!ballImg.has(id)) { const cv = document.createElement('canvas'), P = ISO.Sprites.BALL_PX; cv.width = cv.height = 96; const c = cv.getContext('2d'); c.imageSmoothingEnabled = false; c.drawImage(ISO.Sprites.ball(id), 2 * P, 0, P, P, 0, 0, 96, 96); ballImg.set(id, cv.toDataURL()); }
+    return ballImg.get(id);
+  }
+  function storeBalls() {
+    return '<div class="st-maps st-balls">' + ISO.BALLS.map((b) => {
+      const own = PF.ownsBall(b.id), on = PF.data.ball === b.id;
+      const act = on ? '<span class="st-tag on">✓ EQUIPPED</span>' : own ? '<button class="btn small" data-st="setball" data-id="' + b.id + '">EQUIP</button>' : buyBtn('ball', b.id, b.cost);
+      return '<div class="st-card ball' + (on ? ' on' : '') + '"><div class="ballpic"><img src="' + ballPic(b.id) + '" alt=""></div><h4>' + b.name + '</h4><p>' + b.desc + '</p>' + act + '</div>';
+    }).join('') + '</div><p class="note center">Ball skins are cosmetic and show on your screen in every mode.</p>';
   }
   function renderStore() {
     const ro = $('stRoster'), top = ro ? ro.scrollTop : 0, T = store.tab;
     document.querySelectorAll('#storeTabs .segb').forEach((b) => b.classList.toggle('on', b.dataset.id === T));
-    const own = T === 'players' || T === 'moves' || T === 'maps';
+    const own = T === 'players' || T === 'moves' || T === 'maps' || T === 'balls';
     $('storeBody').classList.toggle('hidden', !own);
     $('storeBoxes').classList.toggle('hidden', T !== 'boxes');
     $('storeAch').classList.toggle('hidden', T !== 'ach');
-    if (own) $('storeBody').innerHTML = T === 'moves' ? storeMoves() : T === 'maps' ? storeMaps() : storePlayers();
+    if (own) $('storeBody').innerHTML = T === 'moves' ? storeMoves() : T === 'maps' ? storeMaps() : T === 'balls' ? storeBalls() : storePlayers();
     else $('storeBody').innerHTML = '';
     $('storeSub').textContent = {
       boxes: 'Pull random players. Rarer boxes unlock as you complete achievements; duplicates refund credits.',
       players: 'Skins and Prime upgrades for the players you own.',
       moves: 'Unlock skill moves for your matches.',
       maps: 'Pitches to play on.',
+      balls: 'Ball skins: spend credits to play with a different ball.',
       ach: '',
     }[T];
     if (T === 'boxes') renderBoxes();      // these two write their own subtitle
@@ -298,7 +314,7 @@
   }
   // ---------------------------------------------------------------- play hub
   function renderDrills() {
-    for (const k of ['penalty', 'target', 'chip']) {
+    for (const k of ['penalty', 'target', 'chip', 'freekick', 'oneonone', 'longshot', 'finesse', 'power']) {
       const d = PF.data.drills[k], max = ISO.DRILLS[k].max;
       $('drillBest-' + k).textContent = d ? 'BEST ' + d.best + ' / ' + max + (k === 'penalty' ? ' SCORED' : '') + ' · ' + d.plays + ' PLAYED' : 'NOT PLAYED YET';
     }
@@ -316,18 +332,20 @@
     if (k === 'tab') { store.tab = id; ISO.Audio.play('ui'); }
     else if (k === 'pl') { store.pid = id; ISO.Audio.play('ui'); }
     else if (k === 'equip') { PF.equipSkin(store.pid, id); ISO.Audio.play('ui'); }
+    else if (k === 'setball') { PF.equipBall(id); ISO.Render.setBall(id); ISO.Audio.play('ui'); }
     else if (k === 'setmap') { PF.setMap(id); ISO.Render.setMap(id); ISO.Audio.play('ui'); }
     else {
       const d = ISO.playerById(store.pid);
       if (k === 'prime' && (PF.infinite() || PF.data.credits >= ISO.primeCost(d)) &&
         !window.confirm('Upgrade ' + d.name + ' to Prime for ' + cr(ISO.primeCost(d)) + '? This is permanent.')) return;
-      const res = k === 'skin' ? PF.buySkin(store.pid, id) : k === 'prime' ? PF.buyPrime(store.pid) : k === 'move' ? PF.buyMove(id) : PF.buyMap(id);
+      const res = k === 'skin' ? PF.buySkin(store.pid, id) : k === 'prime' ? PF.buyPrime(store.pid) : k === 'move' ? PF.buyMove(id) : k === 'ball' ? PF.buyBall(id) : PF.buyMap(id);
       if (res === 'ok') {
         if (k === 'prime') { ISO.Audio.play('reveal', { rank: 4 }); App.toast('★ PRIME ' + d.short, 'Now ' + ISO.primeOf(d).ovr + ' OVR — every attribute boosted', '#ffcf4d'); }
         else {
           ISO.Audio.play('coin');
           if (k === 'skin') App.toast(ISO.skinById(id).name + ' SKIN', 'Bought and equipped on ' + d.short, '#35e08a');
           else if (k === 'move') App.toast(ISO.Game.SKILLS[id].name.toUpperCase() + ' UNLOCKED', 'Use it in your next match', '#35e08a');
+          else if (k === 'ball') { ISO.Render.setBall(id); App.toast(ISO.ballById(id).name + ' BALL', 'Bought and equipped', '#35e08a'); }
           else { ISO.Render.setMap(id); App.toast(ISO.mapById(id).name, 'Map bought and selected', '#35e08a'); }
         }
         App.achToasts(PF.takeAch());
@@ -339,43 +357,73 @@
     App.updateCredits(); renderStore();
   });
 
+  // ---------------------------------------------------------------- main menu: stats, a rotating featured player, a tip ticker
+  const TIPS = ['Hold the shot key longer for a harder strike, but hold too long and it sails over the bar.', 'A skill move at the right moment can break a defender\'s ankles.', 'Futsal courts have walls: the ball bounces back into play.',
+    'Open 5 boxes at once from the Box Draw tab.', 'Achievements now have levels. Some hand you a player.', 'Try the free-kick and one-on-one drills to sharpen your finishing.', 'Rematches in MyCareer get harder: bring upgraded stats.',
+    'Switch to the Cinematic camera in Settings to play from the replay angle.', 'Ball skins are in the Store: pick one that matches your style.', 'Keeper dives early? Chip it over him.'];
+  let menuTimer = null, featI = 0, tipI = 0;
+  function menuFeature() {
+    const pool = ISO.PLAYERS.filter((d) => PF.owns(d.id)), list = pool.length ? pool : ISO.PLAYERS;
+    const d = list[(Math.random() * list.length) | 0], r = ISO.rarityOf(d), el = $('menuFeature');
+    el.classList.remove('swap'); void el.offsetWidth; el.classList.add('swap');
+    el.style.setProperty('--rc', RR[r].col); drawTo('mfFace', d, 200);
+    $('mfName').textContent = d.name; $('mfMeta').textContent = d.flag + ' ' + d.club + ' · OVR ' + d.ovr; $('mfRar').textContent = RR[r].name;
+  }
+  function menuLive(on) {
+    clearInterval(menuTimer); menuTimer = null;
+    $('menuFeature').classList.toggle('hidden', !on); $('menuTip').classList.toggle('hidden', !on);
+    if (!on) return;
+    const C = PF.data.career, done = PF.ACH.filter((a) => PF.statOf(a) >= a.goal).length, ready = PF.ACH.some((a) => !PF.data.claimed[a.id] && PF.statOf(a) >= a.goal);
+    $('menuStats').innerHTML = [['CREDITS', PF.infinite() ? '∞' : PF.data.credits.toLocaleString()], ['PLAYERS', PF.ownedCount() + ' / ' + ISO.PLAYERS.length], ['CAREER', 'STAGE ' + Math.min(C.stage + 1, C.ladder.length) + ' / ' + C.ladder.length], ['ACHIEVEMENTS', done + ' / ' + PF.ACH.length + (ready ? ' · CLAIM!' : '')]]
+      .map(([k, v]) => '<div><span>' + k + '</span><b>' + v + '</b></div>').join('');
+    menuFeature(); tipI = (Math.random() * TIPS.length) | 0; $('menuTip').textContent = 'TIP · ' + TIPS[tipI];
+    menuTimer = setInterval(() => { featI++; menuFeature(); if (featI % 2 === 0) { tipI = (tipI + 1) % TIPS.length; $('menuTip').textContent = 'TIP · ' + TIPS[tipI]; } }, 4500);
+  }
   // ---------------------------------------------------------------- achievements
   function renderAch() {
     const P = PF.data;
     const gates = {}; for (const b of PF.BOXES) gates[b.req] = b.name;
     let done = 0;
-    $('achList').innerHTML = PF.ACH.map((a) => {
-      const v = Math.min(PF.statOf(a), a.goal), ok = v >= a.goal, cl = !!P.claimed[a.id];
-      if (ok) done++;
-      const act = cl ? '<span class="claimed">✓ CLAIMED</span>'
-        : ok ? '<button class="btn small primary" data-claim="' + a.id + '">CLAIM +' + a.reward + '</button>'
-          : '<span class="rew">+' + a.reward + ' CR</span>';
-      return '<div class="achrow' + (ok ? ' done' : '') + (ok && !cl ? ' ready' : '') + '"><div class="achtxt"><b>' + esc(a.name) + '</b><span>' + esc(a.desc) + '</span>' +
-        (gates[a.id] ? '<em>UNLOCKS ' + gates[a.id] + '</em>' : '') + '</div>' +
+    // one row per family: the level you are working on (the first one not yet claimed), with the levels laid out as pips
+    const rows = [];
+    for (const F of PF.FAMILIES) {
+      const tiers = PF.ACH.filter((a) => a.fam === F.fam);
+      done += tiers.filter((a) => PF.statOf(a) >= a.goal).length;
+      const cur = tiers.find((a) => !P.claimed[a.id]) || tiers[tiers.length - 1];
+      rows.push([F, tiers, cur]);
+    }
+    rows.sort((x, y) => (+!!(PF.statOf(y[2]) >= y[2].goal && !P.claimed[y[2].id])) - (+!!(PF.statOf(x[2]) >= x[2].goal && !P.claimed[x[2].id])));      // ready-to-claim first
+    $('achList').innerHTML = rows.map(([F, tiers, a]) => {
+      const v = Math.min(PF.statOf(a), a.goal), ok = v >= a.goal, cl = !!P.claimed[a.id], maxed = cl && a.tier === a.tiers;
+      const pd = a.player && ISO.playerById(a.player), plus = pd ? ' + ' + pd.name.toUpperCase() : '';
+      const act = maxed ? '<span class="claimed">✓ MAXED</span>' : ok ? '<button class="btn small primary" data-claim="' + a.id + '">CLAIM +' + a.reward + plus + '</button>' : '<span class="rew">+' + a.reward + ' CR' + plus + '</span>';
+      const pips = tiers.map((t) => '<i class="' + (P.claimed[t.id] ? 'on' : t === a ? 'cur' : '') + '"></i>').join('');
+      return '<div class="achrow' + (ok ? ' done' : '') + (ok && !cl ? ' ready' : '') + '"><div class="achtxt"><b>' + esc(a.name) + ' <small class="lvl">LEVEL ' + a.tier + ' / ' + a.tiers + '</small></b><span>' + esc(a.desc) + '</span>' +
+        (gates[a.id] ? '<em>UNLOCKS ' + gates[a.id] + '</em>' : '') + '<div class="pips">' + pips + '</div></div>' +
         '<div class="achprog"><span class="bar"><i style="width:' + (v / a.goal) * 100 + '%"></i></span><small>' + v + ' / ' + a.goal + '</small></div>' + act + '</div>';
     }).join('');
-    $('storeSub').textContent = done + ' / ' + PF.ACH.length + ' COMPLETE · Achievements pay out credits and unlock box tiers.';
+    $('storeSub').textContent = done + ' / ' + PF.ACH.length + ' LEVELS COMPLETE · Achievements level up, pay out credits, unlock box tiers and some hand you a player.';
   }
 
   // ---------------------------------------------------------------- keyboard
   let rebind = null;       // { a: action, i: slot } while waiting for a key
   function renderKeys() {
     const IN = ISO.Input, B = IN.bindings;
-    $('keyBinds').innerHTML = IN.ACTIONS.map(([a, name]) => '<div class="kb-row"><span>' + name + '</span>' + [0, 1].map((i) => {
+    const GROUPS = [['MOVEMENT', ['up', 'down', 'left', 'right', 'sprint']], ['ATTACK', ['shoot', 'finesse', 'chip', 'lob', 'pass', 'j', 'k', 'l']], ['DEFENSE', ['jockey', 'tackle', 'slide', 'shoulder', 'focus']]];
+    const nm = Object.fromEntries(IN.ACTIONS);
+    $('keyBinds').innerHTML = GROUPS.map(([g, list]) => '<div class="kb-group">' + g + '</div>' + list.map((a) => [a, nm[a]]).map(([a, name]) => '<div class="kb-row"><span>' + name + '</span>' + [0, 1].map((i) => {
       const wait = rebind && rebind.a === a && rebind.i === i;
       return '<button class="kb' + (wait ? ' wait' : '') + (B[a][i] ? '' : ' empty') + '" data-bind="' + a + '" data-slot="' + i + '">' + (wait ? (combo.length ? esc(combo.map(IN.label).join('+')) + '+…' : 'PRESS KEYS…') : esc(IN.label(B[a][i]))) + '</button>';
-    }).join('') + '</div>').join('');
+    }).join('') + '</div>').join('')).join('');
   }
   // the controls guide, store chords and match hint all show whatever keys are bound now
   function keyLabels() {
     const IN = ISO.Input, B = IN.bindings, k = (code) => '<kbd>' + esc(IN.label(code)) + '</kbd>';
     const both = (a) => B[a].filter(Boolean).map(k).join(' / ') || '<i>unbound</i>';
-    const move = ['up', 'left', 'down', 'right'];
-    const rows = [['Move', [0, 1].map((i) => move.map((a) => B[a][i]).filter(Boolean).map(k).join('')).filter(Boolean).join(' / ')], ['Sprint', both('sprint')],
-      ['Aim', 'Mouse (optional)'], ['Shoot · Tackle', both('shoot') + ' / left click'], ['Finesse shot', both('finesse')],
-      ['Power shot (long wind-up)', both('chip') + ' / right click'], ['Chip shot (scoop over the keeper)', both('lob')], ['Skill moves', ['j', 'k', 'l'].map((a) => k(B[a].find(Boolean))).join(' ') + ' (alone or together)'],
-      ['Jockey · Shield', both('jockey')], ['Tackle · Slide (defending)', both('tackle') + ' / ' + both('slide')], ['Shoulder · Focus (defending)', both('shoulder') + ' / ' + both('focus')], ['Pass (online 2v2)', both('pass')], ['Pause', '<kbd>Esc</kbd>']];
-    $('keysTable').innerHTML = '<tr><th>Action</th><th>Keys</th></tr>' + rows.map((r) => '<tr><td>' + r[0] + '</td><td>' + r[1] + '</td></tr>').join('');
+    const tbl = (rows) => '<tr><th>Action</th><th>Keys</th></tr>' + rows.map((r) => '<tr><td>' + r[0] + '</td><td>' + r[1] + '</td></tr>').join('');
+    $('keysMove').innerHTML = tbl([['Up', both('up')], ['Down', both('down')], ['Left', both('left')], ['Right', both('right')], ['Sprint', both('sprint')], ['Aim', 'Mouse (optional, Settings)'], ['Pause', '<kbd>Esc</kbd>']]);
+    $('keysAtk').innerHTML = tbl([['Shoot', both('shoot')], ['Finesse shot', both('finesse')], ['Power shot', both('chip')], ['Chip shot', both('lob')], ['Pass (2v2)', both('pass')], ['Skill keys', ['j', 'k', 'l'].map((a) => k(B[a].find(Boolean))).join(' ')]]);
+    $('keysDef').innerHTML = tbl([['Jockey · Shield', both('jockey')], ['Tackle', both('tackle')], ['Slide tackle', both('slide')], ['Shoulder barge', both('shoulder')], ['Focus stance', both('focus')]]);
     document.querySelectorAll('kbd[data-k]').forEach((el) => { el.textContent = IN.keyLabel(el.dataset.k); });
     App.setMouse(PF.data.settings.mouseAim);       // refreshes the match hint
   }
@@ -383,7 +431,6 @@
   document.addEventListener('click', (e) => {
     const t = e.target.closest('[data-bind]');
     if (t) { ISO.Audio.init(); ISO.Audio.play('ui'); rebind = { a: t.dataset.bind, i: +t.dataset.slot }; combo = []; renderKeys(); }
-    else if (rebind) { rebind = null; renderKeys(); }
   });
   // capture phase on window: runs before the game's own key handlers, so the pressed key only rebinds.
   // A binding is one key, or a combination: hold the first key(s) and press the last (e.g. Shift then Q → Shift+Q).
@@ -412,6 +459,13 @@
     if (!combo.includes(code)) combo.push(code);
     if (!MODS.has(code) || combo.length >= 3) finishRebind(combo.slice(0, 3).join('+')); else renderKeys();
   }, true);
+  // a mouse button can be bound too (alone, or with the modifier keys already held)
+  window.addEventListener('mousedown', (e) => {
+    if (!rebind) return;
+    e.preventDefault(); e.stopImmediatePropagation();
+    combo.push('Mouse' + e.button); finishRebind(combo.slice(0, 3).join('+'));
+  }, true);
+  window.addEventListener('contextmenu', (e) => { if (rebind) e.preventDefault(); }, true);
   window.addEventListener('keyup', (e) => {
     if (!rebind || !combo.length) return;
     e.preventDefault(); e.stopImmediatePropagation();
@@ -424,6 +478,7 @@
     $('setVolume').value = Math.round(ST.volume * 100); $('setVolumeVal').textContent = Math.round(ST.volume * 100) + '%';
     $('setSound').checked = !ST.muted; $('setCrowd').checked = ST.crowd;
     $('setDiff').value = ST.diff || 'normal';
+    $('setCamera').value = ST.camera || 'classic';
     $('setMouse').checked = ST.mouseAim; $('setReticle').checked = ST.reticle; $('setHint').checked = ST.hint;
     $('adminLogin').classList.toggle('hidden', A.unlocked); $('adminPanel').classList.toggle('hidden', !A.unlocked);
     document.querySelectorAll('[data-admin]').forEach((el) => { el.checked = !!A[el.dataset.admin]; });
@@ -436,6 +491,7 @@
     if (t.id === 'setVolume') { PF.setSetting('volume', t.value / 100); ISO.Audio.setVolume(t.value / 100); $('setVolumeVal').textContent = t.value + '%'; }
     else if (t.id === 'setSound') { PF.setSetting('muted', !t.checked); ISO.Audio.setMuted(!t.checked); }
     else if (t.id === 'setCrowd') { PF.setSetting('crowd', t.checked); ISO.Audio.setCrowd(t.checked); }
+    else if (t.id === 'setCamera') PF.setSetting('camera', t.value);
     else if (t.id === 'setDiff') { PF.setSetting('diff', t.value); App.diff = t.value; }
     else if (t.id === 'setMouse') App.setMouse(t.checked);
     else if (t.id === 'setReticle') PF.setSetting('reticle', t.checked);
@@ -456,7 +512,7 @@
     else if (t.dataset.open5) openFive(t.dataset.open5);
     else if (t.dataset.open) openBox(t.dataset.open);
     else if (t.dataset.again) { if (!t.disabled) openBox(t.dataset.again); }
-    else if (t.dataset.claim) { const cr = PF.claim(t.dataset.claim); if (cr) { ISO.Audio.play('coin'); App.toast('+' + cr + ' CREDITS', 'Achievement reward claimed', '#ffcf4d'); App.updateCredits(); renderAch(); updateBadge(); } }
+    else if (t.dataset.claim) { const cr = PF.claim(t.dataset.claim); if (cr) { ISO.Audio.play('coin'); const ci = PF.claimInfo(); App.toast('+' + cr + ' CREDITS', ci.player ? 'PLAYER UNLOCKED: ' + ci.player.name : ci.dup ? 'Player already owned: +' + ci.dup + ' CR refund' : 'Achievement reward claimed', '#ffcf4d'); App.updateCredits(); renderAch(); updateBadge(); } }
     else if (t.dataset.meta === 'look-prev') { PF.cycleLook(-1); renderCareer(); }
     else if (t.dataset.meta === 'look-next') { PF.cycleLook(1); renderCareer(); }
     else if (t.dataset.meta === 'kit-prev') { PF.cycleKit(-1); renderCareer(); }
@@ -469,6 +525,7 @@
       renderSettings();
     }
     else if (t.dataset.meta === 'keys-reset') { saveKeys(null); PF.setSetting('keys', null); renderKeys(); App.toast('CONTROLS RESET', 'Default keys restored', '#35e08a'); }
+    else if (t.dataset.meta === 'admin-max') { PF.maxAll(); ISO.Audio.play('reveal', { rank: 4 }); App.updateCredits(); App.toast('MAXED OUT', 'Every character, Prime, skin and ball skin unlocked', '#ffcf4d'); }
     else if (t.dataset.meta === 'admin-logout') { PF.adminLogout(); App.updateCredits(); renderSettings(); }
     else if (t.dataset.meta === 'reset-all') { if (window.confirm('Reset ALL progress?\n\nCredits, unlocked players, skins, Prime upgrades, skill moves, maps, achievements and your MyCareer will be wiped. Settings and key bindings are kept.\n\nThis cannot be undone.')) { PF.reset(); ISO.Render.setMap(PF.data.map); App.updateCredits(); App.toast('PROGRESS RESET', 'Fresh start — everything is back to day one', '#f1735f'); updateBadge(); renderSettings(); } }
     else if (t.dataset.meta === 'close-multi') { $('multi').classList.add('hidden'); renderBoxes(); }
@@ -479,6 +536,7 @@
   keyLabels();
   ISO.Meta = {
     onShow(screen) {
+      menuLive(screen === 'menu');
       if (screen === 'career') renderCareer();
       else if (screen === 'store') renderStore();
       else if (screen === 'play') renderPlay();

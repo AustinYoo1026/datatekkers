@@ -637,29 +637,33 @@
   }
 
   // ---- ball ---------------------------------------------------------------
-  let ballSheet = null;
+  const ballSheets = {};
   const BALL_FRAMES = 8, BALL_PX = 32;
-  function ball() {
-    if (ballSheet) return ballSheet;
-    ballSheet = canvas(BALL_PX * BALL_FRAMES, BALL_PX);
-    const c = ballSheet.getContext('2d'), r = BALL_PX / 2 - 2;
+  function ball(id) {
+    const def = ISO.ballById(id || 'classic');
+    if (ballSheets[def.id]) return ballSheets[def.id];
+    const sheet = (ballSheets[def.id] = canvas(BALL_PX * BALL_FRAMES, BALL_PX));
+    const c = sheet.getContext('2d'), r = BALL_PX / 2 - 2, ink = def.ink || INK;
     for (let f = 0; f < BALL_FRAMES; f++) {
       c.save(); c.translate(f * BALL_PX + BALL_PX / 2, BALL_PX / 2);
       c.beginPath(); c.arc(0, 0, r, 0, 7); c.clip();
       const g = c.createRadialGradient(-r * 0.3, -r * 0.4, 1, 0, 0, r * 1.2);
-      g.addColorStop(0, '#ffffff'); g.addColorStop(1, '#e6e9ee');
+      g.addColorStop(0, def.base[0]); g.addColorStop(1, def.base[1]);
       c.fillStyle = g; c.fillRect(-r, -r, r * 2, r * 2);
-      c.fillStyle = CORAL;       // a coral slab that sweeps across as the ball rolls
-      const sw = ((f / BALL_FRAMES) * 2 - 1) * r * 1.6;
-      c.beginPath(); c.moveTo(sw - r * 0.5, -r); c.lineTo(sw + r * 0.1, -r); c.lineTo(sw + r * 0.1 - r * 0.9, r); c.lineTo(sw - r * 0.5 - r * 0.9, r); c.closePath(); c.fill();
-      c.fillStyle = INK;
+      if (def.slab) {      // a slab that sweeps across as the ball rolls
+        c.fillStyle = def.slab;
+        const sw = ((f / BALL_FRAMES) * 2 - 1) * r * 1.6;
+        c.beginPath(); c.moveTo(sw - r * 0.5, -r); c.lineTo(sw + r * 0.1, -r); c.lineTo(sw + r * 0.1 - r * 0.9, r); c.lineTo(sw - r * 0.5 - r * 0.9, r); c.closePath(); c.fill();
+      }
+      c.fillStyle = def.panel || ink;
       const off = (f / BALL_FRAMES) * r * 2.2;
       const pent = (px, py, s) => { c.beginPath(); for (let i = 0; i < 5; i++) { const a = (i / 5) * Math.PI * 2 - Math.PI / 2 + f * 0.25; c.lineTo(px + Math.cos(a) * s, py + Math.sin(a) * s); } c.closePath(); c.fill(); };
-      for (let i = -2; i <= 2; i++) { pent(i * r * 1.1 + off - r * 1.1, (i % 2 ? -1 : 1) * r * 0.45, r * 0.36); }
+      for (let i = -2; i <= 2; i++) { pent(i * r * 1.1 + off - r * 1.1, (i % 2 ? -1 : 1) * r * 0.45, r * (def.many ? 0.5 : 0.36)); }
+      if (def.stars) { c.fillStyle = '#ffffff'; for (let i = 0; i < 7; i++) { const sx = ((i * 37 + f * 5) % 28) - 14, sy = ((i * 53) % 24) - 12; c.fillRect(sx * r / 14, sy * r / 14, 1.4, 1.4); } }
       c.restore();
-      c.strokeStyle = INK; c.lineWidth = 2; c.beginPath(); c.arc(f * BALL_PX + BALL_PX / 2, BALL_PX / 2, r, 0, 7); c.stroke();
+      c.strokeStyle = ink; c.lineWidth = 2; c.beginPath(); c.arc(f * BALL_PX + BALL_PX / 2, BALL_PX / 2, r, 0, 7); c.stroke();
     }
-    return ballSheet;
+    return sheet;
   }
 
   ISO.Sprites = {

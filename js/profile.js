@@ -9,33 +9,32 @@
 
   // ------------------------------------------------------------ achievements
   // `stat` is a profile.stats key (or a function of the profile); done when value >= goal.
-  const ACH = [
-    { id: 'first_match', name: 'Debut', desc: 'Play your first match', stat: 'matches', goal: 1, reward: 100 },
-    { id: 'first_goal', name: 'Off the Mark', desc: 'Score your first goal', stat: 'goals', goal: 1, reward: 100 },
-    { id: 'first_win', name: 'Winner', desc: 'Win a match', stat: 'wins', goal: 1, reward: 200 },
-    { id: 'goals_10', name: 'Poacher', desc: 'Score 10 goals', stat: 'goals', goal: 10, reward: 300 },
-    { id: 'goals_50', name: 'Goal Machine', desc: 'Score 50 goals', stat: 'goals', goal: 50, reward: 800 },
-    { id: 'goals_150', name: 'Living Legend', desc: 'Score 150 goals', stat: 'goals', goal: 150, reward: 2000 },
-    { id: 'wins_5', name: 'Habit', desc: 'Win 5 matches', stat: 'wins', goal: 5, reward: 400 },
-    { id: 'wins_20', name: 'Serial Winner', desc: 'Win 20 matches', stat: 'wins', goal: 20, reward: 1200 },
-    { id: 'clean_sheet', name: 'Whitewash', desc: 'Win a match without conceding', stat: 'cleanSheets', goal: 1, reward: 500 },
-    { id: 'hard_win', name: 'Giant Killer', desc: 'Beat the CPU on Hard', stat: 'hardWins', goal: 1, reward: 600 },
-    { id: 'skills_25', name: 'Showboat', desc: 'Perform 25 skill moves in matches', stat: 'skills', goal: 25, reward: 250 },
-    { id: 'skills_200', name: 'Street Baller', desc: 'Perform 200 skill moves in matches', stat: 'skills', goal: 200, reward: 900 },
-    { id: 'power_5', name: 'Thunderbolt', desc: 'Score 5 power-shot goals', stat: 'powerGoals', goal: 5, reward: 400 },
-    { id: 'clears_10', name: 'Second Ball', desc: 'Clear 10 rebounds out of the box', stat: 'clears', goal: 10, reward: 300 },
-    { id: 'arena_20', name: 'Practice Makes Perfect', desc: 'Score 20 goals in the Testing Arena', stat: 'arenaGoals', goal: 20, reward: 200 },
-    { id: 'drills_5', name: 'Training Ground', desc: 'Finish 5 Penalty, Target or Chip drills', stat: 'drillRuns', goal: 5, reward: 250 },
-    { id: 'career_3', name: 'Rising Star', desc: 'Beat 3 MyCareer opponents', stat: 'careerWins', goal: 3, reward: 500 },
-    { id: 'career_8', name: 'World Class', desc: 'Beat 8 MyCareer opponents', stat: 'careerWins', goal: 8, reward: 1500 },
-    { id: 'career_all', name: 'The GOAT', desc: 'Beat every MyCareer opponent', stat: 'careerDone', goal: 1, reward: 5000 },
-    { id: 'boxes_5', name: 'Hooked', desc: 'Open 5 boxes', stat: 'boxes', goal: 5, reward: 300 },
-    { id: 'collect_15', name: 'Collector', desc: 'Own 15 players', stat: (p) => p.owned.length, goal: 15, reward: 800 },
-    { id: 'own_icon', name: 'Icon Pull', desc: 'Pull an Icon from a box', stat: 'iconPulls', goal: 1, reward: 1000 },
-    { id: 'skin_1', name: 'Fresh Fit', desc: 'Buy a skin in the Store', stat: (p) => Object.values(p.skins).reduce((n, l) => n + l.length, 0), goal: 1, reward: 150 },
-    { id: 'prime_1', name: 'Prime Time', desc: 'Upgrade a player to their Prime', stat: (p) => Object.keys(p.prime).length, goal: 1, reward: 500 },
-    { id: 'maps_all', name: 'World Tour', desc: 'Own every map', stat: (p) => p.maps.length, goal: ISO.MAPS.length, reward: 1000 },
+  // Achievements come in families with levels: finishing one tier opens the next (25 skill moves -> 50 -> 200 ...).
+  // A tier is [goal, reward credits, id, level name, player id unlocked on claim (optional)].
+  const sum = (o) => Object.values(o).reduce((n, l) => n + l.length, 0);
+  const FAMILIES = [
+    { fam: 'goals', stat: 'goals', desc: (g) => 'Score ' + g + ' goal' + (g > 1 ? 's' : ''), tiers: [[1, 100, 'first_goal', 'Off the Mark'], [10, 300, 'goals_10', 'Poacher'], [50, 800, 'goals_50', 'Goal Machine', 'bowen'], [150, 2000, 'goals_150', 'Living Legend'], [400, 3500, 'goals_400', 'Golden Boot', 'rooney'], [1000, 8000, 'goals_1000', 'Immortal']] },
+    { fam: 'wins', stat: 'wins', desc: (g) => 'Win ' + (g > 1 ? g + ' matches' : 'a match'), tiers: [[1, 200, 'first_win', 'Winner'], [5, 400, 'wins_5', 'Habit'], [20, 1200, 'wins_20', 'Serial Winner', 'wood'], [50, 2500, 'wins_50', 'Dynasty'], [100, 5000, 'wins_100', 'Invincible']] },
+    { fam: 'matches', stat: 'matches', desc: (g) => 'Play ' + (g > 1 ? g + ' matches' : 'your first match'), tiers: [[1, 100, 'first_match', 'Debut'], [25, 300, 'matches_25', 'Regular'], [100, 1000, 'matches_100', 'Veteran'], [300, 3000, 'matches_300', 'Club Legend']] },
+    { fam: 'skills', stat: 'skills', desc: (g) => 'Perform ' + g + ' skill moves in matches', tiers: [[25, 250, 'skills_25', 'Showboat'], [50, 400, 'skills_50', 'Flair Player'], [200, 900, 'skills_200', 'Street Baller', 'grealish'], [500, 2000, 'skills_500', 'Trickster', 'iniesta'], [1000, 4000, 'skills_1000', 'Magician']] },
+    { fam: 'power', stat: 'powerGoals', desc: (g) => 'Score ' + g + ' power-shot goals', tiers: [[5, 400, 'power_5', 'Thunderbolt'], [15, 800, 'power_15', 'Cannon'], [40, 1800, 'power_40', 'Howitzer', 'zlatan'], [100, 4000, 'power_100', 'Rocket Man']] },
+    { fam: 'clears', stat: 'clears', desc: (g) => 'Clear ' + g + ' rebounds out of the box', tiers: [[10, 300, 'clears_10', 'Second Ball'], [50, 800, 'clears_50', 'Sweeper'], [150, 1800, 'clears_150', 'Wall']] },
+    { fam: 'sheets', stat: 'cleanSheets', desc: (g) => 'Win ' + (g > 1 ? g + ' matches' : 'a match') + ' without conceding', tiers: [[1, 500, 'clean_sheet', 'Whitewash'], [5, 900, 'sheets_5', 'Shutout'], [20, 2200, 'sheets_20', 'Brick Wall', 'maldini'], [50, 5000, 'sheets_50', 'Fortress']] },
+    { fam: 'hard', stat: 'hardWins', desc: (g) => 'Beat the CPU on Hard' + (g > 1 ? ' ' + g + ' times' : ''), tiers: [[1, 600, 'hard_win', 'Giant Killer'], [5, 1200, 'hard_5', 'Hard Man'], [20, 3000, 'hard_20', 'Unbreakable', 'baresi']] },
+    { fam: 'arena', stat: 'arenaGoals', desc: (g) => 'Score ' + g + ' goals in the Testing Arena', tiers: [[20, 200, 'arena_20', 'Practice Makes Perfect'], [100, 600, 'arena_100', 'Training Obsessed'], [300, 1500, 'arena_300', 'Lab Rat']] },
+    { fam: 'drills', stat: 'drillRuns', desc: (g) => 'Finish ' + g + ' drills', tiers: [[5, 250, 'drills_5', 'Training Ground'], [25, 800, 'drills_25', 'Drill Sergeant'], [75, 2000, 'drills_75', 'Specialist', 'pirlo']] },
+    { fam: 'career', stat: 'careerWins', desc: (g) => 'Win ' + g + ' MyCareer matches', tiers: [[3, 500, 'career_3', 'Rising Star'], [8, 1500, 'career_8', 'World Class', 'foden'], [20, 3000, 'career_20', 'Contender'], [50, 6000, 'career_50', 'Hall of Famer', 'xavi']] },
+    { fam: 'goat', stat: 'careerDone', desc: () => 'Beat every MyCareer opponent', tiers: [[1, 5000, 'career_all', 'The GOAT']] },
+    { fam: 'boxes', stat: 'boxes', desc: (g) => 'Open ' + g + ' boxes', tiers: [[5, 300, 'boxes_5', 'Hooked'], [25, 900, 'boxes_25', 'Unboxer'], [100, 3000, 'boxes_100', 'Box Addict']] },
+    { fam: 'collect', stat: (p) => p.owned.length, desc: (g) => 'Own ' + g + ' players', tiers: [[15, 800, 'collect_15', 'Collector'], [40, 2000, 'collect_40', 'Squad Builder'], [80, 4000, 'collect_80', 'Curator'], [120, 8000, 'collect_120', 'Hall of Fame']] },
+    { fam: 'icons', stat: 'iconPulls', desc: (g) => 'Pull ' + g + (g > 1 ? ' Icons' : ' Icon') + ' from boxes', tiers: [[1, 1000, 'own_icon', 'Icon Pull'], [5, 2500, 'icons_5', 'Icon Hunter'], [15, 6000, 'icons_15', 'Icon Collector']] },
+    { fam: 'skins', stat: (p) => sum(p.skins), desc: (g) => 'Buy ' + g + ' skin' + (g > 1 ? 's' : '') + ' in the Store', tiers: [[1, 150, 'skin_1', 'Fresh Fit'], [10, 700, 'skins_10', 'Fashionista'], [30, 2000, 'skins_30', 'Wardrobe']] },
+    { fam: 'prime', stat: (p) => Object.keys(p.prime).length, desc: (g) => 'Upgrade ' + g + ' player' + (g > 1 ? 's' : '') + ' to Prime', tiers: [[1, 500, 'prime_1', 'Prime Time'], [5, 1500, 'prime_5', 'Peak Form'], [15, 4000, 'prime_15', 'Golden Age']] },
+    { fam: 'maps', stat: (p) => p.maps.length, desc: (g) => 'Own ' + g + ' maps', tiers: [[5, 400, 'maps_5', 'Tourist'], [12, 1000, 'maps_12', 'Globetrotter'], [ISO.MAPS.length, 3000, 'maps_all', 'World Tour', 'pedri']] },
+    { fam: 'balls', stat: (p) => 1 + (p.balls || []).length, desc: (g) => 'Own ' + g + ' ball skins', tiers: [[3, 300, 'balls_3', 'Kit Bag'], [6, 900, 'balls_6', 'Ball Boy'], [10, 2500, 'balls_all', 'Ball Collector']] },
   ];
+  const ACH = [];
+  for (const F of FAMILIES) F.tiers.forEach((t, i) => ACH.push({ id: t[2], fam: F.fam, tier: i + 1, tiers: F.tiers.length, name: t[3], desc: F.desc(t[0]), stat: F.stat, goal: t[0], reward: t[1], player: t[4] || null }));
 
   // ------------------------------------------------------------ boxes
   const BOXES = [
@@ -60,13 +59,13 @@
   const CAREER_KITS = [
     ['#f1735f', '#1f2433'], ['#35e08a', '#0f1a14'], ['#1f2433', '#f1735f'], ['#f4f4f4', '#4b5a74'], ['#4fa3ff', '#ffffff'], ['#ffcf4d', '#17171b'],
   ];
-  const CAREER_STAGES = 12;
+  const CAREER_STAGES = 18, CAREER_REMATCH = 12;      // 18 opponents climbing in rating, then rematches against the 12 toughest of them (you can play the same person again)
   const careerOvr = (a) => Math.round(['pac', 'acc', 'dri', 'agi', 'bal', 'bct', 'fin', 'sho', 'skl', 'str', 'sta']
     .reduce((s, k) => s + a[k], 0) / 11);
   const upgradeCost = (v) => (v < 70 ? 1 : v < 80 ? 2 : v < 90 ? 3 : 4);
 
   function newCareer() {
-    // 12 opponents climbing from the weakest squad players to the very best icons
+    // opponents climbing from the weakest squad players to the very best icons, then the rematches
     const sorted = ISO.PLAYERS.slice().sort((a, b) => a.ovr - b.ovr);
     const ladder = [];
     for (let i = 0; i < CAREER_STAGES; i++) {
@@ -76,6 +75,7 @@
       let j = idx; while (j < sorted.length - 1 && ladder.includes(sorted[j].id)) j++;
       ladder.push(sorted[Math.min(j, sorted.length - 1)].id);
     }
+    for (let i = 0; i < CAREER_REMATCH; i++) ladder.push(ladder[CAREER_STAGES - CAREER_REMATCH + i]);
     const attr = {};
     for (const k of ATTR_KEYS) attr[k] = 55;
     attr.tck = 40; attr.wf = 50; attr.skl = 56;
@@ -86,8 +86,8 @@
   function fresh() {
     return {
       credits: 300, owned: STARTERS.slice(), claimed: {}, pity: 0, career: null,
-      skins: {}, equip: {}, prime: {}, moves: [], maps: ['stadium'], map: 'stadium',      // store purchases
-      settings: { volume: 0.8, muted: false, crowd: true, speed: 0.75, mouseAim: true, reticle: true, hint: true, diff: 'normal', keys: null,
+      skins: {}, equip: {}, prime: {}, moves: [], maps: ['stadium'], map: 'stadium', balls: [], ball: 'classic',      // store purchases
+      settings: { volume: 0.8, muted: false, crowd: true, speed: 0.75, mouseAim: false, reticle: true, camera: 'classic', hint: true, diff: 'normal', keys: null,
         admin: { unlocked: false, allChars: false, allAch: false, infCredits: false } },
       stats: { matches: 0, wins: 0, goals: 0, powerGoals: 0, skills: 0, clears: 0, cleanSheets: 0, hardWins: 0,
         boxes: 0, careerWins: 0, careerDone: 0, arenaGoals: 0, iconPulls: 0, drillRuns: 0 },
@@ -108,7 +108,12 @@
     if (!P.maps.includes(P.map)) P.map = 'stadium';
     if (!P.career) P.career = newCareer();
     if (!P.career.base) P.career.base = newCareer().base;      // older saves
+    { const nl = newCareer().ladder; if (P.career.ladder.length < nl.length) P.career.ladder = nl; }      // the ladder grew: keep your stage, new opponents follow
     for (const k of Object.keys(f.settings)) if (P.settings[k] === undefined) P.settings[k] = f.settings[k];
+    if (P.settings.keys && !P.settings.keysMouse) {      // mouse buttons became ordinary bindings: keep click-to-shoot for existing profiles
+      const K = P.settings.keys; if (K.shoot && !K.shoot[1]) K.shoot[1] = 'Mouse0'; if (K.chip && !K.chip[1]) K.chip[1] = 'Mouse2';
+    }
+    P.settings.keysMouse = true;
     for (const k of Object.keys(f.settings.admin)) if (P.settings.admin[k] === undefined) P.settings.admin[k] = f.settings.admin[k];
     return P;
   }
@@ -124,10 +129,17 @@
   function doneSet() { return new Set(ACH.filter((a) => statOf(a) >= a.goal).map((a) => a.id)); }
   function newlyDone(before) { return ACH.filter((a) => statOf(a) >= a.goal && !before.has(a.id)); }
 
+  let lastClaim = { player: null, dup: 0 };
   function claim(id) {
     const a = ACH.find((x) => x.id === id);
     if (!a || P.claimed[id] || statOf(a) < a.goal) return 0;
-    P.claimed[id] = true; P.credits += a.reward; save();
+    P.claimed[id] = true; P.credits += a.reward;
+    lastClaim = { player: null, dup: 0 };
+    if (a.player && ISO.playerById(a.player)) {      // some levels also hand over a player (a duplicate pays its refund instead)
+      const d = ISO.playerById(a.player);
+      if (P.owned.includes(d.id)) { lastClaim.dup = ISO.RARITY[ISO.rarityOf(d)].dup; P.credits += lastClaim.dup; } else { P.owned.push(d.id); lastClaim.player = d; }
+    }
+    save();
     return a.reward;
   }
 
@@ -151,7 +163,7 @@
       const C = P.career;
       if (r.won) {
         bonus += 150 + Math.max(0, (r.opp.ovr - 60) * 4);
-        points = 10 + 2 * C.stage;
+        points = Math.min(30, 10 + 2 * C.stage);
         S.careerWins++; C.stage++;
         if (C.stage >= C.ladder.length) S.careerDone = 1;
       } else points = 1;
@@ -169,7 +181,7 @@
   }
 
   // Finishing a penalty / target / chip drill pays credits by score (scaled by the keeper level) and keeps your best.
-  const DRILL_CR = { penalty: 20, target: 6, chip: 30 };
+  const DRILL_CR = { penalty: 20, target: 6, chip: 30, freekick: 30, oneonone: 22, longshot: 14, finesse: 14, power: 28 };
   function recordDrill(kind, score, diff, bonus) {
     const before = doneSet(), d = (P.drills[kind] = P.drills[kind] || { best: 0, plays: 0 });
     const credits = Math.round((score * (DRILL_CR[kind] || 5) + (bonus || 0)) * (WIN_MULT[diff] || 1));
@@ -251,6 +263,17 @@
     return buy(sk.cost, () => { (P.skins[pid] = P.skins[pid] || []).push(sid); P.equip[pid] = sid; });
   }
   function equipSkin(pid, sid) { if (!ownsSkin(pid, sid)) return false; P.equip[pid] = sid; save(); return true; }
+  // admin: unlock and max out everything in one go (written to the profile, unlike the switches)
+  function maxAll() {
+    for (const d of ISO.PLAYERS) {
+      if (!P.owned.includes(d.id)) P.owned.push(d.id);
+      P.prime[d.id] = true;
+      P.skins[d.id] = ISO.SKINS.map((s) => s.id);
+    }
+    if (ISO.BALLS) P.balls = ISO.BALLS.map((b) => b.id);
+    P.maps = ISO.MAPS.map((m) => m.id);
+    save();
+  }
   const isPrime = (pid) => !!P.prime[pid];
   function buyPrime(pid) {
     const d = ISO.playerById(pid);
@@ -274,6 +297,14 @@
     if (ownsMap(id)) return 'owned';
     return buy(m.cost, () => { P.maps.push(id); P.map = id; });
   }
+  const ownsBall = (id) => id === 'classic' || (P.balls || []).includes(id);
+  function buyBall(id) {
+    const b = ISO.BALLS.find((x) => x.id === id);
+    if (!b) return 'locked';
+    if (ownsBall(id)) return 'owned';
+    return buy(b.cost, () => { P.balls.push(id); P.ball = id; });
+  }
+  function equipBall(id) { if (!ownsBall(id)) return false; P.ball = id; save(); return true; }
   function setMap(id) { if (!ownsMap(id)) return false; P.map = id; save(); return true; }
 
   // ------------------------------------------------------------ career player
@@ -310,7 +341,7 @@
     return true;
   }
   function careerOpponent() { const C = P.career; return C.stage < C.ladder.length ? ISO.playerById(C.ladder[C.stage]) : null; }
-  const careerDiff = (stage) => (stage < 4 ? 'easy' : stage < 8 ? 'normal' : 'hard');
+  const careerDiff = (stage) => (stage < 6 ? 'easy' : stage < 14 ? 'normal' : 'hard');
   function resetCareer() { P.career = newCareer(); save(); }
   function cycleLook(d) { P.career.look = (P.career.look + d + CAREER_LOOKS.length) % CAREER_LOOKS.length; save(); }
   function cycleKit(d) { P.career.kit = (P.career.kit + d + CAREER_KITS.length) % CAREER_KITS.length; save(); }
@@ -318,8 +349,8 @@
   load();
   ISO.Profile = {
     get data() { return P; }, save, ACH, BOXES, PITY, statOf, isDone, claim, recordMatch, recordArenaGoal, recordDrill,
-    WIN_MULT, winMult, canOpen, openBox, openBoxes, filler, owns, infinite, ownedCount: () => ISO.PLAYERS.filter((d) => owns(d.id)).length,
-    ownsSkin, skinOf, buySkin, equipSkin, isPrime, buyPrime, outfit, hasMove, buyMove, moveSet, ownsMap, buyMap, setMap,
+    WIN_MULT, winMult, canOpen, openBox, openBoxes, claimInfo: () => lastClaim, FAMILIES, filler, owns, infinite, ownedCount: () => ISO.PLAYERS.filter((d) => owns(d.id)).length,
+    ownsSkin, skinOf, maxAll, buySkin, equipSkin, isPrime, buyPrime, outfit, hasMove, buyMove, moveSet, ownsMap, buyMap, setMap, ownsBall, buyBall, equipBall,
     takeAch() { const l = lastAch; lastAch = []; return l; },      // achievements completed by the last purchase
     setSetting(k, v) { P.settings[k] = v; save(); },
     setAdmin(k, v) { P.settings.admin[k] = v; save(); },

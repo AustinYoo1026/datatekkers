@@ -12,9 +12,8 @@
   const DEFENCE = new Set(['tackle', 'slide', 'shoulder', 'focus']), OFFENCE = new Set(['shoot', 'finesse', 'chip', 'lob', 'j', 'k', 'l', 'pass']);
   const clash = (a, b) => !((DEFENCE.has(a) && OFFENCE.has(b)) || (OFFENCE.has(a) && DEFENCE.has(b)));
   const DEFAULT_KEYS = { up: ['KeyW', 'ArrowUp'], down: ['KeyS', 'ArrowDown'], left: ['KeyA', 'ArrowLeft'], right: ['KeyD', 'ArrowRight'],
-    sprint: ['ShiftLeft', 'ShiftRight'], shoot: ['Space', null], finesse: ['KeyF', null], chip: ['KeyQ', null], lob: ['KeyE', null], j: ['KeyJ', null], k: ['KeyK', null], l: ['KeyL', null],
+    sprint: ['ShiftLeft', 'ShiftRight'], shoot: ['Space', 'Mouse0'], finesse: ['KeyF', null], chip: ['KeyQ', 'Mouse2'], lob: ['KeyE', null], j: ['KeyJ', null], k: ['KeyK', null], l: ['KeyL', null],
     jockey: ['ControlLeft', 'KeyC'], pass: ['KeyR', null], tackle: ['KeyJ', null], slide: ['KeyK', null], shoulder: ['KeyL', null], focus: ['KeyE', null] };
-  const MOUSE_KEYS = { shoot: ['Mouse0'], chip: ['Mouse2'] };
   const MAPS = {};
   let binds = null, combos = [];      // a binding can be one key or a combination written 'ShiftLeft+KeyQ'
   const GAME_KEYS = new Set();
@@ -22,7 +21,7 @@
     binds = {};
     for (const [a] of ACTIONS) binds[a] = ((b && b[a]) || DEFAULT_KEYS[a]).slice(0, 2);
     MAPS.solo = {};
-    for (const [a] of ACTIONS) MAPS.solo[a] = binds[a].filter(Boolean).concat(MOUSE_KEYS[a] || []);
+    for (const [a] of ACTIONS) MAPS.solo[a] = binds[a].filter(Boolean);
     GAME_KEYS.clear();
     for (const k of ['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Tab']) GAME_KEYS.add(k);
     combos = [];
@@ -38,6 +37,7 @@
   function label(code) {
     if (!code) return '—';
     if (code.indexOf('+') > 0) return code.split('+').map(label).join('+');
+    if (code.startsWith('Mouse')) return ['Left Click', 'Middle Click', 'Right Click', 'Mouse 4', 'Mouse 5'][+code.slice(5)] || code;
     if (code.startsWith('Key')) return code.slice(3);
     if (code.startsWith('Digit')) return code.slice(5);
     if (code.startsWith('Numpad')) return 'Num ' + code.slice(6);
@@ -47,7 +47,7 @@
 
   const held = new Set(), latched = new Set();
   let capture = false;      // only swallow browser shortcuts while a match is on screen
-  let mouseOn = true;       // Settings › Mouse aiming: off = the mouse does nothing in a match
+  let mouseOn = true;       // Settings › Mouse aiming: only the cursor aim; mouse buttons are ordinary bindable inputs
 
   window.addEventListener('keydown', (e) => {
     if (capture && GAME_KEYS.has(e.code) && !e.metaKey) e.preventDefault();
@@ -58,9 +58,9 @@
   // mouse: the cursor aims, left button shoots, right button is the power shot (only while a match is on screen)
   const mouse = { x: 0, y: 0, moved: false };
   window.addEventListener('mousemove', (e) => { mouse.x = e.clientX; mouse.y = e.clientY; if (capture) mouse.moved = true; });
-  window.addEventListener('mousedown', (e) => { if (!capture || !mouseOn) return; const k = 'Mouse' + e.button; held.add(k); latched.add(k); });
+  window.addEventListener('mousedown', (e) => { if (!capture) return; const k = 'Mouse' + e.button; held.add(k); latched.add(k); });
   window.addEventListener('mouseup', (e) => held.delete('Mouse' + e.button));
-  window.addEventListener('contextmenu', (e) => { if (capture && mouseOn) e.preventDefault(); });
+  window.addEventListener('contextmenu', (e) => { if (capture) e.preventDefault(); });
   window.addEventListener('blur', () => { held.clear(); latched.clear(); });
 
   const down = (k) => held.has(k) || latched.has(k);
@@ -103,6 +103,6 @@
     consume() { latched.clear(); },      // call once the simulation has seen this frame's taps
     setCapture(v) { capture = v; if (!v) { held.clear(); latched.clear(); } },
     resetMouse() { mouse.moved = false; },
-    setMouse(v) { mouseOn = !!v; if (!v) { held.delete('Mouse0'); held.delete('Mouse2'); } },
+    setMouse(v) { mouseOn = !!v; },
   };
 })();

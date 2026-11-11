@@ -36,9 +36,32 @@
       net: 'rgba(40,10,60,.55)', post: '#ff3dd0', vig: 0.4, turf: ['#3df5ff', '#ff3dd0', '#2a1b4d'], glow: '#3df5ff',
       ads: [['NEON NIGHT', '#120e24', '#ff3dd0'], ['AFTER HOURS', '#120e24', '#3df5ff'], ['DATATEKKERS', '#ff3dd0', '#120e24'], ['ISO FOOTBALL', '#3df5ff', '#07060f']] },
   };
+  // compact theme builder for the extra maps
+  const mkTheme = (name, o) => Object.assign({ around: 'crowd', mark: 'rgba(255,230,120,.9)', net: 'rgba(10,30,18,.55)', post: '#f4f6f8', vig: 0.26,
+    turf: [o.bands[0], o.bands[1], o.base], ads: [[name, o.wall, o.line], ['DATATEKKERS', o.line, o.wall], ['ISO FOOTBALL', o.bands[1], o.post || '#f4f6f8'], ['FIRST TO THREE', '#f4f4f4', '#10151c']] }, o);
+  Object.assign(THEMES, {
+    sunset: mkTheme('GOLDEN HOUR', { bg: '#2a1a14', crowd: ['#8a4a2a', '#b8683a', '#d98c4a', '#7a3a2a', '#e8b06a'], wall: '#3a2218', base: '#c8863a', bands: ['#c9883c', '#d6954a'], line: 'rgba(255,248,230,.92)', mark: 'rgba(120,40,20,.9)', vig: 0.3 }),
+    monsoon: mkTheme('MONSOON', { bg: '#0a1118', crowd: ['#1d2a38', '#2a3a4c', '#3a4c60', '#4c6078', '#26323f'], wall: '#101a24', base: '#27503a', bands: ['#264b38', '#2b563f'], line: 'rgba(210,230,245,.85)', vig: 0.42, snow: true }),
+    jungle: mkTheme('AMAZON CUP', { bg: '#07140b', around: 'beach', crowd: ['#1f6b34', '#2a8a44', '#ffcf4d', '#f1735f', '#4fd0a0'], wall: '#0d2a14', base: '#1f6a30', bands: ['#1d6430', '#227238'], line: 'rgba(255,255,225,.88)', mark: 'rgba(255,207,77,.95)', vig: 0.34 }),
+    moon: mkTheme('LUNAR LEAGUE', { bg: '#05060a', crowd: ['#222633', '#303646', '#4a5266', '#d8dde8', '#8a93a8'], wall: '#14161e', base: '#8c919c', bands: ['#8a8f9a', '#969ba6'], line: 'rgba(30,36,60,.9)', mark: 'rgba(241,115,95,.95)', vig: 0.4, post: '#d8dde8' }),
+    desert: mkTheme('DUNE DERBY', { bg: '#3a2412', around: 'beach', crowd: ['#c9833a', '#e0a050', '#8a4a22', '#f1d49a', '#a85a28'], wall: '#7a4a24', base: '#d89a4a', bands: ['#d99c4c', '#e2a85a'], line: 'rgba(110,50,20,.9)', mark: 'rgba(255,255,255,.9)', vig: 0.2 }),
+    retro: mkTheme('RETRO 8-BIT', { bg: '#000000', crowd: ['#003a14', '#005a20', '#00aa3a', '#00ff66', '#002a0e'], wall: '#001a08', base: '#04180a', bands: ['#05200c', '#072a10'], line: 'rgba(0,255,102,.95)', mark: 'rgba(0,255,102,.95)', glow: '#00ff66', vig: 0.4, post: '#00ff66', net: 'rgba(0,80,30,.5)' }),
+    sakura: mkTheme('CHERRY PARK', { bg: '#2a1620', crowd: ['#f5b8d0', '#ee88b0', '#fbd6e4', '#a85a7a', '#7a3a58'], wall: '#4a2634', base: '#5aa860', bands: ['#58a45e', '#62b068'], line: 'rgba(255,255,255,.9)', mark: 'rgba(238,136,176,.95)', vig: 0.2, snow: true }),
+    dock: mkTheme('DOCKYARD', { bg: '#10161c', around: 'bricks', crowd: ['#a8442e', '#2e5ea8', '#d9a02e', '#3a8a5a', '#8a2e2e'], wall: '#1d252e', base: '#5a6672', bands: ['#5c6874', '#64707c'], line: 'rgba(255,205,60,.92)', mark: 'rgba(255,255,255,.9)', vig: 0.32 }),
+    gold: mkTheme('GOLD CUP', { bg: '#120d04', crowd: ['#4a3a14', '#7a6020', '#c9a22e', '#ffe27a', '#2a200a'], wall: '#201808', base: '#9a7a22', bands: ['#a07e24', '#ad8a2c'], line: 'rgba(255,248,210,.95)', mark: 'rgba(60,40,0,.9)', vig: 0.3, post: '#ffe27a', glow: '#ffd23d' }),
+    mud: mkTheme('MUDBATH', { bg: '#1a120a', crowd: ['#4a3a2a', '#5a4630', '#6a5238', '#3a2c1e', '#7a5a3a'], wall: '#2a1e14', base: '#6a4c2a', bands: ['#6a4a2a', '#745430'], line: 'rgba(235,225,200,.85)', mark: 'rgba(255,255,255,.8)', vig: 0.34 }),
+    // futsal courts: walled, no crowd round the pitch
+    fs_wood: mkTheme('HARDWOOD ARENA', { bg: '#14100c', crowd: ['#2a2018', '#3a2c20', '#4a3828'], wall: '#2a1c10', base: '#c58a4a', bands: ['#c88c4c', '#d29a5a'], line: 'rgba(255,255,255,.95)', mark: 'rgba(40,90,170,.9)', vig: 0.22, cage: '#e8d8b8' }),
+    fs_blue: mkTheme('BLUE COURT', { bg: '#0a1020', crowd: ['#1a2848', '#243660', '#2e4478'], wall: '#101a36', base: '#2a5ec0', bands: ['#2c62c6', '#3269d0'], line: 'rgba(255,255,255,.95)', mark: 'rgba(255,207,77,.95)', vig: 0.24, cage: '#9ab8f0' }),
+    fs_red: mkTheme('CRIMSON DOME', { bg: '#1a0808', crowd: ['#3a1414', '#521c1c', '#6a2424'], wall: '#2a0e0e', base: '#b02828', bands: ['#b42a2a', '#c03232'], line: 'rgba(255,255,255,.95)', mark: 'rgba(255,230,120,.95)', vig: 0.26, cage: '#f0a0a0' }),
+    fs_roof: mkTheme('ROOFTOP CAGE', { bg: '#0c1220', around: 'bricks', crowd: ['#2a3448', '#36425a', '#1e2638', '#445068'], wall: '#1a2232', base: '#3a8a52', bands: ['#3a8a52', '#40965a'], line: 'rgba(255,255,255,.92)', mark: 'rgba(255,210,61,.95)', vig: 0.3, cage: '#c8d2e0' }),
+    fs_glass: mkTheme('GLASS CUBE', { bg: '#060a14', crowd: ['#142038', '#1c2e50', '#3df5ff', '#ff3dd0', '#0e1830'], wall: '#0a1226', base: '#101c34', bands: ['#101e38', '#14244a'], line: 'rgba(61,245,255,.95)', mark: 'rgba(255,61,208,.95)', glow: '#3df5ff', vig: 0.36, post: '#3df5ff', cage: '#7ff0ff' }),
+  });
   let mapId = 'stadium', TH = THEMES.stadium, pitch = null;
   const thumbs = new Map();
   const fx = { parts: [], texts: [], shake: 0, trail: [], flash: 0, t: 0 };
+  let ballSkin = 'classic';
+  function setBall(id) { ballSkin = ISO.ballById(id).id; }
   function setMap(id) { if (!THEMES[id] || id === mapId) return; mapId = id; TH = THEMES[id]; pitch = null; }
   // a small picture of a map for the store
   function thumb(id) {
@@ -123,6 +146,11 @@
     c.strokeStyle = th.line; c.lineWidth = 2.5; c.lineJoin = 'round';
     const GC = (GY0 + GY1) / 2;
     c.strokeRect(0, 0, FH, FW);
+    if (th.cage) {      // futsal: walls round the court (the goal mouth stays open)
+      c.save(); c.shadowBlur = 0; c.strokeStyle = th.cage; c.globalAlpha = 0.85; c.lineWidth = 7; c.lineJoin = 'miter';
+      c.beginPath(); c.moveTo(GY0, 0); c.lineTo(0, 0); c.lineTo(0, FW); c.lineTo(FH, FW); c.lineTo(FH, 0); c.lineTo(GY1, 0); c.stroke();
+      c.globalAlpha = 0.18; c.lineWidth = 22; c.stroke(); c.restore();
+    }
     c.strokeRect(BOXY0, 0, BOXY1 - BOXY0, BOXD);
     c.strokeRect(SIXY0, 0, SIXY1 - SIXY0, SIXD);
     c.fillStyle = th.line; c.beginPath(); c.arc(GC, PEN, 3, 0, TAU); c.fill();
@@ -417,8 +445,9 @@
   // The ball spins about the axis it is travelling along, so a sideways touch visibly rolls it sideways.
   let ballAng = 0;
   function drawBall(c, b, x, y, size) {
-    const img = SP.ball(), P = SP.BALL_PX, f = Math.floor(b.rot) % SP.BALL_FRAMES;
+    const bd = ISO.ballById(ballSkin), img = SP.ball(ballSkin), P = SP.BALL_PX, f = Math.floor(b.rot) % SP.BALL_FRAMES;
     if (hyp(b.vx, b.vy) > 12) ballAng = Math.atan2(b.vy, b.vx);
+    if (bd.glow) { c.save(); c.shadowColor = bd.glow; c.shadowBlur = size * 0.9; c.fillStyle = 'rgba(0,0,0,0)'; c.beginPath(); c.arc(x, y, size * 0.45, 0, TAU); c.fillStyle = bd.glow; c.globalAlpha = 0.18; c.fill(); c.restore(); }
     c.save(); c.translate(x, y); c.rotate(ballAng);
     c.drawImage(img, f * P, 0, P, P, -size / 2, -size / 2, size, size);
     c.restore();
@@ -488,6 +517,30 @@
     const v = (g * (b * cam.ct - cam.st)) / (cam.ct + b * cam.st), dep = g * cam.ct - v * cam.st;
     return { X: cam.X + a * dep, H: v + cam.H };
   }
+  // The match camera ("Cinematic" in Camera settings): the goal-replay angle, held for the whole match. It follows the
+  // ball and your own players sideways and keeps the deepest figure in frame. Render-only: the sim never sees it.
+  const CINE = { off: 300, H: 135, th: 0.37, f: 1040, cy: 330 };
+  const LIVE = { X: 0, Dd: 0, init: false, cam: null };
+  function liveCam(G, V, dt) {
+    const me = G.players[V.me || 0], b = G.ball;
+    let td = FW - b.x, sx = b.y;
+    if (me && me.state !== 'away') { td = Math.max(td, FW - me.x); sx = (sx + me.y) / 2; }
+    for (const p of G.players) if (p.state !== 'away') td = Math.max(td, FW - p.x);
+    const tx = clamp(GCY + (sx - GCY) * 0.85, GCY - 230, GCY + 230); td = clamp(td, 45, FW);
+    if (!LIVE.init || G.phase === 'countdown' || G.phase === 'ready') { LIVE.X = tx; LIVE.Dd = td; LIVE.init = true; }
+    else { const k = 1 - Math.exp(-3.2 * dt); LIVE.X += (tx - LIVE.X) * k; LIVE.Dd += (td - LIVE.Dd) * k; }
+    return (LIVE.cam = mkCam({ X: LIVE.X, D: LIVE.Dd + CINE.off, H: CINE.H, th: CINE.th, f: CINE.f, cy: CINE.cy }));
+  }
+  // where a screen point lies in the sim, through the live camera (mouse aim); null when that camera is not active
+  function unprojectLive(sx, sy) {
+    const cam = LIVE.cam; if (!cam) return null;
+    const a = (sx - cam.cx) / cam.f, b = (cam.cy - sy) / cam.f;
+    // the goal mouth: a cursor on the frame or net aims at that spot in the goal
+    { const g = cam.D, den = cam.ct + b * cam.st, v = (g * (b * cam.ct - cam.st)) / (den || 1e-6), dep = g * cam.ct - v * cam.st, X = cam.X + a * dep, H = v + cam.H;
+      if (den > 0 && dep > 0 && H >= 0 && H <= C.BAR * 1.3 && X >= GY0 - 30 && X <= GY1 + 30) return { x: FW, y: X }; }
+    const den = Math.max(0.02, cam.st - b * cam.ct), g = cam.H * (cam.ct + b * cam.st) / den, dep = g * cam.ct + cam.H * cam.st;
+    return { x: FW - (cam.D - g), y: cam.X + a * dep };
+  }
   function quad(c, cam, pts, fill) {
     c.beginPath();
     pts.forEach((q, i) => { const a = pr(cam, q[0], q[1], q[2]); if (i) c.lineTo(a.x, a.y); else c.moveTo(a.x, a.y); });
@@ -541,7 +594,13 @@
     c.strokeStyle = TH.line; c.lineCap = 'butt';
     if (TH.glow) { c.shadowColor = TH.glow; c.shadowBlur = 8; }
     const fl = Math.min(far, FW);
-    gline(c, cam, [[0, fl], [0, 0], [FH, 0], [FH, fl]], 2.5);
+    if (TH.cage) {      // futsal: low glass-and-board walls along both sides
+      for (const x of [0, FH]) quad(c, cam, [[x, 0, 0], [x, fl, 0], [x, fl, 34], [x, 0, 34]], 'rgba(255,255,255,.12)');
+      c.strokeStyle = TH.cage; c.lineWidth = 2;
+      for (const x of [0, FH]) { const a = pr(cam, x, 0, 34), b = pr(cam, x, fl, 34); c.beginPath(); c.moveTo(a.x, a.y); c.lineTo(b.x, b.y); c.stroke(); }
+    }
+    gline(c, cam, [[0, fl], [0, 0], [FH, 0], [FH, fl]], 3.2);
+    if (far >= FW) gline(c, cam, [[0, FW], [FH, FW]], 3.2);      // the far end line, so the whole boundary reads
     gline(c, cam, [[BOXY0, 0], [BOXY0, BOXD], [BOXY1, BOXD], [BOXY1, 0]], 2.5);
     gline(c, cam, [[SIXY0, 0], [SIXY0, SIXD], [SIXY1, SIXD], [SIXY1, 0]], 2.5);
     const da = Math.acos((BOXD - PEN) / CR), arc = [];
@@ -589,15 +648,25 @@
     drawNet3D(c, cam);
     if (G && G.drill && G.drill.kind === 'target') { /* targets are a top-down drill */ }
     const b = S.ball, ents = [];
-    const fig = (v, f) => { const q = pr(cam, v.x, v.y, 0), o = Object.assign(Object.create(v), { x: 0, y: 0 }); ents.push({ d: v.y, f: () => { c.save(); c.translate(q.x, q.y); c.scale(q.s, q.s); f(o, 1.7 / q.s); c.restore(); } }); };
+    const behind = (v) => (cam.D - v.y) * cam.ct + cam.H * cam.st < 40;      // at or behind the lens: skip rather than draw it huge
+    const fig = (v, f) => { if (behind(v)) return; const q = pr(cam, v.x, v.y, 0), o = Object.assign(Object.create(v), { x: 0, y: 0 }); ents.push({ d: v.y, f: () => { c.save(); c.translate(q.x, q.y); c.scale(q.s, q.s); f(o, 1.7 / q.s); c.restore(); } }); };
     for (const e of S.players) if (e.v.state !== 'away') fig(e.v, (o, ls) => drawPlayer(c, e.own, o, e.sheet, e.label, e.key, ls));
     fig(S.keeper.v, (o) => drawKeeper(c, o, S.keeper.sheet, S.keeper.key, S.keeper.ring));
     ents.push({ d: 0.5, f: () => drawFrame3D(c, cam) });
     const bs = pr(cam, b.x, b.y, 0), bq = pr(cam, b.x, b.y, b.z);
-    ents.push({ d: b.y + 0.6, f: () => {
+    if (!behind(b)) ents.push({ d: b.y + 0.6, f: () => {
       const k = 1 / (1 + b.z * 0.012);
       c.fillStyle = 'rgba(0,0,0,' + 0.38 * k + ')'; c.beginPath(); c.ellipse(bs.x, bs.y + 2 * bs.s, (6.5 * k + 1) * bs.s, (3 * k + 0.5) * bs.s, 0, 0, TAU); c.fill();
       drawBall(c, b, bq.x, bq.y - 5 * bq.s, 13 * bq.s);
+      if (bq.y - 5 * bq.s < 26) {      // punted out of the top of the frame: keep it in sight at the edge, with a line down to its shadow
+        const mx = clamp(bq.x, 24, VW - 24);
+        c.save(); c.strokeStyle = 'rgba(255,255,255,.35)'; c.lineWidth = 1.5; c.setLineDash([4, 5]);
+        c.beginPath(); c.moveTo(mx, 44); c.lineTo(bs.x, bs.y); c.stroke(); c.setLineDash([]);
+        c.strokeStyle = 'rgba(255,255,255,.7)'; c.lineWidth = 2; c.beginPath(); c.ellipse(bs.x, bs.y, 9 * bs.s + 4, 4.5 * bs.s + 2, 0, 0, TAU); c.stroke();
+        c.restore();
+        drawBall(c, b, mx, 30, 15);
+        c.fillStyle = 'rgba(255,255,255,.85)'; c.beginPath(); c.moveTo(mx - 6, 50); c.lineTo(mx + 6, 50); c.lineTo(mx, 58); c.closePath(); c.fill();
+      }
     } });
     ents.sort((a, z) => a.d - z.d);
     for (const e of ents) e.f();
@@ -673,11 +742,12 @@
   function replayCam(E, st, dt) {
     const bx = E.b.y, bd = FW - E.b.x;               // view coordinates of the ball
     const tx = clamp(GCY + (bx - GCY) * 0.7, GCY - 190, GCY + 190), td = clamp(bd, 45, FW);
-    if (!RP.cam) RP.cam = { X: tx, Dd: td, zoom: 0 };
+    const cine = !!LIVE.cam;
+    if (!RP.cam) RP.cam = cine ? { X: LIVE.X, Dd: LIVE.Dd, zoom: 0 } : { X: tx, Dd: td, zoom: 0 };
     const k = 1 - Math.exp(-3.2 * dt);
     RP.cam.X += (tx - RP.cam.X) * k; RP.cam.Dd += (td - RP.cam.Dd) * k;
     RP.cam.zoom += ((st.slowmo ? 1 : 0) - RP.cam.zoom) * (1 - Math.exp(-1.6 * dt));
-    const m = st.mix, z = RP.cam.zoom;
+    const m = cine ? 1 : st.mix, z = RP.cam.zoom;
     // from a high, steep look (close to the match view) down to the low broadcast angle; a slow push-in on the finish
     return mkCam({ X: RP.cam.X, D: RP.cam.Dd + lerp(430, 300 - 30 * z, m), H: lerp(560, 135 - 12 * z, m), th: lerp(0.98, 0.37, m), f: lerp(1250, 1040 + 80 * z, m), cy: lerp(360, 330, m) });
   }
@@ -770,6 +840,20 @@
     c.restore();
     fx.trail.length = 0;
   }
+  // the match through the replay camera (Camera settings: Cinematic)
+  function drawLive3D(c, G, V, cam, dt) {
+    const S = {
+      players: G.players.map((p0, i) => ({ v: viewP(p0), sheet: V.sheets[i], label: V.labels[i], key: p0, own: G.ball.owner === p0 })),
+      keeper: { v: viewP(G.keeper), sheet: V.keeperSheet, key: G.keeper },
+      ball: Object.assign(Object.create(G.ball), { x: G.ball.y, y: FW - G.ball.x, vx: G.ball.vy, vy: -G.ball.vx }),
+    };
+    c.save();
+    if (fx.shake > 0.2) { c.translate((Math.random() - 0.5) * fx.shake, (Math.random() - 0.5) * fx.shake); fx.shake *= Math.pow(0.004, dt); } else fx.shake = 0;
+    drawScene3D(c, S, cam, G);
+    drawFx3D(c, cam, dt);
+    c.restore();
+    fx.trail.length = 0;
+  }
   function penaltyOverlay(c, G, V) {
     const D = G.drill, so = D.so, mine = so.turn === 'shoot', N = D.total;
     // the shootout so far: a row of kicks for each side
@@ -804,6 +888,9 @@
     if (G.phase !== 'goal') { RP.goalAt = -1; RP.ents = null; RP.cam = null; }
     else if (RP.goalAt < 0) RP.goalAt = RP.clock;
     const rs = replayState(G, V);
+    // the cinematic match camera: never in the shootout, the menu demo or the target drill (those are drawn top-down)
+    const cine = V.cam === 'cinematic' && !V.quiet && !pen && !(G.drill && G.drill.kind === 'target');
+    const lcam = cine ? liveCam(G, V, dt) : ((LIVE.cam = null), (LIVE.init = false), null);
     if (G.replay && !V.quiet && dt > 0 && !rs && (G.phase === 'play' || G.phase === 'goal')) record(G, dt);
     if (G.phase === 'countdown' && RP.tape.length && RP.goalAt < 0) RP.tape.length = 0;
 
@@ -811,7 +898,8 @@
     else if (rs && rs.mix >= 0.999) {            // fully in the replay: the match view is not drawn at all
       for (const p of fx.parts) p.life -= dt; for (const t of fx.texts) t.life -= dt;
       fx.parts = fx.parts.filter((p) => p.life > 0); fx.texts = fx.texts.filter((t) => t.life > 0); fx.shake = 0;
-    } else draw2D(c, G, V, dt);
+    } else if (cine) drawLive3D(c, G, V, lcam, dt);
+    else draw2D(c, G, V, dt);
     if (rs) { fdt = dt * (rs.slowmo ? RT.slow : 1); drawReplay(c, G, V, rs, dt); fdt = dt; }
 
     if (fx.flash > 0) { c.fillStyle = 'rgba(255,255,255,' + fx.flash * 0.35 + ')'; c.fillRect(0, 0, VW, VH); fx.flash -= dt * 3; }
@@ -822,7 +910,7 @@
     if (G.phase === 'countdown') {
       const n = Math.ceil(G.phaseT / G.cdTick), frac = (G.phaseT / G.cdTick) % 1;
       const sub = pen ? (G.drill.so.sudden ? 'SUDDEN DEATH · ' : '') + (G.drill.so.turn === 'shoot' ? 'YOUR KICK' : (G.players[1].def.short || 'CPU').toUpperCase() + ' TO SHOOT — SAVE IT')
-        : G.drill ? G.drill.name + ' · ' + (G.drill.kind === 'target' ? 'HIT ' + ISO.TARGETS[G.drill.target].name : G.drill.kind === 'chip' ? 'LOB THE KEEPER' : 'KICK ' + (G.drill.n + 1) + ' OF ' + G.drill.total) : (V.teams || V.labels)[G.attacker] + ' ATTACKS';
+        : G.drill ? G.drill.name + ' · ' + (G.drill.tip ? G.drill.tip + ' · ' + (G.drill.n + 1) + ' OF ' + G.drill.total : G.drill.kind === 'target' ? 'HIT ' + ISO.TARGETS[G.drill.target].name : G.drill.kind === 'chip' ? 'LOB THE KEEPER' : 'KICK ' + (G.drill.n + 1) + ' OF ' + G.drill.total) : (V.teams || V.labels)[G.attacker] + ' ATTACKS';
       if (n > 0) banner(c, String(n), sub, '#ffffff', 1 - frac, pen ? 400 : OY + 120, pen ? 215 : 0);
     } else if (G.phase === 'goal') {
       const t = (G.goalDur || C.GOAL_T) - G.phaseT, lg = G.goals[G.goals.length - 1], name = G.players[lg && lg.by != null ? lg.by : 1 - G.concede].def.short;
@@ -847,14 +935,14 @@
     }
   }
 
-  function reset() { fx.parts = []; fx.texts = []; fx.trail = []; fx.shake = 0; fx.flash = 0; RP.tape.length = 0; RP.goalAt = -1; RP.ents = null; RP.cam = null; }
+  function reset() { fx.parts = []; fx.texts = []; fx.trail = []; fx.shake = 0; fx.flash = 0; RP.tape.length = 0; RP.goalAt = -1; RP.ents = null; RP.cam = null; LIVE.init = false; LIVE.cam = null; }
 
   // mouse aim reticle (screen coords) with a guide from the human player
   function drawAim(c, G, V) {
     if (!V.aim || G.phase !== 'play') return;
     const pen = G.drill && G.drill.so;
     if (pen && pen.turn !== 'shoot') return;
-    const p = G.players[V.me || 0], foot = pen ? pr(PEN_CAM, p.y, FW - p.x, 30) : { x: OX + Z * p.y, y: OY + Z * (FW - p.x) - 10 }, live = !!p.charge;
+    const p = G.players[V.me || 0], foot = pen ? pr(PEN_CAM, p.y, FW - p.x, 30) : LIVE.cam ? pr(LIVE.cam, p.y, FW - p.x, 30) : { x: OX + Z * p.y, y: OY + Z * (FW - p.x) - 10 }, live = !!p.charge;
     c.save();
     c.strokeStyle = live ? 'rgba(241,115,95,.85)' : 'rgba(255,255,255,.35)'; c.lineWidth = live ? 2 : 1.2; c.setLineDash([6, 6]);
     c.beginPath(); c.moveTo(foot.x, foot.y); c.lineTo(V.aim.x, V.aim.y); c.stroke(); c.setLineDash([]);
@@ -865,5 +953,5 @@
   }
   // is the goal replay on screen right now? (the match underneath is paused in its goal phase)
   const inReplay = (G, V) => !!replayState(G, V);
-  ISO.Render = { draw, onEvent, reset, VW, VH, TEAM_COL, Z, OX, OY, drawAim, setMap, thumb, unprojectGoal, inReplay };
+  ISO.Render = { draw, onEvent, reset, VW, VH, TEAM_COL, Z, OX, OY, drawAim, setMap, thumb, unprojectGoal, unprojectLive, inReplay, setBall };
 })();

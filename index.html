@@ -41,9 +41,10 @@
   <section id="menu" class="screen">
     <div class="menu-box">
       <div class="kicker">1 v 1 · FIRST TO THREE</div>
-      <div class="ver">BETA 2.41</div>
+      <div class="ver">BETA 2.6</div>
       <h1>ISO <em>FOOTBALL</em></h1>
       <p class="tagline">Two footballers. One ball. One goal. Win the rebound.</p>
+      <div class="menu-stats" id="menuStats"></div>
       <div class="menu-btns">
         <button class="btn primary wide playbtn" data-act="play">PLAY</button>
         <button class="btn storebtn wide" data-act="store">STORE<span id="achBadge" class="badge hidden">!</span></button>
@@ -52,6 +53,10 @@
       </div>
     </div>
   </section>
+
+  <!-- main menu extras: a rotating featured player and a tip ticker -->
+  <aside id="menuFeature" class="menu-feature hidden"><div class="mf-k">FEATURED</div><canvas id="mfFace" width="200" height="200"></canvas><div class="mf-n" id="mfName"></div><div class="mf-m" id="mfMeta"></div><div class="mf-r" id="mfRar"></div></aside>
+  <div id="menuTip" class="menu-tip hidden"></div>
 
   <!-- play hub -->
   <section id="play" class="screen meta hidden">
@@ -63,7 +68,7 @@
     <div class="playgrid">
       <button class="playcard career" data-act="mode-career">
         <span class="pc-k">BUILD YOUR PLAYER</span><span class="pc-t">MYCAREER</span>
-        <span class="pc-d">Climb a 12-opponent ladder from squad players to the greatest icons. Wins earn upgrade points for your stats.</span>
+        <span class="pc-d">Climb a 30-match ladder from squad players to the greatest icons, with rematches against your toughest rivals. Wins earn upgrade points for your stats.</span>
         <span class="pc-s" id="playCareer"></span></button>
       <button class="playcard quick" data-act="mode-cpu">
         <span class="pc-k">VS CPU · FIRST TO THREE</span><span class="pc-t">QUICK MATCH</span>
@@ -71,8 +76,8 @@
         <span class="pc-s" id="playQuick"></span></button>
       <button class="playcard arena" data-act="mode-drills">
         <span class="pc-k">TRAINING</span><span class="pc-t">DRILLS</span>
-        <span class="pc-d">A full penalty shootout where you shoot and keep goal, target practice, chip challenges and the free Testing Arena.</span>
-        <span class="pc-s">4 DRILLS · EARN CREDITS</span></button>
+        <span class="pc-d">A full penalty shootout, free kicks, one-on-ones, long shots, curlers, power blasts, target and chip challenges, and the free Testing Arena.</span>
+        <span class="pc-s">9 DRILLS · EARN CREDITS</span></button>
       <button class="playcard online art art-online" data-act="mode-online">
         <span class="pc-k">VS A FRIEND · FIRST TO THREE</span><span class="pc-t">ONLINE 1V1</span>
         <span class="pc-d">Create a room and send the code to a friend, or jump into quick match. The server runs the match.</span>
@@ -104,6 +109,26 @@
         <span class="pc-k">6 CHANCES · CHIP SHOT</span><span class="dc-t">CHIP CHALLENGE</span>
         <span class="pc-d">The keeper has come off his line. Scoop it over him with the chip key — too soft and he plucks it, too hard and it clears the bar.</span>
         <span class="pc-s" id="drillBest-chip"></span></button>
+      <button class="drillcard" style="--pc:#ffd23d" data-act="drill-freekick">
+        <span class="pc-k">6 KICKS · OVER THE WALL</span><span class="dc-t">FREE KICKS</span>
+        <span class="pc-d">A dead ball 25–30 yards out with a defender in the wall. Bend or lift it over, and past a live keeper.</span>
+        <span class="pc-s" id="drillBest-freekick"></span></button>
+      <button class="drillcard" style="--pc:#4fd0a0" data-act="drill-oneonone">
+        <span class="pc-k">6 CHANCES · LIVE KEEPER</span><span class="dc-t">ONE ON ONE</span>
+        <span class="pc-d">Clean through. Close range against a keeper who reads the shot: pick your corner or go round him.</span>
+        <span class="pc-s" id="drillBest-oneonone"></span></button>
+      <button class="drillcard" style="--pc:#ff8a3d" data-act="drill-longshot">
+        <span class="pc-k">6 SHOTS · 12 POINTS</span><span class="dc-t">LONG SHOTS</span>
+        <span class="pc-d">Thirty-plus yards out. Any goal is 1 point, a power-shot goal is 2.</span>
+        <span class="pc-s" id="drillBest-longshot"></span></button>
+      <button class="drillcard" style="--pc:#b06bff" data-act="drill-finesse">
+        <span class="pc-k">6 SHOTS · 12 POINTS</span><span class="dc-t">FINESSE CURLERS</span>
+        <span class="pc-d">From the wing, bend it round the keeper. A finesse-shot goal scores 2, anything else 1.</span>
+        <span class="pc-s" id="drillBest-finesse"></span></button>
+      <button class="drillcard" style="--pc:#f1735f" data-act="drill-power">
+        <span class="pc-k">6 BLASTS · POWER SHOT</span><span class="dc-t">POWER BLASTS</span>
+        <span class="pc-d">Only the power shot counts. Hold it long enough to hammer it, not so long it clears the bar.</span>
+        <span class="pc-s" id="drillBest-power"></span></button>
     </div>
   </section>
 
@@ -229,6 +254,7 @@
         <button class="segb" data-st="tab" data-id="boxes">BOX DRAW</button>
         <button class="segb" data-st="tab" data-id="moves">SKILL MOVES</button>
         <button class="segb" data-st="tab" data-id="maps">MAPS</button>
+        <button class="segb" data-st="tab" data-id="balls">BALLS</button>
         <button class="segb" data-st="tab" data-id="ach">ACHIEVEMENTS<i id="achDot" class="tabdot hidden"></i></button>
       </div>
     </header>
@@ -280,13 +306,18 @@
         <label class="set-row"><span>Sound effects</span><input type="checkbox" class="tog" id="setSound"></label>
         <label class="set-row"><span>Crowd ambience</span><input type="checkbox" class="tog" id="setCrowd"></label>
         <h3>GAMEPLAY</h3>
+        <label class="set-row"><span>Match camera</span><select id="setCamera"><option value="classic">Classic (top-down)</option><option value="cinematic">Cinematic (replay angle)</option></select></label>
         <label class="set-row"><span>Default CPU difficulty</span><select id="setDiff"><option value="easy">Easy</option><option value="normal">Normal</option><option value="hard">Hard</option></select></label>
-        <label class="set-row"><span>Mouse aiming &amp; click to shoot</span><input type="checkbox" class="tog" id="setMouse"></label>
+        <label class="set-row"><span>Mouse aiming</span><input type="checkbox" class="tog" id="setMouse"></label>
         <label class="set-row"><span>Aim reticle</span><input type="checkbox" class="tog" id="setReticle"></label>
         <label class="set-row"><span>In-match controls hint</span><input type="checkbox" class="tog" id="setHint"></label>
+        <h3>KEYBOARD</h3>
+        <p class="note">Click a slot, then press a key <b>or a mouse button</b>. For a <b>combination</b>, hold the first key(s) and press the last, e.g. <kbd>Shift</kbd>+<kbd>Q</kbd> (up to three). Release a lone modifier to bind it by itself. <kbd>Esc</kbd> cancels, <kbd>Backspace</kbd> clears the slot. A binding already in use swaps places.</p>
+        <div class="keybinds" id="keyBinds"></div>
+        <div class="set-row"><span>Restore the default keys and mouse buttons</span><button class="btn small ghost" data-meta="keys-reset">RESET TO DEFAULT</button></div>
         <h3>PROGRESS</h3>
         <div class="set-reset">
-          <p>Wipes credits, unlocked players, skins, Prime upgrades, skill moves, maps, achievements and your MyCareer. Settings and key bindings are kept. This can't be undone.</p>
+          <p>Wipes credits, unlocked players, skins, Prime upgrades, maps, achievements and your MyCareer. Settings and key bindings are kept. This can't be undone.</p>
           <button class="btn danger" data-meta="reset-all">RESET ALL PROGRESS</button>
         </div>
         <h3>ADMIN</h3>
@@ -300,14 +331,9 @@
           <label class="set-row"><span>Unlock all achievements</span><input type="checkbox" class="tog" data-admin="allAch"></label>
           <label class="set-row"><span>Infinite credits</span><input type="checkbox" class="tog" data-admin="infCredits"></label>
           <p class="note">Switches only override progress while they are on — turn them off and your real collection, achievements and credits are back.</p>
+          <div class="set-row"><span>Max out everything: every character, Prime upgrade, skin and ball skin (saved to your profile)</span><button class="btn small primary" data-meta="admin-max">MAX OUT ALL</button></div>
           <button class="btn small ghost" data-meta="admin-logout">LOCK ADMIN</button>
         </div>
-      </div>
-      <div class="panel set-col">
-        <h3>KEYBOARD</h3>
-        <p class="note">Click a slot, then press the new key. For a <b>combination</b>, hold the first key(s) and press the last — e.g. <kbd>Shift</kbd>+<kbd>Q</kbd> (up to three keys). Release a lone modifier to bind it by itself. <kbd>Esc</kbd> cancels, <kbd>Backspace</kbd> clears the slot. A binding already in use swaps places, and a combination takes priority over its single keys while held.</p>
-        <div class="keybinds" id="keyBinds"></div>
-        <div class="set-row"><span>Mouse buttons follow Shoot and Power shot</span><button class="btn small ghost" data-meta="keys-reset">RESET TO DEFAULT</button></div>
       </div>
     </div>
   </section>
@@ -366,60 +392,55 @@
   <!-- controls guide -->
   <section id="controls" class="overlay hidden">
     <div class="card guide">
-      <h2>CONTROLS</h2>
-      <div class="guide-cols">
-        <div>
-          <h3>KEYS</h3>
-          <table class="keys" id="keysTable"></table>
-          <p class="note">Gamepads work too (stick, A shoot, B finesse, Y power shot, right stick click chip, X stepovers, RT sprint, LT jockey).</p>
-          <h3>WITH THE BALL</h3>
-          <ul>
-            <li><b>Hold</b> a shot key to charge, <b>release</b> to strike. The longer you hold, the higher it goes — hold too long and it sails over the bar. The <b>power shot</b> key takes longer to charge but is far harder.</li>
-            <li>The <b>chip shot</b> key scoops a lofted shot over a keeper who has come off his line. Charge it quickly: too soft and he plucks it down, too hard and it clears the bar.</li>
-            <li>Land a skill move on a defender up close and you can <b>break their ankles</b> — they hit the floor, and you're gone.</li>
-            <li><b>Tap</b> the normal shot key with the ball for a <b>fake shot</b>: defenders may bite, and you get a burst of speed. Tapping any other shot key fires a quick, weak shot.</li>
-            <li>Defending: <b>tackle</b>, <b>slide tackle</b>, <b>shoulder</b> (a barge that can knock the ball loose) and <b>focus</b> (hold for a low side-on stance: a dribbler's moves protect the ball less, and you can read a move and steal the ball mid-skill) have their own keys. They can share keys with your attacking moves (Settings › Keyboard), since you are only ever one or the other.</li>
-            <li>Hold <b>up / down</b> while shooting to pick a corner.</li>
-            <li>Hold a shot key as a loose ball arrives for a <b>first-time shot</b>.</li>
-            <li>Press a <b>skill key</b> while charging to cancel the shot.</li>
-            <li>Sprinting knocks the ball further ahead — a defender can nick it.</li>
-            <li><b>Jockey</b> with the ball to shield it from the defender.</li>
-          </ul>
-          <h3>WITHOUT THE BALL</h3>
-          <ul>
-            <li><kbd data-k="shoot">Space</kbd> — <b>standing tackle</b>. Get close; a tap also pokes at a loose ball.</li>
-            <li><kbd data-k="sprint">Sprint</kbd> + direction + <kbd data-k="shoot">Space</kbd> — <b>sliding tackle</b>. Long reach, slow recovery.</li>
-            <li><b>Jockey</b> to face the ball and shuffle; tackles from a jockey are stronger.</li>
-            <li>Stand in the way to <b>block</b> shots.</li>
-          </ul>
+      <div class="guide-head"><h2>CONTROLS</h2><button class="btn primary" data-act="close-controls">GOT IT</button></div>
+      <div class="guide-body">
+        <h3>KEYS</h3>
+        <div class="keys-grid">
+          <div><h4>MOVEMENT</h4><table class="keys" id="keysMove"></table></div>
+          <div><h4>ATTACK</h4><table class="keys" id="keysAtk"></table></div>
+          <div><h4>DEFENSE</h4><table class="keys" id="keysDef"></table></div>
         </div>
-        <div>
-          <h3>SKILL MOVES</h3>
-          <p class="note">Skill moves are <b>chords</b> of <kbd data-k="j">J</kbd> <kbd data-k="k">K</kbd> <kbd data-k="l">L</kbd>: press them together (within a split second) with the ball at your feet. Hold <kbd data-k="sprint">Sprint</kbd> with a single key for the other three. Steer with the stick to choose the exit direction. Only <b>Body feint</b> and <b>Stepovers</b> are free: buy the rest in the <b>Store</b>. In a match, a move you have not unlocked — or one your player lacks the skill stars for — becomes a simpler one; the testing arena unlocks every move. Tackles fail against a well-timed move — and land easily on a badly timed one.</p>
-          <table class="keys skills">
-            <tr><th>Input</th><th>Move</th><th>★</th></tr>
-            <tr><td><kbd data-k="j">J</kbd></td><td>Stepovers</td><td>2</td></tr>
-            <tr><td><kbd data-k="k">K</kbd></td><td>Body feint</td><td>1</td></tr>
-            <tr><td><kbd data-k="l">L</kbd></td><td>Knock on (burst forward)</td><td>1</td></tr>
-            <tr><td><kbd data-k="l">L</kbd> + sideways</td><td>Ball roll</td><td>2</td></tr>
-            <tr><td><kbd data-k="j">J</kbd> + <kbd data-k="k">K</kbd></td><td>La Croqueta</td><td>3</td></tr>
-            <tr><td><kbd data-k="j">J</kbd> + <kbd data-k="l">L</kbd></td><td>Roulette</td><td>3</td></tr>
-            <tr><td><kbd data-k="k">K</kbd> + <kbd data-k="l">L</kbd></td><td>Elastico</td><td>5</td></tr>
-            <tr><td><kbd data-k="j">J</kbd> + <kbd data-k="k">K</kbd> + <kbd data-k="l">L</kbd></td><td>Rainbow flick</td><td>5</td></tr>
-            <tr><td><kbd data-k="sprint">Sprint</kbd> + <kbd data-k="j">J</kbd></td><td>Heel-to-heel</td><td>4</td></tr>
-            <tr><td><kbd data-k="sprint">Sprint</kbd> + <kbd data-k="k">K</kbd></td><td>Drag back</td><td>2</td></tr>
-            <tr><td><kbd data-k="sprint">Sprint</kbd> + <kbd data-k="l">L</kbd></td><td>Nutmeg</td><td>4</td></tr>
-          </table>
-          <h3>RULES</h3>
-          <ul>
-            <li>Goal at the top. Each rep starts with the attacker (with the ball) on the spot 10 yards outside the 18-yard box, in the centre, and the defender standing in front of them. First to three goals wins.</li>
-            <li>After a shot, win the rebound and clear it outside the box. Play then carries on and the clearer becomes the attacker. Only the attacker can shoot: a defender who wins the ball has to get it outside the box before shooting. If the keeper catches the ball they throw it back out of the box for either player to win. After a goal, the scorer starts with the ball.</li>
-            <li>No fouls or restarts: a ball that goes out of play is given to whoever was defending.</li>
-            <li><b>Drills:</b> one player against the keeper. <b>Penalty Shootout</b> (5 kicks), <b>Target Practice</b> (hit the lit corner for 3 points) and <b>Chip Challenge</b> (lob a keeper who has come off his line) pay credits for your score; the <b>Testing Arena</b> is free practice with every skill move unlocked and no score limit. You take drill shots from the spot — aim with the direction keys or the mouse. The keeper level sets how good the keeper is.</li>
-          </ul>
-        </div>
+        <p class="note">Gamepads work too: stick to move, A shoot, B finesse, Y power shot, right stick click chip, X skill, RT sprint, LT jockey. Rebind everything (keys and mouse buttons) in Settings.</p>
+        <h3>WITH THE BALL</h3>
+        <ul>
+          <li><b>Hold</b> a shot key to charge, <b>release</b> to strike. The longer you hold, the higher it goes — hold too long and it sails over the bar. The <b>power shot</b> takes longer to charge but is far harder.</li>
+          <li>The <b>chip shot</b> scoops a lofted shot over a keeper who has come off his line. Charge it quickly: too soft and he plucks it down, too hard and it clears the bar.</li>
+          <li>Hold <b>up / down</b> while shooting to pick a corner.</li>
+          <li><b>Tap</b> the normal shot key for a <b>fake shot</b>: defenders may bite, and you get a burst of speed. Tapping any other shot key fires a quick, weak shot.</li>
+          <li>Hold a shot key as a loose ball arrives for a <b>first-time shot</b>. Press a <b>skill key</b> while charging to cancel the shot.</li>
+          <li>Sprinting knocks the ball further ahead — a defender can nick it. <b>Jockey</b> with the ball to shield it.</li>
+          <li><b>Pass</b> (2v2) goes to your teammate automatically.</li>
+          <li>Land a skill move on a defender up close and you can <b>break their ankles</b>: they hit the floor and you're gone.</li>
+        </ul>
+        <h3>DEFENDING</h3>
+        <ul>
+          <li><b>Tackle</b>, <b>slide tackle</b>, <b>shoulder</b> (a barge that can knock the ball loose) and <b>focus</b> (hold for a low side-on stance: you can read a move and steal the ball mid-skill) have their own keys, and may share keys with attacking moves — you are only ever one or the other.</li>
+          <li><b>Jockey</b> to face the ball and shuffle; tackles from a jockey are stronger. Stand in the way to <b>block</b> shots.</li>
+        </ul>
+        <h3>RULES</h3>
+        <ul>
+          <li>Goal at the top. Each rep starts with the attacker (with the ball) on the spot 10 yards outside the 18-yard box, in the centre, and the defender standing in front of them. First to three goals wins.</li>
+          <li>After a shot, win the rebound and clear it outside the box. Play then carries on and the clearer becomes the attacker. Only the attacker can shoot: a defender who wins the ball has to get it outside the box before shooting. If the keeper catches the ball they throw it back out of the box for either player to win. After a goal, the scorer starts with the ball.</li>
+          <li>No fouls or restarts: a ball that goes out of play is given to whoever was defending.</li>
+          <li><b>Drills:</b> one player against the keeper, paying credits for your score. The <b>Testing Arena</b> is free practice with every skill move and no score limit. Drill shots are taken from the spot: aim with the direction keys or the mouse. The keeper level sets how good the keeper is.</li>
+        </ul>
+        <h3>SKILL MOVES</h3>
+        <p class="note">Every skill move is unlocked. Moves are <b>chords</b> of <kbd data-k="j">J</kbd> <kbd data-k="k">K</kbd> <kbd data-k="l">L</kbd>: press them together (within a split second) with the ball at your feet. Hold <kbd data-k="sprint">Sprint</kbd> with a single key for the other three. Steer to choose the exit direction. Your player needs enough skill stars for a move, otherwise the input does a simpler one. Tackles fail against a well-timed move and land easily on a badly timed one.</p>
+        <table class="keys skills">
+          <tr><th>Input</th><th>Move</th><th>★</th></tr>
+          <tr><td><kbd data-k="j">J</kbd></td><td>Stepovers</td><td>2</td></tr>
+          <tr><td><kbd data-k="k">K</kbd></td><td>Body feint</td><td>1</td></tr>
+          <tr><td><kbd data-k="l">L</kbd></td><td>Knock on (burst forward)</td><td>1</td></tr>
+          <tr><td><kbd data-k="l">L</kbd> + sideways</td><td>Ball roll</td><td>2</td></tr>
+          <tr><td><kbd data-k="j">J</kbd> + <kbd data-k="k">K</kbd></td><td>La Croqueta</td><td>3</td></tr>
+          <tr><td><kbd data-k="j">J</kbd> + <kbd data-k="l">L</kbd></td><td>Roulette</td><td>3</td></tr>
+          <tr><td><kbd data-k="k">K</kbd> + <kbd data-k="l">L</kbd></td><td>Elastico</td><td>5</td></tr>
+          <tr><td><kbd data-k="j">J</kbd> + <kbd data-k="k">K</kbd> + <kbd data-k="l">L</kbd></td><td>Rainbow flick</td><td>5</td></tr>
+          <tr><td><kbd data-k="sprint">Sprint</kbd> + <kbd data-k="j">J</kbd></td><td>Heel-to-heel</td><td>4</td></tr>
+          <tr><td><kbd data-k="sprint">Sprint</kbd> + <kbd data-k="k">K</kbd></td><td>Drag back</td><td>2</td></tr>
+          <tr><td><kbd data-k="sprint">Sprint</kbd> + <kbd data-k="l">L</kbd></td><td>Nutmeg</td><td>4</td></tr>
+        </table>
       </div>
-      <button class="btn primary" data-act="close-controls">GOT IT</button>
     </div>
   </section>
 </div>

@@ -36,6 +36,7 @@
     const kits = ISO.resolveKits(defs[0], defs[1]);
     App.kits = kits;
     App.G = ISO.Game.create({ home, away, roster: defs, kickoff: App.kickoffFlip, solo: !quiet && App.mode === 'drill', drill: !quiet && App.mode === 'drill' ? App.drill : null, win: quiet ? 0 : App.matchWin,
+      walls: !quiet && App.mode !== 'online' && !!(ISO.mapById(ISO.Profile.data.map).walls),      // futsal courts: the ball bounces off the walls (offline only)
       replay: !quiet, takers: takers || null,          // goals in a match are replayed; the menu demo and the drills play straight on
       keeperNerf: quiet ? 0 : ({ easy: 16, normal: 0, hard: -6 }[App.matchDiff] || 0),
       moves: ctrl.map((c) => (c === 'human' ? ISO.Profile.moveSet() : null)) });      // you can only use the skill moves you have unlocked
@@ -157,7 +158,7 @@
     ISO.Profile.setSetting('mouseAim', on); ISO.Input.setMouse(on);
     $('mouseBtn').textContent = 'MOUSE AIM: ' + (on ? 'ON' : 'OFF');
     const K = (a) => ISO.Input.keyLabel(a).toUpperCase();
-    $('hint').textContent = 'ESC — pause & controls · ' + (on ? 'MOUSE aims, LEFT CLICK shoots, RIGHT CLICK power shot, ' + K('lob') + ' chip' : K('shoot') + ' shoots, ' + K('chip') + ' power shot, ' + K('lob') + ' chip, ' + K('finesse') + ' finesse');
+    $('hint').textContent = 'ESC — pause & controls · ' + (on ? 'MOUSE aims, ' : '') + K('shoot') + ' shoots, ' + K('chip') + ' power shot, ' + K('lob') + ' chip, ' + K('finesse') + ' finesse';
     if ($('setMouse')) $('setMouse').checked = on;
   };
   function setPaused(p) {
@@ -243,7 +244,7 @@
     });
   }
 
-  const DRILL_NAMES = { arena: 'TESTING ARENA', penalty: 'PENALTY SHOOTOUT', target: 'TARGET PRACTICE', chip: 'CHIP CHALLENGE' };
+  const DRILL_NAMES = { arena: 'TESTING ARENA', penalty: 'PENALTY SHOOTOUT', target: 'TARGET PRACTICE', chip: 'CHIP CHALLENGE', freekick: 'FREE KICKS', oneonone: 'ONE ON ONE', longshot: 'LONG SHOTS', finesse: 'FINESSE CURLERS', power: 'POWER BLASTS' };
 
   // ------------------------------------------------------------- drill results
   function showDrillEnd() {
@@ -260,7 +261,7 @@
       show('drillend'); achToasts(res.ach); return;
     }
     $('deTitle').textContent = D.name; $('deTitle').style.color = '';
-    $('deScore').textContent = D.points; $('deMax').textContent = '/ ' + D.max + (D.kind === 'target' ? ' POINTS' : ' GOALS');
+    $('deScore').textContent = D.points; $('deMax').textContent = '/ ' + D.max + (D.kind === 'target' || D.kind === 'longshot' || D.kind === 'finesse' ? ' POINTS' : ' GOALS');
     $('deDots').innerHTML = D.results.map(dot).join('');
     const rate = D.results.length ? Math.round((D.results.filter((r) => r.res === 'goal').length / D.results.length) * 100) : 0;
     $('deRewards').innerHTML = '<span class="cr">+' + res.credits + ' CR</span><span>' + rate + '% SCORED</span><span>' + App.matchDiff.toUpperCase() + ' KEEPER</span>' +
@@ -351,7 +352,7 @@
     'quit': () => { App.paused = false; if (App.mode === 'online') { ISO.Online.leave(); show('online'); return; } show(App.mode === 'career' ? 'career' : 'select'); },
     'quit-menu': () => { App.paused = false; if (App.mode === 'online') ISO.Online.leave(); show('menu'); },
   };
-  for (const id of ['arena', 'penalty', 'target', 'chip']) ACTIONS['drill-' + id] = () => { App.mode = 'drill'; App.drill = id; App.side = 0; App.touched = true; show('select'); };
+  for (const id of ['arena', 'penalty', 'target', 'chip', 'freekick', 'oneonone', 'longshot', 'finesse', 'power']) ACTIONS['drill-' + id] = () => { App.mode = 'drill'; App.drill = id; App.side = 0; App.touched = true; show('select'); };
   document.addEventListener('click', (e) => {
     const el = e.target.closest('[data-act]');
     if (!el) return;
@@ -389,6 +390,8 @@
     if (!ISO.Profile.data.settings.mouseAim) return null;
     const m = mouseCanvas();
     if (m && App.G.drill && App.G.drill.so) return { x: C.FW, y: R.unprojectGoal(m.x, m.y).X };      // shootout view: the cursor picks a spot in the goal
+    const lv = m && R.unprojectLive(m.x, m.y);
+    if (lv) return lv;
     return m && { x: C.FW - (m.y - R.OY) / R.Z, y: (m.x - R.OX) / R.Z };
   }
 
@@ -464,6 +467,7 @@
       }
     }
     const ST = ISO.Profile.data.settings;
+    App.V.cam = !App.demo && ST.camera === 'cinematic' ? 'cinematic' : 'classic';
     App.V.aim = App.screen === 'match' && !App.paused && !App.demo && ST.mouseAim && ST.reticle ? mouseCanvas() : null;
     ctx.setTransform(App.ratio, 0, 0, App.ratio, 0, 0);
     // drawn part-way between the last two simulation steps, so motion is even on any display rate (see smooth.js)
@@ -479,7 +483,7 @@
   { // apply saved settings
     const ST = ISO.Profile.data.settings;
     ISO.Audio.setVolume(ST.volume); ISO.Audio.setMuted(ST.muted); ISO.Audio.setCrowd(ST.crowd); App.diff = ST.diff || 'normal';
-    R.setMap(ISO.Profile.data.map);
+    R.setMap(ISO.Profile.data.map); R.setBall(ISO.Profile.data.ball);
     ISO.Input.setBindings(ST.keys);
     App.setMouse(ST.mouseAim);
     if (ISO.Meta) ISO.Meta.keyLabels();

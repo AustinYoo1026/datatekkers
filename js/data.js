@@ -463,7 +463,37 @@
     { id: 'beach', name: 'COPA BEACH', cost: 900, desc: 'Sand underfoot, sea behind the goal' },
     { id: 'snow', name: 'WINTER CUP', cost: 1200, desc: 'Orange lines on a frozen pitch' },
     { id: 'neon', name: 'NEON NIGHT', cost: 2000, desc: 'Midnight turf, glowing lines' },
+    { id: 'sunset', name: 'GOLDEN HOUR', cost: 800, desc: 'Amber light across a warm pitch' },
+    { id: 'monsoon', name: 'MONSOON', cost: 1000, desc: 'A heavy, rain-soaked night match' },
+    { id: 'jungle', name: 'AMAZON CUP', cost: 1000, desc: 'Deep green, thick with canopy' },
+    { id: 'moon', name: 'LUNAR LEAGUE', cost: 1600, desc: 'Grey dust and a very low sky' },
+    { id: 'desert', name: 'DUNE DERBY', cost: 900, desc: 'Orange sand and a burning sun' },
+    { id: 'retro', name: 'RETRO 8-BIT', cost: 1400, desc: 'Green phosphor on black' },
+    { id: 'sakura', name: 'CHERRY PARK', cost: 1100, desc: 'Pink blossom drifting over the pitch' },
+    { id: 'dock', name: 'DOCKYARD', cost: 700, desc: 'Concrete, cranes and shipping containers' },
+    { id: 'gold', name: 'GOLD CUP', cost: 3000, desc: 'A trophy-night pitch dressed in gold' },
+    { id: 'mud', name: 'MUDBATH', cost: 600, desc: 'Heavy, churned-up Sunday league turf' },
+    // futsal: walled courts. The ball bounces off every wall (the goal mouths stay open), so nothing goes out of play.
+    { id: 'fs_wood', name: 'HARDWOOD ARENA', cat: 'futsal', walls: true, cost: 1500, desc: 'Polished parquet, boards all round' },
+    { id: 'fs_blue', name: 'BLUE COURT', cat: 'futsal', walls: true, cost: 1500, desc: 'The classic indoor blue' },
+    { id: 'fs_red', name: 'CRIMSON DOME', cat: 'futsal', walls: true, cost: 1800, desc: 'Hot red floor, loud walls' },
+    { id: 'fs_roof', name: 'ROOFTOP CAGE', cat: 'futsal', walls: true, cost: 1800, desc: 'Wire-fenced court over the skyline' },
+    { id: 'fs_glass', name: 'GLASS CUBE', cat: 'futsal', walls: true, cost: 2400, desc: 'A clear-walled neon box' },
   ];
+  // Ball skins (cosmetic, local to your screen). Drawn by sprites.js: base gradient, a sweeping slab, panels, outline, optional glow and stripes.
+  ISO.BALLS = [
+    { id: 'classic', name: 'MATCHDAY', cost: 0, desc: 'The standard ball', base: ['#ffffff', '#e6e9ee'], slab: '#f1735f', panel: '#1f2433', ink: '#1f2433' },
+    { id: 'inferno', name: 'INFERNO', cost: 400, desc: 'Scorched orange, hot to the touch', base: ['#ffb347', '#e8541a'], slab: '#ffe27a', panel: '#5a1a08', ink: '#5a1a08', glow: '#ff6a1a' },
+    { id: 'glacier', name: 'GLACIER', cost: 400, desc: 'Frosted ice-blue panels', base: ['#f4fbff', '#b9dcf0'], slab: '#6ab8e8', panel: '#2a5a80', ink: '#2a5a80' },
+    { id: 'volt', name: 'VOLT', cost: 600, desc: 'Electric lime with black panels', base: ['#e8ff5a', '#9be01a'], slab: '#111111', panel: '#111111', ink: '#111111', glow: '#c8ff2a' },
+    { id: 'goldenboot', name: 'GOLDEN BOOT', cost: 1500, desc: 'Solid gold, for the top scorer', base: ['#fff0a0', '#d9a41a'], slab: '#8a6410', panel: '#6a4a08', ink: '#6a4a08', glow: '#ffd23d' },
+    { id: 'bubblegum', name: 'BUBBLEGUM', cost: 500, desc: 'Pink and playful', base: ['#ffe0ee', '#f7a3c8'], slab: '#ff5fa8', panel: '#8a2a5a', ink: '#8a2a5a' },
+    { id: 'midnight', name: 'MIDNIGHT', cost: 900, desc: 'Black ball, cyan glow', base: ['#2a3040', '#0a0d14'], slab: '#3df5ff', panel: '#3df5ff', ink: '#05070c', glow: '#3df5ff' },
+    { id: 'retro70', name: 'TELSTAR', cost: 700, desc: 'Black and white, 1970 style', base: ['#ffffff', '#dcdcdc'], slab: null, panel: '#111111', ink: '#111111', many: true },
+    { id: 'planet', name: 'PLANET', cost: 1100, desc: 'Blue ocean, green continents', base: ['#6ac4ff', '#1f6fb8'], slab: '#3fbf5a', panel: '#2e8a44', ink: '#123a66' },
+    { id: 'galaxy', name: 'GALAXY', cost: 1800, desc: 'Deep purple, a thousand stars', base: ['#6a3fb8', '#2a0f5a'], slab: '#b06bff', panel: '#ffe9ff', ink: '#14062e', glow: '#b06bff', stars: true },
+  ];
+  ISO.ballById = (id) => ISO.BALLS.find((b) => b.id === id) || ISO.BALLS[0];
   ISO.mapById = (id) => ISO.MAPS.find((m) => m.id === id) || ISO.MAPS[0];
 
   /* Optional professional sprite overrides.
