@@ -26,6 +26,7 @@
     const ratio = Math.max(1, Math.min(2, (window.devicePixelRatio || 1) * s));
     cv.width = Math.round(R.VW * ratio); cv.height = Math.round(R.VH * ratio);
     App.ratio = ratio;
+    if (ISO.R3D && ISO.R3D.resize) ISO.R3D.resize(Math.min(ratio, 1.5));
   }
   window.addEventListener('resize', fit);
 
@@ -52,6 +53,7 @@
     App.takerDef = defs[1]; App.V.canSkip = !quiet && App.mode !== 'online';
     App.acc = 0; App.endTimer = 0;
     R.reset(); ISO.Smooth.reset();
+    if (ISO.R3D && ISO.R3D.onMatch) ISO.R3D.onMatch(App.G, App.V, { defs, kits, quiet });
   }
 
   function startDemo() {
@@ -323,6 +325,22 @@
     achToasts(res.ach);
   }
 
+  // ------------------------------------------------------------- 3D mode (a second renderer over the same simulation; see js/3d/)
+  const want3d = () => ISO.Profile.data.settings.camera === '3d';
+  const use3d = () => want3d() && ISO.R3D && ISO.R3D.ready && !App.demo && !(App.G.drill && App.G.drill.so);      // the penalty shootout (you play the keeper) stays 2D
+  let viewLabel = '';
+  function syncView() {
+    const t = 'VIEW: ' + (want3d() ? '3D BEHIND PLAYER' : 'CLASSIC 2D');
+    if (t === viewLabel) return;
+    viewLabel = t; for (const id of ['viewBtn', 'viewBtnP']) { const b = $(id); if (b) b.textContent = t; }
+    const sel = $('setCamera'); if (sel && sel.value !== ISO.Profile.data.settings.camera) sel.value = ISO.Profile.data.settings.camera;
+  }
+  function ensure3d() {      // load Three.js the first time 3D is wanted; fall back to Classic if WebGL is not available
+    if (!want3d() || !ISO.R3D || ISO.R3D.ready || App.r3dLoading) return;
+    App.r3dLoading = true;
+    ISO.R3D.ensure((ok) => { App.r3dLoading = false; if (!ok && want3d()) { ISO.Profile.setSetting('camera', 'classic'); toast('3D UNAVAILABLE', 'WebGL could not start: using Classic', '#ffb23d'); } });
+  }
+
   // ------------------------------------------------------------- actions
   const ACTIONS = {
     'mode-cpu': () => { App.mode = 'cpu'; App.side = 0; App.touched = false; show('select'); },
@@ -352,6 +370,7 @@
     'restart': () => startMatch(),
     'rematch': () => { if (App.mode === 'online') { ISO.Online.rematch(); return; } App.kickoffFlip = 1 - App.kickoffFlip; startMatch(); },
     'mode-cpu-menu': () => { App.mode = 'cpu'; App.side = 0; App.touched = false; show('select'); },
+    'toggle-3d': () => { ISO.Profile.setSetting('camera', want3d() ? 'classic' : '3d'); ensure3d(); syncView(); },
     'mouse': () => App.setMouse(!ISO.Profile.data.settings.mouseAim),
     'sound': () => { ISO.Audio.setMuted(!ISO.Audio.muted); ISO.Profile.setSetting('muted', ISO.Audio.muted); $('soundBtn').textContent = 'SOUND: ' + (ISO.Audio.muted ? 'OFF' : 'ON'); },
     'settings': () => show('settings'),
@@ -395,6 +414,7 @@
   function mouseSim() {
     if (!ISO.Profile.data.settings.mouseAim) return null;
     const m = mouseCanvas();
+    if (use3d()) return m && ISO.R3D.unproject(m.x, m.y);
     if (m && App.G.drill && App.G.drill.so) return { x: C.FW, y: R.unprojectGoal(m.x, m.y).X };      // shootout view: the cursor picks a spot in the goal
     const lv = m && R.unprojectLive(m.x, m.y);
     if (lv) return lv;
@@ -412,7 +432,7 @@
   }
   function humanInput(i) {
     const k = ISO.Input.get('solo', i), aim = mouseSim();
-    const o = { ...k, mx: -k.my, my: k.mx };       // screen: up = towards the goal (+x in the sim)
+    const o = use3d() ? ISO.R3D.mapInput(k) : { ...k, mx: -k.my, my: k.mx };       // screen: up = towards the goal (+x in the sim); 3D: up = where the camera looks
     if (aim) { o.ax = aim.x; o.ay = aim.y; }
     return o;
   }
@@ -452,7 +472,7 @@
       else {
         App.acc += dt * C.SPEED;          // the whole game runs at C.SPEED of real time; nothing else scales the pace
         // a replay can be skipped (offline): the goal pause simply ends early
-        if (!App.demo && App.screen === 'match' && G.phase === 'goal' && R.inReplay(G, App.V) && ISO.Input.get('solo', 0).shoot) G.phaseT = Math.min(G.phaseT, 0.06);
+        if (!App.demo && App.screen === 'match' && G.phase === 'goal' && (use3d() ? ISO.R3D.inReplay() : R.inReplay(G, App.V)) && ISO.Input.get('solo', 0).shoot) G.phaseT = Math.min(G.phaseT, 0.06);
         let stepped = false;
         while (App.acc >= C.STEP) {
           ISO.Smooth.capture(G);
@@ -462,7 +482,7 @@
         if (stepped) ISO.Input.consume();
       }
       for (const e of G.events) {
-        R.onEvent(G, e);
+        if (use3d()) ISO.R3D.onEvent(G, e); else R.onEvent(G, e);
         if (!App.demo) ISO.Audio.play(e.type, e);
         if (!App.demo && App.mode === 'drill' && App.drill === 'arena' && e.type === 'goal') achToasts(ISO.Profile.recordArenaGoal());
       }
@@ -477,9 +497,17 @@
     App.V.aim = App.screen === 'match' && !App.paused && !App.demo && ST.mouseAim && ST.reticle ? mouseCanvas() : null;
     ctx.setTransform(App.ratio, 0, 0, App.ratio, 0, 0);
     // drawn part-way between the last two simulation steps, so motion is even on any display rate (see smooth.js)
+    ensure3d(); syncView();
+    const u3 = use3d();
+    $('cv3d').classList.toggle('hidden', !u3);
     ISO.Smooth.begin(App.G, !running ? 1 : online ? ISO.Online.alpha : App.acc / C.STEP, running ? dt : 0);
-    R.draw(ctx, App.G, App.V, running ? dt : 0);
-    ISO.Smooth.end(App.G);
+    if (u3) {
+      try {
+        ctx.clearRect(0, 0, R.VW, R.VH);
+        ISO.R3D.render(App.G, App.V, running ? dt : 0, ctx);      // the 3D scene, plus its 2D texts and reticle drawn onto the overlay canvas
+        R.overlays(ctx, App.G, App.V, null, false);
+      } finally { ISO.Smooth.end(App.G); }
+    } else { R.draw(ctx, App.G, App.V, running ? dt : 0); ISO.Smooth.end(App.G); }
     if (App.screen === 'match') {
       updateHud();
       if (App.hintT > 0 && !App.paused) { App.hintT -= dt; if (App.hintT <= 0) $('hint').classList.add('hidden'); }

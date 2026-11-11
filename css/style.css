@@ -6,6 +6,7 @@
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; background: #000; overflow: hidden; color: var(--text); font-family: var(--font); user-select: none; -webkit-user-select: none; }
 #stage { position: absolute; left: 50%; top: 50%; width: 1280px; height: 720px; transform-origin: 0 0; background: var(--bg); overflow: hidden; }
+#cv3d { position: absolute; inset: 0; width: 1280px; height: 720px; display: block; }
 #cv { position: absolute; inset: 0; width: 1280px; height: 720px; display: block; }
 #dim { position: absolute; inset: 0; background: radial-gradient(ellipse at center, rgba(8,11,16,.72), rgba(8,11,16,.94)); opacity: 0; transition: opacity .35s; pointer-events: none; }
 #dim.on { opacity: 1; }

@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Player Lab</title>
+<style>
+  :root { --bg: #0f1419; --panel: rgba(18, 24, 32, 0.92); --ink: #e6ebf2; --dim: #8a96a8; --line: #2a3442; --acc: #f1735f; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); font: 13px/1.35 system-ui, -apple-system, Segoe UI, sans-serif; overflow: hidden; }
+  #cv { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+  #ui { position: fixed; top: 12px; left: 12px; width: 300px; max-width: calc(100vw - 24px); background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px; box-sizing: border-box; }
+  #ui h1 { margin: 0 0 8px; font-size: 14px; letter-spacing: 0.04em; }
+  #ui h1 span { color: var(--acc); }
+  .row { display: flex; align-items: center; gap: 8px; margin: 6px 0; }
+  .row label { width: 62px; color: var(--dim); flex: none; }
+  .row select, .row input[type=range] { flex: 1; min-width: 0; }
+  select { background: #1a2230; color: var(--ink); border: 1px solid var(--line); border-radius: 6px; padding: 4px; }
+  .chk { display: flex; flex-wrap: wrap; gap: 10px; margin: 8px 0 4px; color: var(--dim); }
+  .chk label { display: flex; align-items: center; gap: 4px; cursor: pointer; }
+  #uval { width: 38px; text-align: right; font-variant-numeric: tabular-nums; }
+  #info { margin-top: 8px; color: var(--dim); font-size: 11px; white-space: pre-wrap; font-family: ui-monospace, Menlo, monospace; }
+  #err { color: #ff8a7a; white-space: pre-wrap; }
+  #hint { position: fixed; right: 12px; bottom: 10px; color: var(--dim); font-size: 11px; }
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="ui">
+  <h1>PLAYER <span>LAB</span></h1>
+  <div class="row"><label for="selPlayer">Player</label><select id="selPlayer"></select></div>
+  <div class="row"><label for="selSkin">Skin</label><select id="selSkin"></select></div>
+  <div class="row"><label for="selState">State</label><select id="selState"></select></div>
+  <div class="row"><label for="selSkill">Skill</label><select id="selSkill"></select></div>
+  <div class="row"><label for="selSide">Side / foot</label><select id="selSide"><option value="1">right</option><option value="-1">left</option></select></div>
+  <div class="row"><label for="rngU">u</label><input id="rngU" type="range" min="0" max="1" step="0.005" value="0"><span id="uval">0.00</span></div>
+  <div class="row"><label for="rngRate">Speed</label><input id="rngRate" type="range" min="0.05" max="2" step="0.05" value="1"></div>
+  <div class="chk">
+    <label><input id="chkPlay" type="checkbox" checked> auto-play</label>
+    <label><input id="chkTravel" type="checkbox"> travel</label>
+    <label><input id="chkPrime" type="checkbox"> prime</label>
+    <label><input id="chkBall" type="checkbox" checked> ball</label>
+    <label><input id="chkFollow" type="checkbox" checked> follow</label>
+  </div>
+  <div id="info"></div>
+  <div id="err"></div>
+</div>
+<div id="hint">drag: orbit &nbsp; right-drag / shift-drag: pan &nbsp; wheel: zoom</div>
+
+<script src="../js/vendor/three.min.js"></script>
+<script src="../js/data.js"></script>
+<script src="../js/game.js"></script>
+<script src="../js/3d/coords.js"></script>
+<script src="../js/3d/player3d.js"></script>
+<script src="../js/3d/anim3d.js"></script>
+<script>
+(function () {
+  'use strict';
+  const $ = (id) => document.getElementById(id);
+  const err = (e) => { $('err').textContent = String(e && e.stack || e); };
+  window.addEventListener('error', (e) => err(e.error || e.message));
+  const ISO = window.ISO, R3D = ISO.R3D, A = R3D.Anim;
+
+  // ---------------------------------------------------------------- scene
+  const canvas = $('cv');
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+  renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+  renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color('#0f1419');
+  scene.fog = new THREE.Fog('#0f1419', 25, 60);
+  const cam = new THREE.PerspectiveCamera(40, 1, 0.05, 200);
+  scene.add(new THREE.HemisphereLight(0xdfefff, 0x2b4a2f, 0.75));
+  const sun = new THREE.DirectionalLight(0xffffff, 1.7);
+  sun.position.set(-6, 12, 8); sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048);
+  Object.assign(sun.shadow.camera, { left: -5, right: 5, top: 5, bottom: -5, near: 1, far: 40 }); sun.shadow.bias = -0.0004;
+  scene.add(sun, sun.target);
+  // pitch with mowing bands and a few lines
+  const pc = document.createElement('canvas'); pc.width = pc.height = 512; const pg = pc.getContext('2d');
+  for (let i = 0; i < 16; i++) { pg.fillStyle = i % 2 ? '#2f8a45' : '#2a7d3e'; pg.fillRect(0, i * 32, 512, 32); }
+  pg.strokeStyle = 'rgba(255,255,255,.75)'; pg.lineWidth = 3; pg.strokeRect(64, 64, 384, 384); pg.beginPath(); pg.moveTo(64, 256); pg.lineTo(448, 256); pg.stroke();
+  const ptex = new THREE.CanvasTexture(pc); ptex.colorSpace = THREE.SRGBColorSpace; ptex.wrapS = ptex.wrapT = THREE.RepeatWrapping; ptex.repeat.set(3, 3);
+  const ground = new THREE.Mesh(new THREE.PlaneGeometry(60, 60), new THREE.MeshStandardMaterial({ map: ptex, roughness: 1 }));
+  ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground);
+  const ballMesh = new THREE.Mesh(new THREE.SphereGeometry(0.2, 24, 16), new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.5 }));
+  ballMesh.castShadow = true; scene.add(ballMesh);
+  const ball = { x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0 };
+
+  // ---------------------------------------------------------------- orbit camera
+  const orb = { yaw: 0.6, pitch: 0.28, dist: 5.2, tx: 0, ty: 0.95, tz: 0 };
+  let drag = null;
+  canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+  canvas.addEventListener('pointerdown', (e) => { drag = { x: e.clientX, y: e.clientY, pan: e.button === 2 || e.shiftKey }; canvas.setPointerCapture(e.pointerId); });
+  canvas.addEventListener('pointerup', () => { drag = null; });
+  canvas.addEventListener('pointermove', (e) => {
+    if (!drag) return;
+    const dx = e.clientX - drag.x, dy = e.clientY - drag.y; drag.x = e.clientX; drag.y = e.clientY;
+    if (drag.pan) { const k = orb.dist * 0.0018; orb.tx -= Math.cos(orb.yaw) * dx * k; orb.tz += Math.sin(orb.yaw) * dx * k; orb.ty = Math.max(0, orb.ty + dy * k); $('chkFollow').checked = false; }
+    else { orb.yaw -= dx * 0.008; orb.pitch = Math.min(1.45, Math.max(-0.1, orb.pitch + dy * 0.006)); }
+  });
+  canvas.addEventListener('wheel', (e) => { e.preventDefault(); orb.dist = Math.min(30, Math.max(1.2, orb.dist * Math.exp(e.deltaY * 0.001))); }, { passive: false });
+  function placeCam() {
+    const cp = Math.cos(orb.pitch);
+    cam.position.set(orb.tx + Math.sin(orb.yaw) * cp * orb.dist, orb.ty + Math.sin(orb.pitch) * orb.dist, orb.tz + Math.cos(orb.yaw) * cp * orb.dist);
+    cam.lookAt(orb.tx, orb.ty, orb.tz);
+  }
+  function resize() { const w = window.innerWidth, h = window.innerHeight; renderer.setSize(w, h, false); cam.aspect = w / h; cam.updateProjectionMatrix(); }
+  window.addEventListener('resize', resize); resize();
+
+  // ---------------------------------------------------------------- UI
+  const opt = (sel, v, t) => { const o = document.createElement('option'); o.value = v; o.textContent = t; sel.appendChild(o); };
+  ISO.PLAYERS.forEach((d, i) => opt($('selPlayer'), 'p' + i, d.name + ' (' + d.look.hair + ', ' + (d.look.face || 'oval') + ')'));
+  ISO.KEEPERS.forEach((k, i) => opt($('selPlayer'), 'k' + i, 'GK: ' + k.name));
+  ISO.SKINS.forEach((s) => opt($('selSkin'), s.id, s.name));
+  A.SKILLS.forEach((s) => opt($('selSkill'), s, s));
+  const OUT_STATES = A.CLIPS.filter((c) => c.indexOf('skill:') !== 0).concat(['skill']);
+  function fillStates(keeper) {
+    const sel = $('selState'), cur = sel.value; sel.innerHTML = '';
+    (keeper ? A.GK_CLIPS : OUT_STATES).forEach((c) => opt(sel, c, c.replace('gk:', '')));
+    if ([...sel.options].some((o) => o.value === cur)) sel.value = cur;
+    else sel.value = keeper ? 'gk:set' : 'jog';
+  }
+  // clip durations for auto-play (seconds per u 0..1)
+  const SKD = { stepover: 0.33, feint: 0.25, knock: 0.22, roll: 0.27, croqueta: 0.22, roulette: 0.42, elastico: 0.3, heel: 0.22, rainbow: 0.56, dragback: 0.3, nutmeg: 0.36 };
+  function clipName() { const s = $('selState').value; return s === 'skill' ? 'skill:' + $('selSkill').value : s; }
+  function clipDur(c) {
+    if (c.indexOf('skill:') === 0) return SKD[c.slice(6)] * 2.5;
+    if (/^(shoot|first-time|power|finesse|chip|cross|volley|header|pass)$/.test(c)) return 1.2;
+    return { tackle: 0.8, recover: 0.6, slide: 1.2, down: 0.8, shoulder: 0.9, stumble: 0.6, ankle: 2.6, fake: 0.9, charge: 1.2, 'gk:diveLow': 1.2, 'gk:diveHigh': 1.2, 'gk:ground': 1.6, 'gk:throw': 1.0, 'gk:catch': 0.8, 'gk:parry': 0.8 }[c] || 2.0;
+  }
+
+  // ---------------------------------------------------------------- actor
+  let actor = null, pv = null, keeper = false;
+  function build() {
+    try {
+      const v = $('selPlayer').value, i = +v.slice(1);
+      keeper = v[0] === 'k';
+      let spec;
+      if (keeper) { const k = ISO.KEEPERS[i]; spec = { def: k, kit: k.kit, keeper: true, slot: 9 }; }
+      else { const d = ISO.outfit(ISO.PLAYERS[i], $('chkPrime').checked, $('selSkin').value); spec = { def: d, kit: d.kit, keeper: false, slot: 0 }; }
+      if (actor) actor.setSpec(spec);
+      else { actor = R3D.Player.create(THREE, spec); A.create(actor); scene.add(actor.group); }
+      $('selSkin').disabled = keeper; $('chkPrime').disabled = keeper;
+      fillStates(keeper);
+      restart();
+      let tris = 0, meshes = 0;
+      actor.group.traverse((o) => { if (o.isMesh) { meshes++; const g = o.geometry; tris += (g.index ? g.index.count : g.attributes.position.count) / 3; } });
+      const L = spec.def.look || {};
+      info.static = (spec.def.name || '') + '  #' + (spec.def.num == null ? '-' : spec.def.num) + '  ' + (spec.def.foot || 'R') + '-footed\n' +
+        'kit ' + spec.kit.a + ' / ' + spec.kit.b + '  ' + spec.kit.pat + '\nlook h ' + (L.h || 1) + ' w ' + (L.w || 1) + '  skin ' + L.skin + '  hair ' + L.hair +
+        (L.beard ? '  beard ' + L.beard : '') + (L.brow ? '  brow ' + L.brow : '') + '\n' + meshes + ' meshes, ' + tris + ' tris';
+      $('err').textContent = '';
+    } catch (e) { err(e); }
+  }
+  const info = { static: '' };
+  let t = 0, travel = 0;
+  function restart() { t = 0; travel = 0; if (actor) actor.anim.reset(); }
+
+  function frame(u, tt, dt, travelOn) {
+    const c = clipName(), sd = +$('selSide').value;
+    pv = A.samplePV(c, u, tt, pv && (keeper === (pv.runPh === undefined)) ? pv : null, { sd, foot: sd });
+    if (travelOn && pv.speed > 0.01) {      // move for real so you can judge foot contact; wraps every 14 m
+      travel += dt;
+      const span = 14, d = (pv.speed * travel) % span - span / 2, dir = Math.atan2(pv.vx, pv.vz);
+      pv.x = Math.sin(dir) * d; pv.z = Math.cos(dir) * d;
+      if (pv.runPh !== undefined) pv.runPh = (pv.speed * travel / (2.2 * (1 + 0.3 * Math.min(1, pv.speed / pv.top)))) * Math.PI * 2;
+      if (pv.animDist !== undefined) pv.animDist = pv.speed * travel / 0.05;
+    }
+    // the ball: at the feet for shots / dribbles, at head height for headers, toward the dive for the keeper
+    const fwdx = Math.sin(pv.yaw), fwdz = Math.cos(pv.yaw);
+    if (keeper) { const s = pv.diveDir || 1; ball.x = pv.x + (pv.state === 'dive' ? s * 2.4 : 0); ball.y = pv.high ? 1.9 : pv.state === 'dive' ? 0.3 : 0.9; ball.z = pv.z + 0.9; }
+    else { ball.x = pv.x + fwdx * 0.45 + fwdz * 0.12; ball.z = pv.z + fwdz * 0.45 - fwdx * 0.12; ball.y = c === 'header' ? 1.65 : c === 'volley' ? 0.55 : 0; }
+    ballMesh.visible = $('chkBall').checked;
+    ballMesh.position.set(ball.x, ball.y + 0.2, ball.z);
+    actor.anim.update(pv, dt, $('chkBall').checked ? ball : null);
+  }
+
+  let last = performance.now();
+  function loop(now) {
+    requestAnimationFrame(loop);
+    const dt = Math.min(0.05, (now - last) / 1000); last = now;
+    if (!actor) return;
+    try {
+      const c = clipName(), dur = clipDur(c), rate = +$('rngRate').value, play = $('chkPlay').checked;
+      if (play) {
+        t += dt * rate;
+        const u = (t % dur) / dur;
+        $('rngU').value = u; $('uval').textContent = u.toFixed(2);
+        frame(u, t, dt * rate, $('chkTravel').checked);
+      }
+      if ($('chkFollow').checked) { const p = actor.group.position; orb.tx += (p.x - orb.tx) * 0.2; orb.tz += (p.z - orb.tz) * 0.2; }
+      sun.position.set(orb.tx - 6, 12, orb.tz + 8); sun.target.position.set(orb.tx, 0, orb.tz);
+      placeCam();
+      renderer.render(scene, cam);
+      const P = actor.anim.pose, st = actor.anim.state;
+      $('info').textContent = info.static + '\nclip ' + c + '  state ' + (pv ? pv.state : '') + '  rate ' + st.rate +
+        '\nyaw ' + st.yaw.toFixed(2) + '  lockW ' + st.lockW.toFixed(2) + '  ground ' + P[39].toFixed(2) + '  lift ' + P[1].toFixed(2);
+    } catch (e) { err(e); }
+  }
+  // scrubbing: replay the clip from u = 0 up to the slider so the eased pose is exactly what play would show there
+  function scrub() {
+    $('chkPlay').checked = false;
+    const u = +$('rngU').value, dur = clipDur(clipName());
+    $('uval').textContent = u.toFixed(2);
+    actor.anim.reset();
+    const n = Math.max(2, Math.round(u * dur * 60));
+    for (let i = 0; i <= n; i++) frame((u * i) / n, (u * dur * i) / n, (u * dur) / n, false);
+  }
+  $('rngU').addEventListener('input', scrub);
+  ['selPlayer', 'selSkin', 'chkPrime'].forEach((id) => $(id).addEventListener('change', build));
+  ['selState', 'selSkill', 'selSide'].forEach((id) => $(id).addEventListener('change', () => { restart(); if (!$('chkPlay').checked) scrub(); }));
+  $('selState').addEventListener('change', () => { $('selSkill').disabled = $('selState').value !== 'skill'; });
+  $('chkTravel').addEventListener('change', restart);
+  build(); $('selSkill').disabled = true;
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>

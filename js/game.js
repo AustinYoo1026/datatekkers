@@ -1329,9 +1329,9 @@
     let d, r, zmax;
     if (k.state === 'dive') {
       // a human keeper (penalty shootout) covers the whole outstretched body, feet to gloves
-      const reach = (k.human ? 8 + 5 * q(a.div) : (C.K_REACH0 + 3 + C.K_REACH1 * q(a.div)) * (b.shot && b.shot.out ? 1.15 : 1)) * Math.min(1, k.stT / 0.1), y2 = k.y + k.diveDir * reach, y1 = k.human ? k.y - k.diveDir * 4 : k.y;
+      const reach = (k.human ? 8 + 5 * q(a.div) : (C.K_REACH0 + 3 + C.K_REACH1 * q(a.div)) * (b.shot && b.shot.out ? 1.15 : 1) * (k.jump ? 1.3 : 1)) * Math.min(1, k.stT / 0.1), y2 = k.y + k.diveDir * reach, y1 = k.human ? k.y - k.diveDir * 4 : k.y;
       const cy = clamp(b.y, Math.min(y1, y2), Math.max(y1, y2));
-      d = hyp(b.x - k.x, b.y - cy); r = 11; zmax = k.human ? (k.high ? 60 : 30) : k.high ? 72 : 50;
+      d = hyp(b.x - k.x, b.y - cy); r = 11; zmax = k.human ? (k.high ? 60 : 30) : k.jump ? 84 : k.high ? 72 : 50;
       if (k.human && k.high && b.z < 15) return;        // a high dive goes over a low shot
     } else if (k.state === 'ground') {
       const cy = k.human ? clamp(b.y, Math.min(k.y - k.diveDir * 4, k.y + k.diveDir * 14), Math.max(k.y - k.diveDir * 4, k.y + k.diveDir * 14)) : k.y;
@@ -1364,7 +1364,7 @@
       ev(G, 'save', { k, weak: true }); return;
     }
     G.stats.saves[Math.max(0, b.shotTeam)]++;
-    const pCatch = clamp(0.3 + 0.55 * q(a.han) - sp / 1900, 0.05, 0.9) * (dive ? 0.18 : 1) * C.K_CATCH * (b.shot && b.shot.out ? 1.25 : 1);      // a diving keeper mostly gets a hand to it and deflects it
+    const pCatch = clamp(0.3 + 0.55 * q(a.han) - sp / 1900, 0.05, 0.9) * (dive ? (k.jump ? 0.55 : 0.18) : 1) * C.K_CATCH * (b.shot && b.shot.out ? 1.25 : 1);      // a diving keeper mostly gets a hand to it and deflects it
     if (G.rand() < pCatch) { keeperHold(G, k); ev(G, 'save', { k, catch: true }); return; }
     const ang = (sg > 0 ? 0 : Math.PI) + (G.rand() - 0.5) * 2.2 + (b.y < k.y ? -1 : 1) * 0.5 * sg;
     const ns = sp * (0.3 + G.rand() * 0.2);
@@ -1449,7 +1449,19 @@
         if (line && k.lagSeq !== b.seq && Math.abs(line.y - GCY) > 42) { k.lagSeq = b.seq; k.reactT = C.K_CORNER + 0.05 * (1 - q(a.ref)); }      // a shot heading for the corner takes a moment longer to pick up
         else if (line && line.y > GY0 - 22 && line.y < GY1 + 22 && line.z < BAR + 20) {
           const pr = predict(b, k.x, sf) || line;
-          if (pr.z > 46 && b.shot && b.shot.type === 'chip') { k.chip = true; k.reactT = 0.05; }      // only a scooped chip is met by standing tall; every other shot gets a dive, high if it is up
+          if (pr.z > 3 && b.shot && b.shot.type === 'chip') {      // a scooped chip: read the lob, shuffle under it, then leap so the jump peaks as the ball arrives
+            const sloppy = b.shot.out ? 1.4 : 1.8;      // timing and positioning error scale: a lob from outside the box gives the keeper time to read it (about 3 in 4 saved), one from inside the box leaves him less
+            if (pr.t > 0.3) {
+              k.chip = true; k.chipY = pr.y + G.gauss() * (34 - 14 * q(a.pos)) * sloppy;
+              k.reactT = pr.t - 0.26 + G.gauss() * (0.1 - 0.05 * q(a.ref)) * sloppy;      // the timing of the take-off: a sharper keeper is closer to perfect
+            } else {
+              const dy = clamp(pr.y + G.gauss() * (28 - 12 * q(a.pos)) * sloppy - k.y, -40, 40);
+              k.state = 'dive'; k.slid = false; k.stT = 0; k.diveDir = Math.sign(dy) || (G.rand() < 0.5 ? -1 : 1); k.vy = dy * 2.2; k.vx = 0;
+              k.stDur = k.diveT = 0.46; k.chip = false; k.high = true; k.jump = true; k.stepT = 0;
+              ev(G, 'dive', { k });
+              return;
+            }
+          }
           else if (pr.t > 0.42) k.reactT = pr.t - 0.4;      // a slow or long shot: wait and time the dive to arrive with the ball, instead of diving early and lying on the ground
           else {
             const err = G.gauss() * (42 - 18 * q(a.pos)) * clamp(pr.t * 2.5, 0.25, 1) * (fin ? 1.3 : 1) * (k.wide ? 1.25 : 1);
@@ -1459,7 +1471,7 @@
               const t = Math.max(pr.t, 0.07), mxs = (C.K_DIVE0 + C.K_DIVE1 * q(a.div)) * ((b.shot && b.shot.type === 'power') ? 1.25 : fin ? 0.9 : 1);
               k.state = 'dive'; k.slid = false; k.stT = 0; k.diveDir = Math.sign(dy);
               k.diveDir = Math.sign(dy) || (G.rand() < 0.5 ? -1 : 1); k.vy = k.diveDir * Math.min(Math.max((Math.abs(dy) / t) * 1.05, 45), mxs); k.vx = 0;
-              k.stDur = clamp(t + 0.12, 0.3, 0.6); k.chip = false; k.high = pr.z > 46; k.stepT = 0; k.diveT = k.stDur;
+              k.stDur = clamp(t + 0.12, 0.3, 0.6); k.chip = false; k.jump = false; k.high = pr.z > 46; k.stepT = 0; k.diveT = k.stDur;
               ev(G, 'dive', { k });
               return;
             }
@@ -1491,7 +1503,7 @@
     let tx, ty, spd = 150 + 70 * q(a.pos);
     if (k.rush > 0) { tx = b.x; ty = b.y; spd = 190; }                    // goalkeeper rush
     else if (k.stepT > 0 && !k.chip) { tx = k.x; ty = k.stepY; spd = C.K_STEP; }
-    else if (k.chip) { tx = gx + sg * 8; ty = clamp(b.y + b.vy * 0.4, GY0 + 10, GY1 - 10); spd *= 1.5; }
+    else if (k.chip) { tx = gx + sg * 8; ty = clamp(k.chipY !== undefined ? k.chipY : b.y + b.vy * 0.4, GY0 + 10, GY1 - 10); spd *= 1.5; }
     else {
       const inBox = sg * (b.x - gx) < BOXD && b.y > BOXY0 && b.y < BOXY1;
       const dk = hyp(b.x - k.x, b.y - k.y);

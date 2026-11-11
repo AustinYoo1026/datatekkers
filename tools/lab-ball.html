@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ball Lab</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #0d1117; color: #e6edf3; font: 13px/1.4 system-ui, sans-serif; overflow: hidden; }
+  #cv { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  #ui { position: absolute; left: 12px; top: 12px; background: rgba(13,17,23,.82); border: 1px solid #30363d; border-radius: 8px; padding: 10px; max-width: 300px; }
+  #ui button, #ui select { background: #21262d; color: #e6edf3; border: 1px solid #30363d; border-radius: 6px; padding: 5px 9px; margin: 2px; cursor: pointer; font: inherit; }
+  #ui button:hover { background: #30363d; }
+  #ui label { display: inline-flex; align-items: center; gap: 4px; margin: 4px 6px 0 2px; }
+  #info { margin-top: 8px; font: 12px/1.45 ui-monospace, monospace; white-space: pre; color: #9da7b3; }
+  h1 { font-size: 13px; margin: 0 0 6px; letter-spacing: .04em; }
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="ui">
+  <h1>BALL LAB (ball3d.js)</h1>
+  <div>
+    <button data-c="dribble">Dribble</button><button data-c="shot">Shot</button><button data-c="finesse">Finesse</button>
+    <button data-c="chip">Chip</button><button data-c="bounce">Bounce</button><button data-c="out">Out wide</button>
+    <button data-c="over">Over bar</button><button data-c="held">Keeper hold</button><button data-c="goal">Goal</button>
+  </div>
+  <div>
+    <select id="skin"></select>
+    <label><input type="checkbox" id="futsal"> futsal walls</label>
+    <label><input type="checkbox" id="slow"> slow-mo</label>
+    <label><input type="checkbox" id="showSim" checked> sim ball</label>
+  </div>
+  <div id="info"></div>
+</div>
+<script src="../js/vendor/three.min.js"></script>
+<script src="../js/data.js"></script>
+<script src="../js/game.js"></script>
+<script src="../js/3d/coords.js"></script>
+<script src="../js/3d/ball3d.js"></script>
+<script>
+(function () {
+  'use strict';
+  const ISO = window.ISO, K = ISO.R3D.K, S = K.S, TS = ISO.C.SPEED, GR = ISO.C.GRAV * S;
+  const $ = (id) => document.getElementById(id);
+
+  // ---- scene
+  const cv = $('cv');
+  const renderer = new THREE.WebGLRenderer({ canvas: cv, antialias: true });
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+  renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  const scene = new THREE.Scene(); scene.background = new THREE.Color('#9cc6e8');
+  const cam = new THREE.PerspectiveCamera(50, 1, 0.1, 400);
+  scene.add(new THREE.HemisphereLight('#dfefff', '#41622f', 0.8));
+  const sun = new THREE.DirectionalLight('#ffffff', 1.6); sun.position.set(-14, 26, 20); sun.castShadow = true;
+  sun.shadow.mapSize.set(2048, 2048); Object.assign(sun.shadow.camera, { left: -24, right: 24, top: 14, bottom: -14, near: 1, far: 80 });
+  sun.target.position.set(0, 0, 6); scene.add(sun, sun.target);
+  const ground = new THREE.Mesh(new THREE.PlaneGeometry(80, 70), new THREE.MeshStandardMaterial({ color: '#3f8a3a', roughness: 0.95 }));
+  ground.rotation.x = -Math.PI / 2; ground.position.z = 12; ground.receiveShadow = true; scene.add(ground);
+  const lineMat = new THREE.LineBasicMaterial({ color: '#ffffff' });
+  const line = (pts) => { const g = new THREE.BufferGeometry().setFromPoints(pts.map((p) => new THREE.Vector3(p[0], 0.01, p[1]))); scene.add(new THREE.Line(g, lineMat)); };
+  line([[-K.half, 0], [K.half, 0]]); line([[-K.half, K.depth], [K.half, K.depth]]);
+  line([[-K.boxHalf, 0], [-K.boxHalf, K.boxD], [K.boxHalf, K.boxD], [K.boxHalf, 0]]);
+  line([[-K.half, 0], [-K.half, K.depth]]); line([[K.half, 0], [K.half, K.depth]]);
+  // goal frame + net box
+  const postM = new THREE.MeshStandardMaterial({ color: '#ffffff' }), gx = K.goalW / 2;
+  for (const x of [-gx, gx]) { const p = new THREE.Mesh(new THREE.CylinderGeometry(K.postR, K.postR, K.goalH, 12), postM); p.position.set(x, K.goalH / 2, 0); p.castShadow = true; scene.add(p); }
+  const bar = new THREE.Mesh(new THREE.CylinderGeometry(K.postR, K.postR, K.goalW, 12), postM); bar.rotation.z = Math.PI / 2; bar.position.set(0, K.goalH, 0); scene.add(bar);
+  const net = new THREE.Mesh(new THREE.BoxGeometry(K.goalW, K.goalH, K.goalD), new THREE.MeshBasicMaterial({ color: '#ffffff', wireframe: true, transparent: true, opacity: 0.25 }));
+  net.position.set(0, K.goalH / 2, -K.goalD / 2); scene.add(net);
+  // arena boards (drawn from the same collider list the ball uses)
+  const arenaGroup = new THREE.Group(); scene.add(arenaGroup);
+  function drawArena(walls) {
+    while (arenaGroup.children.length) { const c = arenaGroup.children.pop(); c.geometry.dispose(); }
+    for (const a of ISO.R3D.Ball.makeArena(K, { walls })) {
+      const len = a.hi - a.lo, g = new THREE.BoxGeometry(a.ax === 0 ? 0.08 : len, a.h, a.ax === 0 ? len : 0.08);
+      const m = new THREE.Mesh(g, new THREE.MeshStandardMaterial({ color: a.h > 3 ? '#4a5568' : '#1f6feb', transparent: true, opacity: a.h > 3 ? 0.35 : 0.8 }));
+      const mid = (a.lo + a.hi) / 2;
+      if (a.ax === 0) m.position.set(a.pos, a.h / 2, mid); else m.position.set(mid, a.h / 2, a.pos);
+      arenaGroup.add(m);
+    }
+  }
+  // player stand-in + keeper stand-in
+  const pl = new THREE.Group(), body = new THREE.Mesh(new THREE.BoxGeometry(0.45, 1.8, 0.28), new THREE.MeshStandardMaterial({ color: '#d33' }));
+  body.position.y = 0.9; body.castShadow = true; pl.add(body);
+  const nose = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.12, 0.35), new THREE.MeshStandardMaterial({ color: '#fff' })); nose.position.set(0, 1.5, 0.25); pl.add(nose);
+  scene.add(pl);
+  const kp = new THREE.Mesh(new THREE.BoxGeometry(0.5, 1.85, 0.3), new THREE.MeshStandardMaterial({ color: '#e8c21a' })); kp.position.y = 0.92; kp.castShadow = true;
+  const kg = new THREE.Group(); kg.add(kp); scene.add(kg);
+  const simDot = new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 6), new THREE.MeshBasicMaterial({ color: '#ff00ff' })); scene.add(simDot);
+
+  // ---- ball under test
+  const ball = ISO.R3D.Ball.create(THREE, ISO.ballById('classic'), { onNetHit: (x, y, z, s) => { netFlash = 0.25; } });
+  scene.add(ball.mesh, ball.shadow);
+  let netFlash = 0;
+  const trailPos = new Float32Array(16 * 3), trailGeo = new THREE.BufferGeometry();
+  trailGeo.setAttribute('position', new THREE.BufferAttribute(trailPos, 3));
+  const trail = new THREE.Line(trailGeo, new THREE.LineBasicMaterial({ color: '#ffd23d', transparent: true, opacity: 0.8 })); trail.frustumCulled = false; scene.add(trail);
+
+  // ---- fake ViewFrame + tiny world-metre sim (mirrors ballMotion; sim-time units)
+  const P = { idx: 0, team: 0, hidden: false, x: 0, z: 12, yaw: Math.PI, vx: 0, vz: 0, speed: 0, jog: 4, top: 8.5, runPh: 0, state: 'free', fakeU: 0, shield: false, skill: null };
+  const vf = { t: 0, phase: 'play', me: 0, players: [P], keeper: { x: 0, z: 0.9, yaw: 0, state: 'set', holding: false },
+    ball: { x: 0, y: 0, z: 10, vx: 0, vy: 0, vz: 0, spin: 0, owner: -1, held: false, inNet: false, shot: null, rot: 0 } };
+  let mode = 'idle', modeT = 0, ballSd = 1;
+  const send = (e) => ball.onEvent(e, vf);
+  function simStep(b, h) {
+    let sp = Math.hypot(b.vx, b.vz);
+    if (b.spin && sp > 3) { const acc = b.spin * 28 * (sp / 25), nx = -b.vz / sp, nz = b.vx / sp; b.vx += nx * acc * h; b.vz += nz * acc * h; b.spin *= Math.exp(-0.9 * h); }
+    b.x += b.vx * h; b.z += b.vz * h;
+    if (b.y > 0 || b.vy > 0) { b.vy -= GR * h; b.y += b.vy * h; if (b.y <= 0) { b.y = 0; if (b.vy < -4.5) { b.vy = -b.vy * 0.48; b.vx *= 0.84; b.vz *= 0.84; send({ type: 'bounce' }); } else b.vy = 0; } }
+    const air = b.y > 0.05, k1 = air ? 0.2 : 0.7, k0 = air ? 0 : 1.4; sp = Math.hypot(b.vx, b.vz);
+    if (sp > 0) { const ns = Math.max(0, sp - (k1 * sp + k0) * h); b.vx *= ns / sp; b.vz *= ns / sp; }
+    if (b.inNet) {
+      if (b.z < -K.goalD + 0.3) { b.z = -K.goalD + 0.3; b.vz *= -0.15; }
+      b.x = Math.max(-gx + 0.3, Math.min(gx - 0.3, b.x)); if (b.y > K.goalH - 0.4) { b.y = K.goalH - 0.4; b.vy = 0; }
+      const f = Math.exp(-5 * h); b.vx *= f; b.vz *= f; return;
+    }
+    if (vf.phase !== 'play') return;
+    if (b.z < -0.3) {
+      if (Math.abs(b.x) < gx && b.y < K.goalH - 0.25) { b.inNet = true; vf.phase = 'goal'; send({ type: 'goal' }); }
+      else out();
+    } else if (Math.abs(b.x) > K.half + 0.3 || b.z > K.depth + 0.3) out();
+  }
+  function out() { vf.phase = 'out'; vf.ball.shot = null; vf.ball.spin = 0; send({ type: 'out', kind: 'out' }); }
+  function place(x, y, z) {
+    Object.assign(vf.ball, { x, y, z, vx: 0, vy: 0, vz: 0, spin: 0, owner: -1, held: false, inNet: false, shot: null });
+    vf.phase = 'play'; send({ type: 'teleport' });
+  }
+  // launch toward a world target with time-of-flight T (sim seconds): aims in sim units like the game
+  function kick(type, vx, vy, vz, spin) {
+    const b = vf.ball; b.owner = -1; b.vx = vx; b.vy = vy; b.vz = vz; b.spin = spin || 0; b.shot = type;
+    send({ type: 'kick', shot: type, power: 0.8 });
+  }
+  const CMD = {
+    dribble() { place(0, 0, 12); P.x = 0; P.z = 12.6; vf.ball.owner = 0; mode = 'dribble'; modeT = 0; },
+    shot() { if (mode !== 'dribble') CMD.dribble(); mode = 'shot'; modeT = 0; kick('normal', -P.x * 1.2, 3.5, -30); },
+    finesse() { place(-4, 0, 9); mode = 'free'; kick('finesse', 4, 6, -24, -0.9); },
+    chip() { place(0, 0, 11); kg.position.set(0, 0, 4); vf.keeper.z = 4; mode = 'free'; kick('chip', 0, 15.5, -13); },
+    bounce() { place(0, 3, 7); mode = 'free'; },
+    out() { place(8, 0, 6); mode = 'free'; kick('normal', 26, 4, -6); },
+    over() { place(1, 0, 6); mode = 'free'; kick('power', 0, 20, -20); },
+    held() { place(0, 0.6, 1.3); vf.keeper.z = 0.9; vf.ball.held = true; mode = 'held'; modeT = 0; },
+    goal() { place(1.5, 0, 9); vf.keeper.z = 0.9; mode = 'free'; kick('power', -0.8, 3, -32); },
+  };
+  document.querySelectorAll('[data-c]').forEach((b) => b.addEventListener('click', () => CMD[b.dataset.c]()));
+  const sel = $('skin');
+  for (const b of ISO.BALLS) { const o = document.createElement('option'); o.value = b.id; o.textContent = b.name; sel.appendChild(o); }
+  sel.onchange = () => ball.setSkin(sel.value);
+  $('futsal').onchange = () => { ball.setArena({ walls: $('futsal').checked }); drawArena($('futsal').checked); };
+  drawArena(false);
+
+  function drive(dt) {
+    const sdt = dt * TS, b = vf.ball;
+    modeT += dt;
+    if (mode === 'dribble') {
+      // figure-8 run; the sim parks the ball BESIDE the player (sim y = world x), as game.js:864-876 does
+      const a = modeT * 0.55, ox = P.x, oz = P.z;
+      P.x = Math.sin(a) * 6; P.z = 10 + Math.sin(a * 2) * 3;
+      const vx = (P.x - ox) / Math.max(sdt, 1e-6) , vz = (P.z - oz) / Math.max(sdt, 1e-6);
+      P.speed = Math.hypot(vx, vz); if (P.speed > 0.2) P.yaw = Math.atan2(vx, vz);
+      P.runPh += P.speed * sdt / (ISO.C.STRIDE * S) * Math.PI * 2;
+      if (Math.abs(vx) > P.speed * 0.6) ballSd = -Math.sign(vx);
+      const fx = Math.sin(P.yaw), fz = Math.cos(P.yaw);
+      b.x = P.x + ballSd * 0.95 + fx * 0.15; b.z = P.z + fz * 0.15 * (fz > 0 ? 1 : 0.3); b.y = 0; b.vx = vx; b.vz = vz; b.vy = 0;
+      return;
+    }
+    if (mode === 'held') {
+      b.x = vf.keeper.x; b.z = vf.keeper.z + 0.45; b.y = 0.6;
+      if (modeT > 1.6) { b.held = false; mode = 'free'; kick(undefined, 1, 11, 9); }
+      return;
+    }
+    if (mode === 'shot') P.speed *= Math.exp(-4 * dt);
+    if (b.owner < 0) { const n = Math.max(1, Math.ceil(sdt * 120)); for (let i = 0; i < n; i++) simStep(b, sdt / n); }
+  }
+
+  // ---- orbit camera
+  let yaw = 0.55, pitch = 0.32, dist = 16, drag = null;
+  const tgt = new THREE.Vector3(0, 0.6, 5), look = new THREE.Vector3();
+  cv.addEventListener('pointerdown', (e) => { drag = { x: e.clientX, y: e.clientY }; cv.setPointerCapture(e.pointerId); });
+  cv.addEventListener('pointermove', (e) => { if (!drag) return; yaw -= (e.clientX - drag.x) * 0.005; pitch = Math.max(0.03, Math.min(1.45, pitch + (e.clientY - drag.y) * 0.005)); drag = { x: e.clientX, y: e.clientY }; });
+  cv.addEventListener('pointerup', () => { drag = null; });
+  cv.addEventListener('wheel', (e) => { dist = Math.max(2, Math.min(60, dist * Math.exp(e.deltaY * 0.001))); e.preventDefault(); }, { passive: false });
+  function resize() { const w = innerWidth, h = innerHeight; renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5)); renderer.setSize(w, h, false); cam.aspect = w / h; cam.updateProjectionMatrix(); }
+  addEventListener('resize', resize); resize();
+
+  let last = performance.now();
+  function frame(now) {
+    let dt = Math.min(0.05, (now - last) / 1000); last = now;
+    if ($('slow').checked) dt *= 0.2;
+    drive(dt);
+    vf.t += dt;
+    ball.update(vf, dt);
+    pl.position.set(P.x, 0, P.z); pl.rotation.y = P.yaw;
+    kg.position.set(vf.keeper.x, 0, vf.keeper.z); kg.rotation.y = vf.keeper.yaw;
+    simDot.visible = $('showSim').checked; simDot.position.set(vf.ball.x, vf.ball.y + 0.2, vf.ball.z);
+    const tr = ball.getTrailPoints();
+    for (let i = 0; i < 16; i++) { const p = tr.points[Math.min(i, Math.max(0, tr.count - 1))]; trailPos[i * 3] = p.x; trailPos[i * 3 + 1] = p.y; trailPos[i * 3 + 2] = p.z; }
+    trailGeo.attributes.position.needsUpdate = true; trail.visible = tr.count > 1 && tr.speed > 16 * TS;
+    netFlash = Math.max(0, netFlash - dt); net.material.opacity = 0.25 + netFlash * 2;
+    const m = ball.mesh.position;
+    tgt.lerp(look.set(m.x * 0.5, 0.6, Math.max(2, m.z * 0.6 + 2)), 1 - Math.exp(-2 * dt));
+    cam.position.set(tgt.x + Math.sin(yaw) * Math.cos(pitch) * dist, tgt.y + Math.sin(pitch) * dist, tgt.z + Math.cos(yaw) * Math.cos(pitch) * dist);
+    cam.lookAt(tgt);
+    renderer.render(scene, cam);
+    $('info').textContent =
+      'mode ' + mode + '  phase ' + vf.phase + '\n' +
+      'drawn ' + [m.x, m.y, m.z].map((v) => v.toFixed(2)).join(', ') + '\n' +
+      'sim   ' + [vf.ball.x, vf.ball.y + 0.2, vf.ball.z].map((v) => v.toFixed(2)).join(', ') + '\n' +
+      'dribble w ' + ball.dribbleW.toFixed(2) + '  dead ' + ball.dead + '\n' +
+      'squash ' + ball.mesh.scale.y.toFixed(2) + '  shadow a ' + ball.shadow.material.opacity.toFixed(2) + '\n' +
+      'speed (real m/s) ' + tr.speed.toFixed(1) + '\n' +
+      'drag: orbit  wheel: zoom';
+    requestAnimationFrame(frame);
+  }
+  CMD.dribble();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

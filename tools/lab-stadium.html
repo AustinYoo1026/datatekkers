@@ -1,0 +1,254 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Stadium Lab</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #0b0e12; color: #dfe6ee; font: 12px/1.4 -apple-system, Segoe UI, Arial, sans-serif; overflow: hidden; }
+  #cv { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  #ui { position: absolute; left: 8px; top: 8px; right: 8px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; pointer-events: none; }
+  #ui > * { pointer-events: auto; }
+  select, button, label { background: rgba(16,20,26,.85); color: #dfe6ee; border: 1px solid #34404e; border-radius: 4px; padding: 4px 7px; font: inherit; }
+  button:hover { border-color: #5c7a96; }
+  #stats { position: absolute; left: 8px; bottom: 8px; background: rgba(16,20,26,.85); border: 1px solid #34404e; border-radius: 4px; padding: 6px 8px; white-space: pre; font-family: ui-monospace, Menlo, monospace; }
+  #help { position: absolute; right: 8px; bottom: 8px; background: rgba(16,20,26,.85); border: 1px solid #34404e; border-radius: 4px; padding: 6px 8px; max-width: 360px; }
+  input[type=range] { width: 110px; vertical-align: middle; }
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="ui">
+  <select id="map"></select>
+  <select id="quality"><option value="0">quality 0</option><option value="1">quality 1</option><option value="2">quality 2</option></select>
+  <label><input type="checkbox" id="walls"> walls</label>
+  <select id="tone"><option value="none">tone: none</option><option value="aces">tone: ACES</option><option value="agx">tone: AgX</option></select>
+  <select id="cam">
+    <option value="game">cam: gameplay (kick-off)</option>
+    <option value="gameL">cam: gameplay (box, left)</option>
+    <option value="gameR">cam: gameplay (box, right)</option>
+    <option value="gameDeep">cam: gameplay (deep, z=17)</option>
+    <option value="goal">cam: goal orbit</option>
+    <option value="over">cam: overview</option>
+    <option value="far">cam: far end</option>
+    <option value="orbit">cam: free orbit</option>
+  </select>
+  <label>x <input type="range" id="ax" min="-17" max="17" step="0.1" value="0"></label>
+  <label>z <input type="range" id="az" min="0.5" max="17" step="0.1" value="14.75"></label>
+  <button id="hit">net hit</button>
+  <button id="cheer">cheer</button>
+  <button id="tgt">targets</button>
+  <label><input type="checkbox" id="markers"> sim markers</label>
+  <label><input type="checkbox" id="dummy" checked> dummy</label>
+  <button id="rebuild">rebuild</button>
+</div>
+<div id="stats"></div>
+<div id="help">Drag: orbit (switches to free orbit) · right-drag / shift-drag: pan · wheel: zoom · WASD: move target · Q/E: down/up · 1-7: camera presets · N: net hit · C: cheer · T: targets. Gameplay presets follow the spec rig (D 8 m, H 3.4 m, look 2.5 m ahead at 0.9 m, FOV 50, yaw = half the bearing to goal, capped at 0.33 rad). Sim markers (red) are placed from ISO.C through ISO.R3D.K and must sit on the painted lines.</div>
+
+<script src="../js/vendor/three.min.js"></script>
+<script src="../js/data.js"></script>
+<script src="../js/game.js"></script>
+<!-- optional: only to read the real themes once render.js exports theme(); errors here are harmless -->
+<script src="../js/sprites.js"></script>
+<script src="../js/render.js"></script>
+<script src="../js/3d/coords.js"></script>
+<script src="../js/3d/stadium.js"></script>
+<script>
+'use strict';
+// Fallback copy of the 2D map themes (render.js keeps them private until it exports theme()). Keep in sync if themes change.
+const LAB_THEMES = (() => {
+  const ADS = [['ISO FOOTBALL', '#0f1a14', '#35e08a'], ['FIRST TO THREE', '#f4f4f4', '#10151c'], ['DATATEKKERS', '#132033', '#7fc4ff'],
+    ['ONE BALL · ONE GOAL', '#35e08a', '#06140c'], ['1 v 1', '#1b1b22', '#ffb23d'], ['ISO FOOTBALL', '#0f1a14', '#35e08a'], ['PLAY THE ISO', '#f4f4f4', '#10151c']];
+  const T = {
+    stadium: { bg: '#0c1016', around: 'crowd', crowd: ['#2b3442', '#3a4658', '#566377', '#7a2f3a', '#2f5d7a', '#8a7a3a', '#444c5c', '#30394a', '#9aa3b2'],
+      wall: '#131a22', base: '#2c7a3d', bands: ['#2a7a3c', '#2f8443'], line: 'rgba(255,255,255,.86)', mark: 'rgba(255,230,120,.9)',
+      net: 'rgba(10,30,18,.55)', post: '#f4f6f8', vig: 0.28, ads: ADS },
+    street: { bg: '#14161b', around: 'bricks', crowd: ['#5a2f28', '#6b382e', '#4d2a25', '#63352c', '#57302a'],
+      wall: '#2a2d34', base: '#3d4149', bands: ['#41454e', '#474b55'], line: 'rgba(255,210,61,.9)', mark: 'rgba(255,255,255,.9)',
+      net: 'rgba(10,12,16,.55)', post: '#d9dde3', vig: 0.34,
+      ads: [['STREET CAGE', '#17171b', '#ffd23d'], ['NO REF · NO RULES', '#ffd23d', '#17171b'], ['DATATEKKERS', '#f1735f', '#17171b'], ['WINNER STAYS ON', '#17171b', '#f4f4f4']] },
+    beach: { bg: '#c9a565', around: 'beach', crowd: ['#f1735f', '#ffcf4d', '#4fa3ff', '#f4f4f4', '#35e08a', '#ff8ac0'],
+      wall: '#b08f55', base: '#dcbb7c', bands: ['#dfc084', '#e6c98f'], line: 'rgba(29,78,137,.9)', mark: 'rgba(241,115,95,.95)',
+      net: 'rgba(90,70,40,.35)', post: '#f4f6f8', vig: 0.12,
+      ads: [['COPA BEACH', '#1d4e89', '#ffcf4d'], ['SUN · SAND · SKILLS', '#f4f4f4', '#1d4e89'], ['DATATEKKERS', '#f1735f', '#ffffff'], ['ISO FOOTBALL', '#ffcf4d', '#1d4e89']] },
+    snow: { bg: '#1a2230', around: 'crowd', crowd: ['#3a4658', '#566377', '#7c8a9e', '#a9b6c8', '#dfe7f0', '#8a3a3a', '#2f5d7a'],
+      wall: '#2a3546', base: '#cfdbe7', bands: ['#d3dfea', '#dee8f1'], line: 'rgba(241,115,95,.92)', mark: 'rgba(29,78,137,.95)',
+      net: 'rgba(60,80,105,.4)', post: '#f1735f', vig: 0.16, snow: true,
+      ads: [['WINTER CUP', '#f4f4f4', '#1d4e89'], ['COLD FEET?', '#1d4e89', '#f4f4f4'], ['DATATEKKERS', '#f1735f', '#ffffff'], ['ISO FOOTBALL', '#132033', '#7fc4ff']] },
+    neon: { bg: '#07060f', around: 'crowd', crowd: ['#2a1b4d', '#3b2470', '#5a2a8a', '#ff3dd0', '#3df5ff', '#1a1436', '#241a47'],
+      wall: '#120e24', base: '#0d1326', bands: ['#0e152b', '#121b36'], line: 'rgba(61,245,255,.95)', mark: 'rgba(255,61,208,.95)',
+      net: 'rgba(40,10,60,.55)', post: '#ff3dd0', vig: 0.4, glow: '#3df5ff',
+      ads: [['NEON NIGHT', '#120e24', '#ff3dd0'], ['AFTER HOURS', '#120e24', '#3df5ff'], ['DATATEKKERS', '#ff3dd0', '#120e24'], ['ISO FOOTBALL', '#3df5ff', '#07060f']] },
+  };
+  const mk = (name, o) => Object.assign({ around: 'crowd', mark: 'rgba(255,230,120,.9)', net: 'rgba(10,30,18,.55)', post: '#f4f6f8', vig: 0.26,
+    ads: [[name, o.wall, o.line], ['DATATEKKERS', o.line, o.wall], ['ISO FOOTBALL', o.bands[1], o.post || '#f4f6f8'], ['FIRST TO THREE', '#f4f4f4', '#10151c']] }, o);
+  Object.assign(T, {
+    sunset: mk('GOLDEN HOUR', { bg: '#2a1a14', crowd: ['#8a4a2a', '#b8683a', '#d98c4a', '#7a3a2a', '#e8b06a'], wall: '#3a2218', base: '#c8863a', bands: ['#c9883c', '#d6954a'], line: 'rgba(255,248,230,.92)', mark: 'rgba(120,40,20,.9)', vig: 0.3 }),
+    monsoon: mk('MONSOON', { bg: '#0a1118', crowd: ['#1d2a38', '#2a3a4c', '#3a4c60', '#4c6078', '#26323f'], wall: '#101a24', base: '#27503a', bands: ['#264b38', '#2b563f'], line: 'rgba(210,230,245,.85)', vig: 0.42, snow: true }),
+    jungle: mk('AMAZON CUP', { bg: '#07140b', around: 'beach', crowd: ['#1f6b34', '#2a8a44', '#ffcf4d', '#f1735f', '#4fd0a0'], wall: '#0d2a14', base: '#1f6a30', bands: ['#1d6430', '#227238'], line: 'rgba(255,255,225,.88)', mark: 'rgba(255,207,77,.95)', vig: 0.34 }),
+    moon: mk('LUNAR LEAGUE', { bg: '#05060a', crowd: ['#222633', '#303646', '#4a5266', '#d8dde8', '#8a93a8'], wall: '#14161e', base: '#8c919c', bands: ['#8a8f9a', '#969ba6'], line: 'rgba(30,36,60,.9)', mark: 'rgba(241,115,95,.95)', vig: 0.4, post: '#d8dde8' }),
+    desert: mk('DUNE DERBY', { bg: '#3a2412', around: 'beach', crowd: ['#c9833a', '#e0a050', '#8a4a22', '#f1d49a', '#a85a28'], wall: '#7a4a24', base: '#d89a4a', bands: ['#d99c4c', '#e2a85a'], line: 'rgba(110,50,20,.9)', mark: 'rgba(255,255,255,.9)', vig: 0.2 }),
+    retro: mk('RETRO 8-BIT', { bg: '#000000', crowd: ['#003a14', '#005a20', '#00aa3a', '#00ff66', '#002a0e'], wall: '#001a08', base: '#04180a', bands: ['#05200c', '#072a10'], line: 'rgba(0,255,102,.95)', mark: 'rgba(0,255,102,.95)', glow: '#00ff66', vig: 0.4, post: '#00ff66', net: 'rgba(0,80,30,.5)' }),
+    sakura: mk('CHERRY PARK', { bg: '#2a1620', crowd: ['#f5b8d0', '#ee88b0', '#fbd6e4', '#a85a7a', '#7a3a58'], wall: '#4a2634', base: '#5aa860', bands: ['#58a45e', '#62b068'], line: 'rgba(255,255,255,.9)', mark: 'rgba(238,136,176,.95)', vig: 0.2, snow: true }),
+    dock: mk('DOCKYARD', { bg: '#10161c', around: 'bricks', crowd: ['#a8442e', '#2e5ea8', '#d9a02e', '#3a8a5a', '#8a2e2e'], wall: '#1d252e', base: '#5a6672', bands: ['#5c6874', '#64707c'], line: 'rgba(255,205,60,.92)', mark: 'rgba(255,255,255,.9)', vig: 0.32 }),
+    gold: mk('GOLD CUP', { bg: '#120d04', crowd: ['#4a3a14', '#7a6020', '#c9a22e', '#ffe27a', '#2a200a'], wall: '#201808', base: '#9a7a22', bands: ['#a07e24', '#ad8a2c'], line: 'rgba(255,248,210,.95)', mark: 'rgba(60,40,0,.9)', vig: 0.3, post: '#ffe27a', glow: '#ffd23d' }),
+    mud: mk('MUDBATH', { bg: '#1a120a', crowd: ['#4a3a2a', '#5a4630', '#6a5238', '#3a2c1e', '#7a5a3a'], wall: '#2a1e14', base: '#6a4c2a', bands: ['#6a4a2a', '#745430'], line: 'rgba(235,225,200,.85)', mark: 'rgba(255,255,255,.8)', vig: 0.34 }),
+    fs_wood: mk('HARDWOOD ARENA', { bg: '#14100c', crowd: ['#2a2018', '#3a2c20', '#4a3828'], wall: '#2a1c10', base: '#c58a4a', bands: ['#c88c4c', '#d29a5a'], line: 'rgba(255,255,255,.95)', mark: 'rgba(40,90,170,.9)', vig: 0.22, cage: '#e8d8b8' }),
+    fs_blue: mk('BLUE COURT', { bg: '#0a1020', crowd: ['#1a2848', '#243660', '#2e4478'], wall: '#101a36', base: '#2a5ec0', bands: ['#2c62c6', '#3269d0'], line: 'rgba(255,255,255,.95)', mark: 'rgba(255,207,77,.95)', vig: 0.24, cage: '#9ab8f0' }),
+    fs_red: mk('CRIMSON DOME', { bg: '#1a0808', crowd: ['#3a1414', '#521c1c', '#6a2424'], wall: '#2a0e0e', base: '#b02828', bands: ['#b42a2a', '#c03232'], line: 'rgba(255,255,255,.95)', mark: 'rgba(255,230,120,.95)', vig: 0.26, cage: '#f0a0a0' }),
+    fs_roof: mk('ROOFTOP CAGE', { bg: '#0c1220', around: 'bricks', crowd: ['#2a3448', '#36425a', '#1e2638', '#445068'], wall: '#1a2232', base: '#3a8a52', bands: ['#3a8a52', '#40965a'], line: 'rgba(255,255,255,.92)', mark: 'rgba(255,210,61,.95)', vig: 0.3, cage: '#c8d2e0' }),
+    fs_glass: mk('GLASS CUBE', { bg: '#060a14', crowd: ['#142038', '#1c2e50', '#3df5ff', '#ff3dd0', '#0e1830'], wall: '#0a1226', base: '#101c34', bands: ['#101e38', '#14244a'], line: 'rgba(61,245,255,.95)', mark: 'rgba(255,61,208,.95)', glow: '#3df5ff', vig: 0.36, post: '#3df5ff', cage: '#7ff0ff' }),
+  });
+  return T;
+})();
+function themeFor(id) {
+  const R = ISO.Render;
+  if (R && R.setMap && R.theme) { try { R.setMap(id); const t = R.theme(); if (t) return { t, src: 'render.js' }; } catch (e) { /* fall through */ } }
+  return { t: LAB_THEMES[id] || LAB_THEMES.stadium, src: 'lab copy' };
+}
+
+const $ = (id) => document.getElementById(id);
+const K = ISO.R3D.K;
+const cv = $('cv');
+const renderer = new THREE.WebGLRenderer({ canvas: cv, antialias: true, powerPreference: 'high-performance' });
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.info.autoReset = true;
+const scene = new THREE.Scene();
+const cam = new THREE.PerspectiveCamera(50, 16 / 9, 0.3, 400);
+function resize() {
+  const w = innerWidth, h = innerHeight;
+  renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 1.5)); renderer.setSize(w, h, false);
+  cam.aspect = w / h; cam.updateProjectionMatrix();
+}
+addEventListener('resize', resize); resize();
+
+// dummy player (1.8 m) + ball (0.2 m) at the camera anchor, for scale
+const dummy = new THREE.Group();
+{
+  const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.24, 1.3, 4, 10), new THREE.MeshStandardMaterial({ color: 0x35e08a, roughness: 0.7 }));
+  body.position.y = 0.9; body.castShadow = true; dummy.add(body);
+  const ball = new THREE.Mesh(new THREE.SphereGeometry(K.ballR, 24, 12), new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.5 }));
+  ball.position.set(0, K.ballR, -0.6); ball.castShadow = true; dummy.add(ball);
+  const keeper = new THREE.Mesh(new THREE.CapsuleGeometry(0.24, 1.3, 4, 10), new THREE.MeshStandardMaterial({ color: 0xffb23d, roughness: 0.7 }));
+  keeper.position.set(0, 0.9, 0.6); keeper.castShadow = true; keeper.name = 'keeper';
+  scene.add(keeper); dummy.userData.keeper = keeper;
+}
+scene.add(dummy);
+
+// sim-derived markers: every one must sit exactly on the painted lines
+const markers = new THREE.Group(); markers.visible = false; scene.add(markers);
+{
+  const C = ISO.C, GC = (C.GY0 + C.GY1) / 2, m = new THREE.MeshBasicMaterial({ color: 0xff2a2a }), g = new THREE.SphereGeometry(0.12, 10, 6), p = {};
+  const pts = [[C.FW, C.GY0], [C.FW, C.GY1], [C.FW - C.BOXD, C.BOXY0], [C.FW - C.BOXD, C.BOXY1], [C.FW, C.BOXY0], [C.FW, C.BOXY1],
+    [C.FW - C.SIXD, C.SIXY0], [C.FW - C.SIXD, C.SIXY1], [C.FW - C.PEN, GC], [ISO.SPOTX, GC], [0, 0], [0, C.FH], [C.FW, 0], [C.FW, C.FH],
+    [C.FW - C.PEN - C.CR, GC]];
+  for (const [sx, sy] of pts) { K.toWorld(sx, sy, 0, p); const s = new THREE.Mesh(g, m); s.position.set(p.x, 0.06, p.z); markers.add(s); }
+  for (const z of [0, C.BAR]) { K.toWorld(C.FW, C.GY0, z, p); const s = new THREE.Mesh(g, m); s.position.set(p.x, p.y, p.z + 0.2); markers.add(s); }
+}
+
+let st = null, buildMs = 0, themeSrc = '';
+function build() {
+  if (st) st.dispose();
+  const id = $('map').value, t0 = performance.now(), th = themeFor(id);
+  themeSrc = th.src;
+  st = ISO.R3D.Stadium.build(THREE, th.t, K, { walls: $('walls').checked, quality: +$('quality').value, id });
+  buildMs = performance.now() - t0;
+  scene.add(st.group); st.applyTo(scene);
+  st.sun.shadow.mapSize.set(+$('quality').value >= 1 ? 1024 : 2048, +$('quality').value >= 1 ? 1024 : 2048);
+  renderer.shadowMap.enabled = +$('quality').value < 2;
+  if (st.sun.shadow.map) { st.sun.shadow.map.dispose(); st.sun.shadow.map = null; }
+  tgtOn = -1; st.setTargets(null);
+}
+for (const m of ISO.MAPS) { const o = document.createElement('option'); o.value = m.id; o.textContent = m.id + ' · ' + m.name + (m.walls ? ' (futsal)' : ''); $('map').appendChild(o); }
+$('map').onchange = () => { $('walls').checked = !!ISO.mapById($('map').value).walls; build(); };
+$('quality').onchange = build; $('walls').onchange = build; $('rebuild').onclick = build;
+$('tone').onchange = () => { const v = $('tone').value; renderer.toneMapping = v === 'aces' ? THREE.ACESFilmicToneMapping : v === 'agx' ? THREE.AgXToneMapping : THREE.NoToneMapping; renderer.toneMappingExposure = 1; scene.traverse((o) => { if (o.material) o.material.needsUpdate = true; }); };
+$('markers').onchange = () => { markers.visible = $('markers').checked; };
+$('dummy').onchange = () => { dummy.visible = dummy.userData.keeper.visible = $('dummy').checked; };
+const netHit = () => { const x = (Math.random() * 2 - 1) * 3, y = 0.3 + Math.random() * 2.4; st.netHit(x, y, -K.goalD + 0.1, 18 + Math.random() * 14); };
+$('hit').onclick = netHit; $('cheer').onclick = () => st.cheer();
+let tgtOn = -1;
+const cycleTargets = () => { tgtOn = tgtOn >= 3 ? -1 : tgtOn + 1; st.setTargets(tgtOn < 0 ? null : ISO.TARGETS, tgtOn); };
+$('tgt').onclick = cycleTargets;
+
+// ---- cameras
+const orbit = { tx: 0, ty: 1, tz: 6, yaw: 0, pitch: 0.35, dist: 26 };
+const presets = {
+  game: [0, 14.75], gameL: [-7, 8], gameR: [9, 6], gameDeep: [0, 17],
+};
+function gameplayCam(px, pz) {
+  const psi = Math.max(-0.33, Math.min(0.33, 0.5 * Math.atan2(-px, pz + 3)));
+  const fx = Math.sin(psi), fz = -Math.cos(psi), Dd = 8, H = 3.4;
+  cam.fov = 50; cam.updateProjectionMatrix();
+  cam.position.set(Math.max(-24, Math.min(24, px - fx * Dd)), H, Math.max(2, Math.min(30, pz - fz * Dd)));
+  cam.lookAt(px + fx * 2.5, 0.9, pz + fz * 2.5);
+  dummy.position.set(px, 0, pz); dummy.rotation.y = -psi;
+}
+function applyCam(t) {
+  const mode = $('cam').value;
+  if (presets[mode] || mode === 'game') { gameplayCam(+$('ax').value, +$('az').value); return; }
+  if (mode === 'goal') { const a = 0.35 + Math.sin(t * 0.3) * 0.35; cam.fov = 50; cam.updateProjectionMatrix(); cam.position.set(Math.sin(a) * 6.5, 2.6, 4 + Math.cos(a) * 6.5); cam.lookAt(0, 1.4, 0); return; }
+  if (mode === 'over') { orbit.tx = 0; orbit.ty = 0; orbit.tz = 8; orbit.yaw = 0.6; orbit.pitch = 0.75; orbit.dist = 70; $('cam').value = 'orbit'; }
+  if (mode === 'far') { orbit.tx = 0; orbit.ty = 2; orbit.tz = 40; orbit.yaw = Math.PI; orbit.pitch = 0.2; orbit.dist = 30; $('cam').value = 'orbit'; }
+  const cp = Math.cos(orbit.pitch);
+  cam.fov = 50; cam.updateProjectionMatrix();
+  cam.position.set(orbit.tx + Math.sin(orbit.yaw) * cp * orbit.dist, orbit.ty + Math.sin(orbit.pitch) * orbit.dist, orbit.tz + Math.cos(orbit.yaw) * cp * orbit.dist);
+  cam.lookAt(orbit.tx, orbit.ty, orbit.tz);
+}
+function toOrbit() {
+  if ($('cam').value === 'orbit') return;
+  const dir = new THREE.Vector3(); cam.getWorldDirection(dir);
+  const tgt = cam.position.clone().addScaledVector(dir, 12);
+  orbit.tx = tgt.x; orbit.ty = Math.max(0, tgt.y); orbit.tz = tgt.z; orbit.dist = 12;
+  orbit.yaw = Math.atan2(-dir.x, -dir.z); orbit.pitch = Math.asin(-dir.y);
+  $('cam').value = 'orbit';
+}
+$('cam').onchange = () => { const p = presets[$('cam').value]; if (p) { $('ax').value = p[0]; $('az').value = p[1]; } };
+let drag = null;
+cv.addEventListener('contextmenu', (e) => e.preventDefault());
+cv.addEventListener('pointerdown', (e) => { toOrbit(); drag = { x: e.clientX, y: e.clientY, pan: e.button === 2 || e.shiftKey }; cv.setPointerCapture(e.pointerId); });
+cv.addEventListener('pointerup', () => { drag = null; });
+cv.addEventListener('pointermove', (e) => {
+  if (!drag) return;
+  const dx = e.clientX - drag.x, dy = e.clientY - drag.y; drag.x = e.clientX; drag.y = e.clientY;
+  if (drag.pan) { const k = orbit.dist * 0.0015, c = Math.cos(orbit.yaw), s = Math.sin(orbit.yaw); orbit.tx -= (c * dx) * k; orbit.tz -= (-s * dx) * k; orbit.ty += dy * k; }
+  else { orbit.yaw -= dx * 0.005; orbit.pitch = Math.max(-0.2, Math.min(1.5, orbit.pitch + dy * 0.005)); }
+});
+cv.addEventListener('wheel', (e) => { toOrbit(); orbit.dist = Math.max(1.5, Math.min(250, orbit.dist * Math.exp(e.deltaY * 0.001))); e.preventDefault(); }, { passive: false });
+const keys = {};
+addEventListener('keydown', (e) => {
+  if (e.target.tagName === 'SELECT') return;
+  keys[e.code] = true;
+  const pre = ['game', 'gameL', 'gameR', 'gameDeep', 'goal', 'over', 'far'][+e.key - 1];
+  if (pre) { $('cam').value = pre; $('cam').onchange(); }
+  if (e.code === 'KeyN') netHit(); if (e.code === 'KeyC') st.cheer(); if (e.code === 'KeyT') cycleTargets();
+});
+addEventListener('keyup', (e) => { keys[e.code] = false; });
+function keyMove(dt) {
+  const f = (keys.KeyW ? 1 : 0) - (keys.KeyS ? 1 : 0), r = (keys.KeyD ? 1 : 0) - (keys.KeyA ? 1 : 0), u = (keys.KeyE ? 1 : 0) - (keys.KeyQ ? 1 : 0);
+  if (!f && !r && !u) return;
+  toOrbit();
+  const sp = 12 * dt, c = Math.cos(orbit.yaw), s = Math.sin(orbit.yaw);
+  orbit.tx += (-s * f + c * r) * sp; orbit.tz += (-c * f - s * r) * sp; orbit.ty = Math.max(0, orbit.ty + u * sp);
+}
+
+build();
+let last = performance.now(), t = 0, fpsAcc = 0, fpsN = 0, fps = 0;
+function frame(now) {
+  const dt = Math.min(0.05, (now - last) / 1000); last = now; t += dt;
+  keyMove(dt); applyCam(t);
+  st.update(dt, t);
+  renderer.render(scene, cam);
+  fpsAcc += dt; fpsN++; if (fpsAcc > 0.5) { fps = fpsN / fpsAcc; fpsAcc = 0; fpsN = 0; }
+  const i = renderer.info;
+  $('stats').textContent = 'map ' + $('map').value + ' (' + st.kind + (st.night ? ', night' : ', day') + ', theme from ' + themeSrc + ')\n' +
+    'draw calls ' + i.render.calls + ' (incl. shadow pass)  tris ' + i.render.triangles + '\n' +
+    'geometries ' + i.memory.geometries + '  textures ' + i.memory.textures + '  fans ' + st.fans + '\n' +
+    'build ' + buildMs.toFixed(0) + ' ms  fps ' + fps.toFixed(0) + '  cam ' + cam.position.x.toFixed(1) + ', ' + cam.position.y.toFixed(1) + ', ' + cam.position.z.toFixed(1);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

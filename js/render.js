@@ -906,7 +906,11 @@
     if (V.quiet) return;
     if (pen) penaltyOverlay(c, G, V);
     drawAim(c, G, V);
-    // overlays
+    overlays(c, G, V, rs, pen);
+  }
+
+  // countdown / GOAL / SAVED / rebound-hint banners: shared by the 2D views and the 3D mode
+  function overlays(c, G, V, rs, pen) {
     if (G.phase === 'countdown') {
       const n = Math.ceil(G.phaseT / G.cdTick), frac = (G.phaseT / G.cdTick) % 1;
       const sub = pen ? (G.drill.so.sudden ? 'SUDDEN DEATH · ' : '') + (G.drill.so.turn === 'shoot' ? 'YOUR KICK' : (G.players[1].def.short || 'CPU').toUpperCase() + ' TO SHOOT — SAVE IT')
@@ -953,5 +957,5 @@
   }
   // is the goal replay on screen right now? (the match underneath is paused in its goal phase)
   const inReplay = (G, V) => !!replayState(G, V);
-  ISO.Render = { draw, onEvent, reset, VW, VH, TEAM_COL, Z, OX, OY, drawAim, setMap, thumb, unprojectGoal, unprojectLive, inReplay, setBall };
+  ISO.Render = { draw, onEvent, reset, VW, VH, TEAM_COL, Z, OX, OY, drawAim, setMap, thumb, unprojectGoal, unprojectLive, inReplay, setBall, overlays, theme: () => TH, mapId: () => mapId };
 })();

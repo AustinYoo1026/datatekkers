@@ -9,6 +9,7 @@
 </head>
 <body>
 <div id="stage">
+  <canvas id="cv3d" width="1280" height="720" class="hidden"></canvas>
   <canvas id="cv" width="1280" height="720"></canvas>
   <div id="dim"></div>
 
@@ -63,7 +64,7 @@
     <header class="sel-head">
       <button class="btn small ghost" data-act="back-menu">‹ MENU</button>
       <h2>PLAY</h2>
-      <div class="sel-mode"></div>
+      <div class="sel-mode"><button class="btn small" id="viewBtn" data-act="toggle-3d">VIEW: CLASSIC 2D</button></div>
     </header>
     <div class="playgrid">
       <button class="playcard career" data-act="mode-career">
@@ -306,7 +307,7 @@
         <label class="set-row"><span>Sound effects</span><input type="checkbox" class="tog" id="setSound"></label>
         <label class="set-row"><span>Crowd ambience</span><input type="checkbox" class="tog" id="setCrowd"></label>
         <h3>GAMEPLAY</h3>
-        <label class="set-row"><span>Match camera</span><select id="setCamera"><option value="classic">Classic (top-down)</option><option value="cinematic">Cinematic (replay angle)</option></select></label>
+        <label class="set-row"><span>Match camera</span><select id="setCamera"><option value="classic">Classic (top-down)</option><option value="cinematic">Cinematic (replay angle)</option><option value="3d">3D (behind the player)</option></select></label>
         <label class="set-row"><span>Default CPU difficulty</span><select id="setDiff"><option value="easy">Easy</option><option value="normal">Normal</option><option value="hard">Hard</option></select></label>
         <label class="set-row"><span>Mouse aiming</span><input type="checkbox" class="tog" id="setMouse"></label>
         <label class="set-row"><span>Aim reticle</span><input type="checkbox" class="tog" id="setReticle"></label>
@@ -347,6 +348,7 @@
       <button class="btn" data-act="controls">CONTROLS</button>
       <button class="btn" data-act="sound" id="soundBtn">SOUND: ON</button>
       <button class="btn" data-act="mouse" id="mouseBtn">MOUSE AIM: ON</button>
+      <button class="btn" data-act="toggle-3d" id="viewBtnP">VIEW: CLASSIC 2D</button>
       <button class="btn ghost" data-act="quit" id="pQuit">CHANGE PLAYERS</button>
       <button class="btn ghost" data-act="quit-menu" id="pQuitMenu">MAIN MENU</button>
     </div>
@@ -453,6 +455,15 @@
 <script src="js/sprites.js"></script>
 <script src="js/render.js"></script>
 <script src="js/smooth.js"></script>
+<script src="js/3d/coords.js"></script>
+<script src="js/3d/adapter.js"></script>
+<script src="js/3d/camera3d.js"></script>
+<script src="js/3d/stadium.js"></script>
+<script src="js/3d/player3d.js"></script>
+<script src="js/3d/anim3d.js"></script>
+<script src="js/3d/ball3d.js"></script>
+<script src="js/3d/fx3d.js"></script>
+<script src="js/3d/r3d.js"></script>
 <script src="js/audio.js"></script>
 <script src="js/input.js"></script>
 <script src="js/profile.js"></script>
