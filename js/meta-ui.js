@@ -376,8 +376,8 @@
     const C = PF.data.career, done = PF.ACH.filter((a) => PF.statOf(a) >= a.goal).length, ready = PF.ACH.some((a) => !PF.data.claimed[a.id] && PF.statOf(a) >= a.goal);
     $('menuStats').innerHTML = [['CREDITS', PF.infinite() ? '∞' : PF.data.credits.toLocaleString()], ['PLAYERS', PF.ownedCount() + ' / ' + ISO.PLAYERS.length], ['CAREER', 'STAGE ' + Math.min(C.stage + 1, C.ladder.length) + ' / ' + C.ladder.length], ['ACHIEVEMENTS', done + ' / ' + PF.ACH.length + (ready ? ' · CLAIM!' : '')]]
       .map(([k, v]) => '<div><span>' + k + '</span><b>' + v + '</b></div>').join('');
-    menuFeature(); tipI = (Math.random() * TIPS.length) | 0; $('menuTip').textContent = 'TIP · ' + TIPS[tipI];
-    menuTimer = setInterval(() => { featI++; menuFeature(); if (featI % 2 === 0) { tipI = (tipI + 1) % TIPS.length; $('menuTip').textContent = 'TIP · ' + TIPS[tipI]; } }, 4500);
+    tipI = (Math.random() * TIPS.length) | 0; $('menuTip').textContent = 'TIP · ' + TIPS[tipI];
+    menuTimer = setInterval(() => { featI++; if (featI % 2 === 0) { tipI = (tipI + 1) % TIPS.length; $('menuTip').textContent = 'TIP · ' + TIPS[tipI]; } }, 4500);
   }
   // ---------------------------------------------------------------- achievements
   function renderAch() {

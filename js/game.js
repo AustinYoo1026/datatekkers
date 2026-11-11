@@ -1162,8 +1162,11 @@
     else if (D.kind === 'target') { x = FW - (175 + G.rand() * 55); y = GCY + (G.rand() - 0.5) * 220; k.dummy = true; D.target = (G.rand() * 4) | 0; }
     else if (D.kind === 'freekick') {      // a free kick from a central-ish spot with a one-man wall (the second player, standing still)
       x = FW - (225 + G.rand() * 70); y = GCY + (G.rand() - 0.5) * 330;
-      const W = G.players[1], gx = FW, dx = gx - x, dy = GCY - y, d = hyp(dx, dy) || 1;
-      W.state = 'free'; W.x = x + (dx / d) * 78; W.y = y + (dy / d) * 78; W.vx = W.vy = 0; W.face = Math.atan2(-dy, -dx); W.noCtrl = 99; W.charge = null;
+      const gx = FW, dx = gx - x, dy = GCY - y, d = hyp(dx, dy) || 1, wl = G.players.length - 1;
+      for (let i = 1; i <= wl; i++) {      // a wall of defenders across the line to goal, shoulder to shoulder
+        const W = G.players[i], off = (i - (wl + 1) / 2) * (PR * 2 + 2);
+        W.state = 'free'; W.x = x + (dx / d) * 78 - (dy / d) * off; W.y = y + (dy / d) * 78 + (dx / d) * off; W.vx = W.vy = 0; W.face = Math.atan2(-dy, -dx); W.noCtrl = 99; W.charge = null;
+      }
     }
     else if (D.kind === 'oneonone') { x = FW - (105 + G.rand() * 70); y = GCY + (G.rand() - 0.5) * 220; }
     else if (D.kind === 'longshot') { x = FW - (330 + G.rand() * 70); y = GCY + (G.rand() - 0.5) * 260; }
@@ -1522,7 +1525,7 @@
       rs: (opts.seed || ((Math.random() * 1e9) | 0)) >>> 0,
       t: 0, time: 0, phase: 'countdown', phaseT: 3, cdTick: 1, lastCount: 4, score: [0, 0], events: [],
       seq: 0, shotSeq: 0, winner: -1, concede: 0, own: false, msg: null, outInfo: null, goals: [],
-      players: (opts.roster || [opts.home, opts.away]).map((d, i) => makePlayer(d, i % 2, i)),      // player i is on team i % 2 (2v2: four players)
+      players: (opts.roster || [opts.home, opts.away]).map((d, i) => makePlayer(d, opts.drill === 'freekick' ? (i ? 1 : 0) : i % 2, i)),      // player i is on team i % 2 (2v2: four players)
       pairs: {},
       keeper: makeKeeper(1, nerfKeeper((opts.keepers || ISO.KEEPERS)[1], opts.keeperNerf || 0)),
       ball: { x: SPOTX, y: GCY, z: 0, vx: 0, vy: 0, vz: 0, spin: 0, rot: 0, seq: 0, lastTouch: 0 },

@@ -519,14 +519,14 @@
   }
   // The match camera ("Cinematic" in Camera settings): the goal-replay angle, held for the whole match. It follows the
   // ball and your own players sideways and keeps the deepest figure in frame. Render-only: the sim never sees it.
-  const CINE = { off: 300, H: 135, th: 0.37, f: 1040, cy: 330 };
+  const CINE = { off: 450, H: 250, th: 0.47, f: 1700, cy: 340 };
   const LIVE = { X: 0, Dd: 0, init: false, cam: null };
   function liveCam(G, V, dt) {
     const me = G.players[V.me || 0], b = G.ball;
     let td = FW - b.x, sx = b.y;
     if (me && me.state !== 'away') { td = Math.max(td, FW - me.x); sx = (sx + me.y) / 2; }
     for (const p of G.players) if (p.state !== 'away') td = Math.max(td, FW - p.x);
-    const tx = clamp(GCY + (sx - GCY) * 0.85, GCY - 230, GCY + 230); td = clamp(td, 45, FW);
+    const tx = clamp(GCY + (sx - GCY) * 0.85, GCY - 170, GCY + 170); td = clamp(td, 45, FW);
     if (!LIVE.init || G.phase === 'countdown' || G.phase === 'ready') { LIVE.X = tx; LIVE.Dd = td; LIVE.init = true; }
     else { const k = 1 - Math.exp(-3.2 * dt); LIVE.X += (tx - LIVE.X) * k; LIVE.Dd += (td - LIVE.Dd) * k; }
     return (LIVE.cam = mkCam({ X: LIVE.X, D: LIVE.Dd + CINE.off, H: CINE.H, th: CINE.th, f: CINE.f, cy: CINE.cy }));
@@ -749,7 +749,7 @@
     RP.cam.zoom += ((st.slowmo ? 1 : 0) - RP.cam.zoom) * (1 - Math.exp(-1.6 * dt));
     const m = cine ? 1 : st.mix, z = RP.cam.zoom;
     // from a high, steep look (close to the match view) down to the low broadcast angle; a slow push-in on the finish
-    return mkCam({ X: RP.cam.X, D: RP.cam.Dd + lerp(430, 300 - 30 * z, m), H: lerp(560, 135 - 12 * z, m), th: lerp(0.98, 0.37, m), f: lerp(1250, 1040 + 80 * z, m), cy: lerp(360, 330, m) });
+    return mkCam({ X: RP.cam.X, D: RP.cam.Dd + lerp(640, CINE.off - 40 * z, m), H: lerp(620, CINE.H - 20 * z, m), th: lerp(0.98, CINE.th, m), f: lerp(1250, CINE.f + 80 * z, m), cy: lerp(360, CINE.cy, m) });
   }
   function drawReplay(c, G, V, st, dt) {
     const E = seek(G, st.t), cam = replayCam(E, st, dt);

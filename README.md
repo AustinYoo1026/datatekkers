@@ -1,10 +1,16 @@
 # ISO Football
 
-**Beta 2.41** — attacker and defender roles, a real defensive toolkit, tougher keepers
+**Beta 2.61** — free-kick wall and a wider cinematic camera; attacker and defender roles, a real defensive toolkit, tougher keepers
 
 A 2D, top-down, 1v1 football game for the browser (online 2v2 too). Every rep is a rebound drill with the goal at the top of the screen: the attacker starts 10 yards outside the 18-yard box, in the centre, with the defender in front. Score, win the rebound, clear it outside the box, repeat. First to three wins a match (five in the rebound drill). No build step and no dependencies: open `index.html`.
 
 - [What's new](#whats-new-in-beta-24) · [Playing](#playing) · [Attacking and defending](#attacking-and-defending) · [Menus](#menus) · [Gameplay notes](#gameplay-notes) · [Online](#online-1v1-and-2v2) · [Credits](#credits) · [Development](#development)
+
+## What's new in Beta 2.61
+
+- **Free kicks** now have a wall of four defenders, and always play in the cinematic camera.
+- **Cinematic camera** is zoomed in and limited to part of the pitch width, following the ball sideways; the goal replay uses the same angle.
+- The main-menu featured-player panel is removed.
 
 ## What's new in Beta 2.4
 

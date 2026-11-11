@@ -83,7 +83,13 @@
       away = takers[0];
     }
     const pens = !!takers;
-    buildMatch(home, away, ['human', arena ? 'none' : 'cpu'], [career ? 'YOU' : pens ? 'YOU' : 'P1', pens ? 'CPU' : arena ? '' : 'CPU'], false, null, takers);
+    let roster = null;
+    if (arena && App.drill === 'freekick') {      // the taker plus a wall of four
+      const pool = ISO.PLAYERS.filter((d) => d.id !== home.id).sort(() => Math.random() - 0.5);
+      roster = [home, away, pool[0], pool[1], pool[2]];
+    }
+    buildMatch(home, away, ['human', arena ? 'none' : 'cpu'], [career ? 'YOU' : pens ? 'YOU' : 'P1', pens ? 'CPU' : arena ? '' : 'CPU'], false, roster, takers);
+    if (roster) roster.forEach((d, i) => { App.V.labels[i] = App.V.labels[i] || ''; App.V.sheets[i] = ISO.Sprites.forPlayer(d, App.kits[i ? 1 : 0], i); });
     beginMatch(arena && !pens);
   }
 
@@ -467,7 +473,7 @@
       }
     }
     const ST = ISO.Profile.data.settings;
-    App.V.cam = !App.demo && ST.camera === 'cinematic' ? 'cinematic' : 'classic';
+    App.V.cam = !App.demo && (ST.camera === 'cinematic' || (App.mode === 'drill' && App.drill === 'freekick')) ? 'cinematic' : 'classic';
     App.V.aim = App.screen === 'match' && !App.paused && !App.demo && ST.mouseAim && ST.reticle ? mouseCanvas() : null;
     ctx.setTransform(App.ratio, 0, 0, App.ratio, 0, 0);
     // drawn part-way between the last two simulation steps, so motion is even on any display rate (see smooth.js)
