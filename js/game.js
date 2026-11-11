@@ -373,7 +373,8 @@
     } else if (!owner) p.charge = null;
     else if (inp.skill && !pr.skill) p.charge = null;        // fake shot: skill key cancels the wind-up
     else if (!inp[c.key] && c.t < 0.18) {         // a quick tap is a fake shot: the swing without the strike
-      p.charge = null; p.kickT = 0.3; p.fakeT = 0.4; p.vx *= 0.6; p.vy *= 0.6; p.stam = Math.max(0, p.stam - 1);
+      const bs = Math.sign(b.y - p.y) || (Math.sin(p.face) >= 0 ? 1 : -1);      // the side the ball is on now
+      p.charge = null; p.kickT = 0; p.fakeT = 0.4; p.fakeDrag = -bs; p.vx *= 0.6; p.vy *= 0.6; p.stam = Math.max(0, p.stam - 1);
       ev(G, 'fake', { p });
     } else if (!inp[c.key] || c.t > C.CHG[c.type].max) shoot(G, p, c.type, clamp(c.t / C.CHG[c.type].full, 0.3, 1), false, mx, my, hasIn);
   }
@@ -502,7 +503,7 @@
     return {
       kind: 'p', def, a, team, idx: idx || 0, dir: 1, x: 0, y: 0, vx: 0, vy: 0, face: 0,
       top, jog: top * JOG, state: 'free', stT: 0, stDur: 0, stam: 100, exhausted: false,
-      charge: null, skill: null, chord: null, noCtrl: 0, kickT: 0, fakeT: 0, jostle: 0, skillCd: 0, boost: 0, wasJockey: 0,
+      charge: null, skill: null, chord: null, noCtrl: 0, kickT: 0, fakeT: 0, fakeDrag: 0, jostle: 0, skillCd: 0, boost: 0, wasJockey: 0,
       bufSkill: null, bufKey: null, bufT: 0, bufHold: 0, animDist: 0, runPh: 0, latSign: 0, rollT: 0, rollSd: 0, dribPh: 0, prev: {}, sprinting: false, shield: false, jock: false, contact: false,
       tdx: 1, tdy: 0, tackleHit: false, won: false, beaten: false, bodyHit: false, clean: false,
     };
@@ -714,7 +715,13 @@
             const o = other(G, p), ox = p.x - o.x, oy = p.y - o.y, od = hyp(ox, oy);
             if (od < 95 && od > 1) { fx = ox / od; fy = oy / od; lead = 14; side = 0; ry = 0; }
           }
-          const tx = p.x + fx * lead - fy * side, ty = p.y + fy * lead + fx * side + ry;
+          // screen-sideways travel (screen horizontal is sim y): the ball stays on the trailing side, by the opposite foot,
+          // which keeps nudging it toward the direction of travel; it is not pushed out ahead of the player
+          let lx = 0, latM = 0;
+          if (!p.shield && sp > 20) latM = clamp((Math.abs(p.vy) / sp - 0.3) / 0.4, 0, 1) * clamp(sf * 2.2, 0, 1);
+          if (latM > 0) lx = Math.sign(p.vy) * (-6 + 2.2 * (1 + Math.sin(p.dribPh))) * latM;
+          if (p.fakeT > 0) lx = p.fakeDrag * 9 * lerp(-1, 1, sm(1 - p.fakeT / 0.4));      // fake shot: drag it to the other side
+          const tx = p.x + fx * lead - fy * side, ty = p.y + fy * lead * (1 - latM) + fx * side + ry + lx;
           const k = (8 + 7 * dri) * (p.sprinting ? 0.8 : 1);
           const wx = p.vx + (tx - b.x) * k, wy = p.vy + (ty - b.y) * k;
           const bl = Math.min(1, (10 + 10 * q(p.a.bct)) * dt);
