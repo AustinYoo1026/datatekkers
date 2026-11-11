@@ -519,7 +519,7 @@
   }
   // The match camera ("Cinematic" in Camera settings): the goal-replay angle, held for the whole match. It follows the
   // ball and your own players sideways and keeps the deepest figure in frame. Render-only: the sim never sees it.
-  const CINE = { off: 450, H: 250, th: 0.47, f: 1700, cy: 340 };
+  const CINE = { off: 625, H: 340, th: 0.47, f: 2200, cy: 340 };
   const LIVE = { X: 0, Dd: 0, init: false, cam: null };
   function liveCam(G, V, dt) {
     const me = G.players[V.me || 0], b = G.ball;

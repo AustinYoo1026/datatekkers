@@ -1169,7 +1169,7 @@
       }
     }
     else if (D.kind === 'oneonone') { x = FW - (105 + G.rand() * 70); y = GCY + (G.rand() - 0.5) * 220; }
-    else if (D.kind === 'longshot') { x = FW - (330 + G.rand() * 70); y = GCY + (G.rand() - 0.5) * 260; }
+    else if (D.kind === 'longshot') { x = FW - (195 + G.rand() * 45); y = GCY + (G.rand() - 0.5) * 260; }
     else if (D.kind === 'finesse') { x = FW - (170 + G.rand() * 60); y = GCY + (G.rand() < 0.5 ? -1 : 1) * (175 + G.rand() * 80); }
     else if (D.kind === 'power') { x = FW - (235 + G.rand() * 60); y = GCY + (G.rand() - 0.5) * 220; }
     else { x = FW - (150 + G.rand() * 70); y = GCY + (G.rand() - 0.5) * 160; k.dummy = true; k.x = FW - (58 + G.rand() * 22); k.y = GCY + (G.rand() - 0.5) * 36; }

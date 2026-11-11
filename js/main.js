@@ -111,7 +111,7 @@
     if (App.mode !== 'online') { $('pRestart').classList.remove('hidden'); $('pQuit').textContent = 'CHANGE PLAYERS'; $('pQuitMenu').classList.remove('hidden'); }
     ISO.Input.resetMouse();
     $('hud').classList.toggle('arena', arena);
-    const team2 = App.matchDefs.length > 2;
+    const team2 = App.matchDefs.length > 2 && !!App.V.teams;
     for (const i of [0, 1]) {
       const d = App.matchDefs[App.hudIdx[i]], f = $('hudFace' + i).getContext('2d');
       f.clearRect(0, 0, 88, 88); f.drawImage(ISO.Sprites.portrait(d, 80, App.kits[i]), 0, 0, 88, 88);
@@ -279,7 +279,7 @@
   // ------------------------------------------------------------- end screen
   function showEnd() {
     const G = App.G, w = G.winner, s = G.stats;
-    const team2 = App.matchDefs.length > 2;
+    const team2 = App.matchDefs.length > 2 && !!App.V.teams;
     for (const i of [0, 1]) {
       const d = App.matchDefs[App.hudIdx[i]], c = $('endFace' + i).getContext('2d');
       c.clearRect(0, 0, 160, 160); c.drawImage(ISO.Sprites.portrait(d, 80, App.kits[i]), 0, 0);
@@ -473,7 +473,7 @@
       }
     }
     const ST = ISO.Profile.data.settings;
-    App.V.cam = !App.demo && (ST.camera === 'cinematic' || (App.mode === 'drill' && App.drill === 'freekick')) ? 'cinematic' : 'classic';
+    App.V.cam = !App.demo && (ST.camera === 'cinematic' || (App.mode === 'drill' && ['chip', 'freekick', 'oneonone', 'longshot', 'finesse'].includes(App.drill))) ? 'cinematic' : 'classic';
     App.V.aim = App.screen === 'match' && !App.paused && !App.demo && ST.mouseAim && ST.reticle ? mouseCanvas() : null;
     ctx.setTransform(App.ratio, 0, 0, App.ratio, 0, 0);
     // drawn part-way between the last two simulation steps, so motion is even on any display rate (see smooth.js)

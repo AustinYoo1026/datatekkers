@@ -403,7 +403,8 @@ kbd { display: inline-block; font: 700 12px/1 ui-monospace, Menlo, monospace; ba
 .pchip.got { color: #fff; border-color: var(--rc); }
 
 /* ---------- drills ---------- */
-.drillgrid { flex: 1; display: grid; grid-template-columns: repeat(4, 1fr); grid-auto-rows: minmax(300px, 1fr); gap: 16px; margin: 18px 0 8px; min-height: 0; overflow-y: auto; padding-bottom: 6px; }
+.drillgrid { flex: 1; display: grid; grid-auto-flow: column; grid-auto-columns: 340px; grid-template-rows: 1fr; gap: 16px; margin: 18px 0 8px; min-height: 0; overflow-x: auto; overflow-y: hidden; padding-bottom: 14px; scroll-snap-type: x proximity; }
+.drillgrid > .drillcard { scroll-snap-align: start; min-height: 300px; }
 .drillcard { font-family: var(--font); color: var(--text); text-align: left; cursor: pointer; display: flex; flex-direction: column; justify-content: flex-end; gap: 10px;
   padding: 24px 22px 22px; border-radius: 12px; border: 1px solid var(--line); border-top: 5px solid var(--pc); position: relative; overflow: hidden;
   background: linear-gradient(180deg, transparent 30%, rgba(8,11,16,.85)), repeating-linear-gradient(135deg, rgba(255,255,255,.03) 0 14px, transparent 14px 28px), var(--panel);
