@@ -354,7 +354,7 @@
     const rows = [['Move', [0, 1].map((i) => move.map((a) => B[a][i]).filter(Boolean).map(k).join('')).filter(Boolean).join(' / ')], ['Sprint', both('sprint')],
       ['Aim', 'Mouse (optional)'], ['Shoot · Tackle', both('shoot') + ' / left click'], ['Finesse shot', both('finesse')],
       ['Power shot (long wind-up)', both('chip') + ' / right click'], ['Chip shot (scoop over the keeper)', both('lob')], ['Skill moves', ['j', 'k', 'l'].map((a) => k(B[a].find(Boolean))).join(' ') + ' (alone or together)'],
-      ['Jockey · Shield', both('jockey')], ['Pass (online 2v2)', both('pass')], ['Pause', '<kbd>Esc</kbd>']];
+      ['Jockey · Shield', both('jockey')], ['Tackle · Slide (defending)', both('tackle') + ' / ' + both('slide')], ['Shoulder · Focus (defending)', both('shoulder') + ' / ' + both('focus')], ['Pass (online 2v2)', both('pass')], ['Pause', '<kbd>Esc</kbd>']];
     $('keysTable').innerHTML = '<tr><th>Action</th><th>Keys</th></tr>' + rows.map((r) => '<tr><td>' + r[0] + '</td><td>' + r[1] + '</td></tr>').join('');
     document.querySelectorAll('kbd[data-k]').forEach((el) => { el.textContent = IN.keyLabel(el.dataset.k); });
     App.setMouse(PF.data.settings.mouseAim);       // refreshes the match hint
@@ -372,11 +372,11 @@
   let combo = [];
   function finishRebind(code) {
     const { a, i } = rebind; rebind = null; combo = [];
-    const B = ISO.Input.bindings;
+    const IN = ISO.Input, B = IN.bindings;
     if (code === null) B[a][i] = null;
     else {
       const old = B[a][i];
-      for (const b in B) for (let j = 0; j < 2; j++) if (B[b][j] === code && !(b === a && j === i)) B[b][j] = b === a ? null : old;      // swap
+      for (const b in B) for (let j = 0; j < 2; j++) if (B[b][j] === code && !(b === a && j === i) && IN.clash(a, b)) B[b][j] = b === a ? null : old;      // swap
       B[a][i] = code;
       ISO.Audio.play('coin');
     }

@@ -37,7 +37,7 @@
     App.kits = kits;
     App.G = ISO.Game.create({ home, away, roster: defs, kickoff: App.kickoffFlip, solo: !quiet && App.mode === 'drill', drill: !quiet && App.mode === 'drill' ? App.drill : null, win: quiet ? 0 : App.matchWin,
       replay: !quiet, takers: takers || null,          // goals in a match are replayed; the menu demo and the drills play straight on
-      keeperNerf: quiet ? 0 : ({ easy: 24, normal: 10, hard: 0 }[App.matchDiff] || 0),
+      keeperNerf: quiet ? 0 : ({ easy: 16, normal: 0, hard: -6 }[App.matchDiff] || 0),
       moves: ctrl.map((c) => (c === 'human' ? ISO.Profile.moveSet() : null)) });      // you can only use the skill moves you have unlocked
     App.ctrl = ctrl;
     App.ai = ctrl.map((c) => (c === 'cpu' ? ISO.AI.create(quiet ? 'normal' : App.matchDiff) : null));

@@ -110,7 +110,7 @@
         R() < D.foolP * (0.45 + 0.55 * q(opp.a.skl))) {
         m.fool = { t: 0.28 + R() * 0.2, x: opp.skill.fakeX, y: opp.skill.fakeY };     // bought the feint
       }
-      if (!m.fool && opp.fakeT > 0.4 - dt * 1.5 && dB < 125 && R() < D.foolP * (0.45 + 0.55 * q(opp.a.skl))) {
+      if (!m.fool && opp.fakeT > ISO.C.FAKE_T - dt * 1.5 && dB < 125 && R() < D.foolP * (0.45 + 0.55 * q(opp.a.skl))) {
         m.fool = { t: 0.3 + R() * 0.2, x: (opp.x - me.x) / (hyp(opp.x - me.x, opp.y - me.y) || 1), y: (opp.y - me.y) / (hyp(opp.x - me.x, opp.y - me.y) || 1) };     // bought the fake shot: lunges to block
       }
       if (m.fool) {

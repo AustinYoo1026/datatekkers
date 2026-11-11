@@ -251,7 +251,7 @@
       else stride(T, p.runPh || 0, 0.9, 0);
       o.dx = lx * (s.lean || 0) * 2.5; o.dy = ly * (s.lean || 0) * 2.5;
     } else if (p.fakeT > 0) {               // fake shot: the foot on the ball's side drags it across to the other side
-      const u = sm(1 - p.fakeT / 0.4), dg = p.fakeDrag || 1, dl = dg > 0 ? '1' : '2', pl = dg > 0 ? '2' : '1';
+      const u = sm(1 - p.fakeT / ISO.C.FAKE_T), dg = p.fakeDrag || 1, dl = dg > 0 ? '1' : '2', pl = dg > 0 ? '2' : '1';
       Object.assign(T, { t1: 0.1, k1: 0.2, t2: 0.1, k2: 0.2, s1: 0.2, s2: -0.2, ab: 0.3, lean: 0.06, tilt: dg * 0.1 * Math.sin(u * Math.PI) });
       T['sw' + dl] = dg * 7 * lerp(-1, 1, u); T['sw' + pl] = 0; T['k' + dl] = 0.45 * Math.sin(u * Math.PI);
       o.rate = 40;
@@ -264,6 +264,13 @@
       const f = clamp(p.charge.t / C.CHG[p.charge.type].full, 0, 1);
       Object.assign(T, { t1: -0.3 - 0.65 * f, k1: 0.5 + 0.8 * f, t2: 0.2, k2: 0.2 + 0.2 * f, lean: 0.06, s1: 0.5, s2: -0.6, ab: 0.3 * f });
       o.rate = 30;
+    } else if (st === 'shoulder') {          // shoulder barge: body turned in, near arm tucked, leaning through the contact
+      Object.assign(T, { t1: 0.7, k1: 0.5, t2: -0.5, k2: 0.5, lean: 0.4, tilt: 0.12, ab: 0.8, e1: 0.8, e2: 0.2, spread: 1.6 });
+      o.rate = 40;
+    } else if (p.focus) {                   // focus: a low side-on defending stance, shuffling sideways, eyes on the ball
+      const w = Math.sin((p.runPh || 0) * 1.5), m = clamp(sp / 50, 0, 1);
+      Object.assign(T, { t1: 0.45 + 0.2 * w * m, k1: 0.9, t2: 0.1 - 0.2 * w * m, k2: 0.9, spread: 2.8 + 1.4 * Math.abs(w) * m, ab: 0.7, e1: 0.8, e2: 0.8, lean: 0.2, tilt: 0.1, bob: -0.4 });
+      o.rate = 28;
     } else if (p.jock || p.shield) {        // jockey / shield: low, wide, shuffling
       const w = Math.sin(p.runPh || 0), m = clamp(sp / 60, 0, 1);
       Object.assign(T, { t1: 0.3 + 0.15 * w * m, k1: 0.6, t2: 0.3 - 0.15 * w * m, k2: 0.6, spread: 2.2 + 1.2 * w * m, ab: 0.55, e1: 0.5, e2: 0.5, lean: 0.14 });
@@ -316,7 +323,7 @@
     if (p.state === 'celebrate') { anim = 'celebrate'; frame = Math.floor(fx.t * 9) % 4; d = { dir: 'down', flip: false }; }
     else if (p.state === 'ankle' || p.state === 'slide' || p.state === 'down') { anim = 'slide'; d = { dir: 'side', flip: false }; angle = p.state === 'ankle' && p.fallDir !== undefined ? p.fallDir + Math.PI : p.face; }
     else if (p.state === 'stumble') anim = 'stumble';
-    else if (p.state === 'tackle') { anim = 'tackle'; frame = p.stT < 0.08 ? 0 : 1; }
+    else if (p.state === 'tackle' || p.state === 'shoulder') { anim = 'tackle'; frame = p.stT < 0.08 ? 0 : 1; }
     else if (p.state === 'skill' && p.skill) { const fr = SKILL_FRAMES[p.skill.id]; if (fr) { anim = 'skill'; frame = fr[Math.floor(Math.min(0.999, p.skill.t / p.skill.dur) * fr.length)]; } else { anim = 'run'; frame = runFrame; } }
     else if (p.kickT > 0) { anim = 'kick'; frame = p.kickT > 0.24 ? 0 : p.kickT > 0.12 ? 1 : 2; }
     else if (sp > 22) { anim = sp > p.jog * 1.08 ? 'sprint' : 'run'; frame = runFrame; }
