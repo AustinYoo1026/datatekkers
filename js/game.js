@@ -24,7 +24,7 @@
     // shot charge timing (seconds held): full = full power, over = starts to sail over the bar, max = auto-release
     CHG: { normal: { full: 0.5, over: 0.7, max: 1.05 }, finesse: { full: 0.55, over: 0.78, max: 1.15 },
       power: { full: 0.9, over: 1.15, max: 1.5 }, chip: { full: 0.45, over: 0.65, max: 0.95 } },
-    CR: 100, WIN: 3, STEP: 1 / 120, GRAV: 900, GOAL_T: 2.2, OUT_T: 0.9,
+    CR: 100, WIN: 3, STEP: 1 / 120, GRAV: 900, GOAL_T: 1.7, OUT_T: 0.6,
     REPLAY_T: 4.5,                // length of the goal pause when the goal is replayed (matches): celebration, replay, back to play
     STRIDE: 44,                   // pixels covered by one full running stride (two steps) at a jog
   });
@@ -40,6 +40,10 @@
   const q = (v) => clamp((v - 40) / 59, 0, 1);    // generic attribute -> 0..1
   const q2 = (v) => clamp((v - 60) / 39, 0, 1);   // pace / acceleration -> 0..1
   const sm = (x) => x * x * (3 - 2 * x);
+  // Pace. Everyone is quick; ratings separate players without crippling the weak ones: a 50-rated runner has about
+  // 83% of the top speed of a 99-rated one (it used to be 66%), and gets going about 75% as fast.
+  const topSpeed = (a) => 240 + 50 * q(a.pac);
+  const JOG = 0.7;
   const seg = (u, a, b) => clamp((u - a) / (b - a), 0, 1);
   const angDiff = (a, b) => {
     let d = (b - a) % (Math.PI * 2);
@@ -49,10 +53,11 @@
   };
   ISO.util = { clamp, lerp, hyp, q, q2, angDiff };
 
-  function rng(seed) {
-    let a = seed >>> 0;
+  // mulberry32, with its state kept on the game object (G.rs) so a snapshot carries it: an online client that re-simulates
+  // from a snapshot rolls exactly the dice the server will.
+  function rng(G) {
     return () => {
-      a = (a + 0x6d2b79f5) | 0;
+      const a = (G.rs = (G.rs + 0x6d2b79f5) | 0);
       let t = Math.imul(a ^ (a >>> 15), 1 | a);
       t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
       return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
@@ -79,16 +84,16 @@
   // star: minimum skill-move stars. prot: [from,to] fraction of the move during
   // which the ball is protected from tackles. fake: the move sells a feint.
   const SK = {
-    stepover: { name: 'Stepover', star: 2, dur: 0.5, cost: 3, exit: 1.25, prot: [0.3, 1], fake: true },
-    feint:    { name: 'Body Feint', star: 1, dur: 0.36, cost: 2, exit: 1.2, prot: [0.4, 1], fake: true },
-    roll:     { name: 'Ball Roll', star: 2, dur: 0.38, cost: 2, exit: 1.0, prot: [0.1, 1] },
-    croqueta: { name: 'La Croqueta', star: 3, dur: 0.3, cost: 3, exit: 1.2, prot: [0, 1] },
-    roulette: { name: 'Roulette', star: 3, dur: 0.62, cost: 4, exit: 1.15, prot: [0.1, 1] },
-    elastico: { name: 'Elastico', star: 5, dur: 0.42, cost: 4, exit: 1.3, prot: [0.42, 1], fake: true },
-    heel:     { name: 'Heel to Heel', star: 4, dur: 0.3, cost: 3, exit: 1.35, prot: [0, 0.6] },
-    rainbow:  { name: 'Rainbow Flick', star: 5, dur: 0.85, cost: 5, exit: 1.1, prot: [0.28, 1] },
-    dragback: { name: 'Drag Back', star: 2, dur: 0.42, cost: 2, exit: 1.1, prot: [0.2, 1] },
-    nutmeg:   { name: 'Nutmeg', star: 4, dur: 0.5, cost: 3, exit: 1.3, prot: [0, 0] },
+    stepover: { name: 'Stepover', star: 2, dur: 0.33, cost: 3, exit: 1.25, prot: [0.3, 1], fake: true },
+    feint:    { name: 'Body Feint', star: 1, dur: 0.25, cost: 2, exit: 1.2, prot: [0.4, 1], fake: true },
+    roll:     { name: 'Ball Roll', star: 2, dur: 0.27, cost: 2, exit: 1.0, prot: [0.1, 1] },
+    croqueta: { name: 'La Croqueta', star: 3, dur: 0.22, cost: 3, exit: 1.2, prot: [0, 1] },
+    roulette: { name: 'Roulette', star: 3, dur: 0.42, cost: 4, exit: 1.15, prot: [0.1, 1] },
+    elastico: { name: 'Elastico', star: 5, dur: 0.3, cost: 4, exit: 1.3, prot: [0.42, 1], fake: true },
+    heel:     { name: 'Heel to Heel', star: 4, dur: 0.22, cost: 3, exit: 1.35, prot: [0, 0.6] },
+    rainbow:  { name: 'Rainbow Flick', star: 5, dur: 0.56, cost: 5, exit: 1.1, prot: [0.28, 1] },
+    dragback: { name: 'Drag Back', star: 2, dur: 0.3, cost: 2, exit: 1.1, prot: [0.2, 1] },
+    nutmeg:   { name: 'Nutmeg', star: 4, dur: 0.36, cost: 3, exit: 1.3, prot: [0, 0] },
   };
   const SK_FALLBACK = { roulette: 'stepover', heel: 'feint', elastico: 'croqueta', rainbow: 'dragback', nutmeg: 'feint',
     croqueta: 'roll', stepover: 'feint', roll: 'feint', dragback: 'feint' };
@@ -98,15 +103,15 @@
   // and optionally the facing angle and a body-lean hint for the renderer.
   const SKFN = {
     stepover: (u, s) => ({ vf: s.v0 * 0.55, vs: 0, bf: 17, bs: 3.5 * Math.sin(u * Math.PI * 4), lean: Math.sin(u * Math.PI * 4) }),
-    feint: (u, s) => ({ vf: s.v0 * 0.7, vs: u < 0.45 ? -80 : 190, bf: 16,
+    feint: (u, s) => ({ vf: s.v0 * 0.7, vs: u < 0.45 ? -105 : 265, bf: 16,
       bs: u < 0.45 ? -5 * seg(u, 0, 0.45) : lerp(-5, 7, seg(u, 0.45, 1)), lean: u < 0.45 ? -1 : 1 }),
-    roll: (u, s) => ({ vf: s.v0 * 0.3, vs: 150, bf: 12, bs: 5 + 8 * Math.sin(u * Math.PI) }),
-    croqueta: (u, s) => ({ vf: s.v0 * 0.45 + 70, vs: 235, bf: 14, bs: lerp(-9, 10, sm(u)) }),
+    roll: (u, s) => ({ vf: s.v0 * 0.3, vs: 205, bf: 12, bs: 5 + 8 * Math.sin(u * Math.PI) }),
+    croqueta: (u, s) => ({ vf: s.v0 * 0.45 + 70, vs: 310, bf: 14, bs: lerp(-9, 10, sm(u)) }),
     roulette: (u, s) => {
       const an = u * Math.PI * 2;
       return { vf: Math.max(s.v0, 120), vs: 45 * Math.sin(u * Math.PI), bf: 13 * Math.cos(an), bs: 13 * Math.sin(an), face: s.a0 + s.sd * an };
     },
-    elastico: (u, s) => ({ vf: s.v0 * 0.6, vs: u < 0.45 ? -50 : 210, bf: 16,
+    elastico: (u, s) => ({ vf: s.v0 * 0.6, vs: u < 0.45 ? -65 : 285, bf: 16,
       bs: u < 0.45 ? -17 * sm(seg(u, 0, 0.45)) : lerp(-17, 20, sm(seg(u, 0.45, 0.75))), lean: u < 0.45 ? -1 : 1 }),
     heel: (u, s) => ({ vf: s.v0 + 90, vs: 0, bf: u < 0.35 ? lerp(15, -7, seg(u, 0, 0.35)) : lerp(-7, 44, sm(seg(u, 0.35, 1))) }),
     rainbow: (u, s) => {
@@ -162,10 +167,11 @@
       fakeX: fx * 0.4 + fy * sd, fakeY: fy * 0.4 - fx * sd,
     });
     if (id === 'dragback') { s.fakeX = fx; s.fakeY = fy; }
-    const pBotch = clamp(0.2 - 0.19 * q(a.skl) + (def.star - 1) * 0.02 - 0.06 * q(a.dri) + (p.stam < 25 ? 0.1 : 0), 0.01, 0.3);
+    // a move you ask for is a move you get: only a tired or clumsy player ever loses the ball doing it
+    const pBotch = clamp(0.05 - 0.06 * q(a.skl) + (def.star - 1) * 0.008 - 0.02 * q(a.dri) + (p.stam < 25 ? 0.08 : 0), 0, 0.14);
     s.botch = G.rand() < pBotch;
     p.stam = Math.max(0, p.stam - def.cost);
-    p.charge = null;
+    p.charge = null; p.bufSkill = null;
     setState(p, 'skill', def.dur);
     G.stats.skills[p.team]++;
     if (id === 'nutmeg') {
@@ -185,7 +191,7 @@
   // Close range, a skilful dribbler and a defender who is committed (lunging, recovering, or running the wrong way)
   // all push the odds up; a defender who keeps his distance or jockeys keeps most of his balance.
   const ANKLE = { stepover: 0.2, feint: 0.18, roll: 0.15, croqueta: 0.25, roulette: 0.28, elastico: 0.38, heel: 0.18, rainbow: 0.22, dragback: 0.2 };
-  const ANKLE_R = 72, ANKLE_T = 0.8;
+  const ANKLE_R = 76, ANKLE_T = 0.42;       // down and straight back up: long enough to be beaten, short enough to stay in the game
   function tryAnkles(G, p, s) {
     const o = other(G, p);
     if (G.solo || !ANKLE[s.id] || o.state === 'down' || o.state === 'ankle' || o.state === 'celebrate' || o.state === 'slide' || o.state === 'away') return;
@@ -225,7 +231,7 @@
         s.botched = true; b.owner = null;
         const an = G.rand() * Math.PI * 2;
         b.vx = p.vx * 0.6 + Math.cos(an) * 150; b.vy = p.vy * 0.6 + Math.sin(an) * 150;
-        p.noCtrl = 0.25; setState(p, 'stumble', 0.18); p.skill = null; p.skillCd = 0.25;
+        p.noCtrl = 0.18; setState(p, 'stumble', 0.12); p.skill = null; p.skillCd = 0.15;
         ev(G, 'botch', { p }); mark(G);
         return;
       }
@@ -244,7 +250,7 @@
         const k = hyp(b.x - p.x, b.y - p.y) > 40 ? 0.55 : 1.05;     // a ball flicked far ahead waits to be collected
         b.vx = ex * J * k; b.vy = ey * J * k; b.z = 0;
       }
-      p.boost = Math.max(p.boost, 0.55); p.skillCd = 0.2; p.skill = null;
+      p.boost = Math.max(p.boost, 0.55); p.skillCd = 0.05; p.skill = null;      // moves chain: the next one can start almost at once
       setState(p, 'free');
     }
   }
@@ -277,7 +283,7 @@
 
     const far = clamp((dGoal - 260) / 260, 0, 1);
     const acc = lerp(q(a.fin), q(a.lng), far);
-    let err = lerp(0.11, 0.03, acc) * (1 + far * 0.35);
+    let err = lerp(0.095, 0.026, acc) * (1 + far * 0.35);
     if (type === 'finesse') err *= 0.85 - 0.25 * q(a.cur);
     else if (type === 'power') err *= power > 0.95 ? 1.3 : 0.95;
     if (Math.abs(turn) > 0.6) err *= 1 + (Math.abs(turn) - 0.6) * 0.55;
@@ -326,7 +332,7 @@
     b.spin = spin; b.pass = null;
     b.shot = { id: ++G.shotSeq, team: p.team, type: ft ? 'first-time' : type, by: p };
     b.lastKicker = p; b.kickT = 0; b.lastTouch = p.team; b.shotTeam = p.team; b.shotT = G.t; mark(G);
-    p.noCtrl = G.drill ? 9 : 0.18; p.kickT = 0.3; p.charge = null;
+    p.noCtrl = G.drill ? 9 : 0.14; p.kickT = 0.3; p.charge = null;
     p.stam = Math.max(0, p.stam - 1.5);
     p.face += clamp(turn, -1.2, 1.2);
     G.stats.shots[p.team]++; G.shotTaken = true; if (G.drill) G.drill.shot = true;
@@ -342,8 +348,10 @@
     const TYPES = [['shoot', 'normal'], ['finesse', 'finesse'], ['chip', 'power'], ['lob', 'chip']];     // the 'chip' input key fires the power shot; 'lob' is the chip shot
     if (!p.charge) {
       for (const [key, type] of TYPES) {
-        if (inp[key] && !pr[key]) {
-          if (owner) { if (p.team === G.attacker) { p.charge = { type, key, t: 0, ft: false }; break; } continue; }   // the defender cannot shoot until they clear
+        if ((inp[key] && !pr[key]) || p.bufKey === key) {
+          const held = p.bufKey === key ? p.bufHold : 0;       // a buffered press arrives already wound up by however long it has been held
+          p.bufKey = null; p.bufT = 0;
+          if (owner) { if (p.team === G.attacker) { p.charge = { type, key, t: held, ft: false }; break; } continue; }   // the defender cannot shoot until they clear
           const d = hyp(b.x - p.x, b.y - p.y);
           if (p.team === G.attacker && !b.owner && !b.holder && d < 95 && b.z < 45) { p.charge = { type, key, t: 0, ft: true }; break; }
           if (key === 'shoot') { startTackle(G, p, inp, mx, my, hasIn); return; }
@@ -409,19 +417,19 @@
     const slide = inp.sprint && hasIn && !p.exhausted && !inp.jockey && spd > p.jog * 0.75;
     let dx, dy;
     const bd = hyp(b.x - p.x, b.y - p.y);
-    if (!slide && bd < 55 && bd > 1) { dx = (b.x - p.x) / bd; dy = (b.y - p.y) / bd; }  // standing tackle reaches for a nearby ball
+    if (!slide && bd < 66 && bd > 1) { dx = (b.x - p.x) / bd; dy = (b.y - p.y) / bd; }  // standing tackle reaches for a nearby ball
     else if (hasIn) { const l = hyp(mx, my); dx = mx / l; dy = my / l; }
     else { dx = Math.cos(p.face); dy = Math.sin(p.face); }
     p.tdx = dx; p.tdy = dy; p.tackleHit = false; p.won = false; p.beaten = false; p.bodyHit = false;
     p.face = Math.atan2(dy, dx); p.charge = null;
     if (slide) {
-      const v = Math.max(spd, 210) + 150;
+      const v = Math.max(spd, 210) + 170;
       p.vx = dx * v; p.vy = dy * v; p.stam = Math.max(0, p.stam - 5);
-      setState(p, 'slide', 0.55);
+      setState(p, 'slide', 0.44);
     } else {
-      const v = spd * 0.4 + 200;
+      const v = spd * 0.4 + 235;
       p.vx = dx * v; p.vy = dy * v;
-      setState(p, 'tackle', 0.26);
+      setState(p, 'tackle', 0.2);
     }
     ev(G, 'lunge', { p, slide });
   }
@@ -442,15 +450,15 @@
       if (u >= pr[0] && u <= pr[1]) { t.beaten = true; ev(G, 'beaten', { p: t, by: o }); return; }
       bonus = 0.18;
     }
-    let ch = (slide ? 0.62 : 0.5) + 0.34 * q(t.a.tck)
+    let ch = (slide ? 0.64 : 0.53) + 0.3 * q(t.a.tck)
       - 0.24 * (0.5 * q(o.a.bal) + 0.3 * q(o.a.bct) + 0.2 * q(o.a.dri)) + (t.wasJockey > 0 ? 0.18 : 0) + bonus;
     // shielding: is the owner's body between the tackler and the ball?
     const bx = b.x - o.x, by = b.y - o.y, tx = t.x - o.x, ty = t.y - o.y;
     const dot = (bx * tx + by * ty) / ((hyp(bx, by) || 1) * (hyp(tx, ty) || 1));
     if (dot < -0.15) { ch *= o.shield ? 0.3 : 0.55; ch += 0.15 * (q(t.a.str) - q(o.a.str)); }
     if (G.rand() < clamp(ch, 0.05, 0.95)) {
-      b.owner = null; o.noCtrl = 0.3; o.charge = null; o.skill = null;
-      setState(o, 'stumble', slide ? 0.26 : 0.16);
+      b.owner = null; o.noCtrl = 0.2; o.charge = null; o.skill = null;
+      setState(o, 'stumble', slide ? 0.16 : 0.1);
       t.won = true; G.stats.tackles[t.team]++;
       if (!slide && G.rand() < 0.3 + 0.5 * q(t.a.tck)) {   // clean win: ball stays at the tackler's feet
         b.vx = t.vx * 0.3 + t.tdx * 40; b.vy = t.vy * 0.3 + t.tdy * 40;
@@ -458,7 +466,7 @@
       } else knock(slide ? 380 : 240, slide ? 0.5 : 1.4);
       ev(G, 'tackle', { p: t, on: o, slide });
     } else {
-      t.beaten = true; o.jostle = 0.25;
+      t.beaten = true; o.boost = Math.max(o.boost, 0.3);        // rode the challenge: the dribbler keeps going, unhindered
       ev(G, 'beaten', { p: t, by: o });
     }
   }
@@ -468,9 +476,9 @@
     p.stT += dt;
     const f = Math.exp(-(slide ? 2.6 : 6) * dt);
     p.vx *= f; p.vy *= f;
-    const active = p.stT > 0.03 && p.stT < (slide ? 0.45 : 0.2);
+    const active = p.stT > 0.015 && p.stT < (slide ? 0.37 : 0.17);
     if (active && !p.tackleHit && !b.holder && b.z < 22) {
-      const reach = slide ? 20 : 15, r = slide ? 16 : 14;
+      const reach = slide ? 21 : 18, r = slide ? 17 : 15;
       if (hyp(b.x - (p.x + p.tdx * reach), b.y - (p.y + p.tdy * reach)) < r + BR || hyp(b.x - p.x, b.y - p.y) < PR + BR) resolveTackle(G, p, slide);
     }
     if (slide && active && !p.bodyHit) {
@@ -481,8 +489,8 @@
     }
     if (p.stT >= p.stDur) {
       const ag = q(p.a.agi);
-      if (slide) setState(p, 'down', p.won ? 0.2 : 0.4 - 0.1 * ag);          // back on the feet quickly: play carries on
-      else setState(p, 'recover', p.won ? 0.06 : (p.beaten ? 0.26 : 0.2) - 0.08 * ag);
+      if (slide) setState(p, 'down', p.won ? 0.1 : 0.22 - 0.07 * ag);          // straight back on the feet: play carries on
+      else setState(p, 'recover', p.won ? 0.03 : (p.beaten ? 0.16 : 0.12) - 0.05 * ag);
       p.clean = false;
     }
   }
@@ -490,19 +498,19 @@
   // ----------------------------------------------------------------- players
   function makePlayer(def, team, idx) {
     const a = def.attr;
-    const top = 178 + 92 * q2(a.pac);
+    const top = topSpeed(a);
     return {
       kind: 'p', def, a, team, idx: idx || 0, dir: 1, x: 0, y: 0, vx: 0, vy: 0, face: 0,
-      top, jog: top * 0.66, state: 'free', stT: 0, stDur: 0, stam: 100, exhausted: false,
+      top, jog: top * JOG, state: 'free', stT: 0, stDur: 0, stam: 100, exhausted: false,
       charge: null, skill: null, chord: null, noCtrl: 0, kickT: 0, fakeT: 0, jostle: 0, skillCd: 0, boost: 0, wasJockey: 0,
-      animDist: 0, runPh: 0, latSign: 0, rollT: 0, rollSd: 0, dribPh: 0, prev: {}, sprinting: false, shield: false, jock: false, contact: false,
+      bufSkill: null, bufKey: null, bufT: 0, bufHold: 0, animDist: 0, runPh: 0, latSign: 0, rollT: 0, rollSd: 0, dribPh: 0, prev: {}, sprinting: false, shield: false, jock: false, contact: false,
       tdx: 1, tdy: 0, tackleHit: false, won: false, beaten: false, bodyHit: false, clean: false,
     };
   }
   function resetPlayer(p) {
     p.vx = p.vy = 0; p.state = 'free'; p.stT = 0; p.charge = null; p.skill = null; p.chord = null;
     p.noCtrl = p.kickT = p.fakeT = p.jostle = p.skillCd = p.boost = p.wasJockey = 0;
-    p.sprinting = p.shield = p.jock = p.contact = false; p.latSign = 0; p.rollT = 0;
+    p.sprinting = p.shield = p.jock = p.contact = false; p.latSign = 0; p.rollT = 0; p.bufSkill = null; p.bufKey = null; p.bufT = 0;
   }
 
   function updatePlayer(G, p, inp, dt) {
@@ -518,15 +526,23 @@
     p.sprinting = false; p.shield = false; p.jock = false;
 
     if (p.state === 'free' && inp.pass && !p.prev.pass && b.owner === p && !p.charge && !G.drill) doPass(G, p, mx, my, hasIn);
-    if (p.state === 'free') {
-      // a skill chord: the first J/K/L press opens a short window in which the other keys can join it
+    // Input buffering. A press is never thrown away because it came a moment early: a skill chord or a shoot / tackle press made
+    // while the player is still finishing something (a move, a lunge, a stumble, a cooldown) is held briefly and fires the
+    // instant it can. Moves chain into moves and into shots without the player having to time the gap.
+    {
+      // a skill chord: the first J/K/L press opens a very short window in which the other keys can join it
       const keys = (inp.j ? 1 : 0) | (inp.k ? 2 : 0) | (inp.l ? 4 : 0);
-      let fired = 0;
-      if (p.chord) { p.chord.t += dt; p.chord.mask |= keys; if (p.chord.t >= 0.07) { fired = p.chord.mask; p.chord = null; } }
+      if (p.chord) { p.chord.t += dt; p.chord.mask |= keys; if (p.chord.t >= 0.036) { p.bufSkill = { mask: p.chord.mask, t: 0.3 }; p.chord = null; } }
       else if (keys && !(p.prev.j || p.prev.k || p.prev.l)) p.chord = { t: 0, mask: keys };
-      if (fired && b.owner === p && p.skillCd <= 0 && !p.charge && !G.drill) startSkill(G, p, inp, mx, my, hasIn, fired);
+      if (p.bufSkill && (p.bufSkill.t -= dt) <= 0) p.bufSkill = null;
+      if (p.state !== 'free' || p.noCtrl > 0) for (const key of ['shoot', 'finesse', 'chip', 'lob']) if (inp[key] && !p.prev[key]) { p.bufKey = key; p.bufT = 0.2; p.bufHold = 0; }
+      if (p.bufKey && inp[p.bufKey]) { p.bufHold += dt; p.bufT = Math.max(p.bufT, 0.12); }      // still held: it keeps waiting, and keeps charging
+      if (p.bufKey && (p.bufT -= dt) <= 0) p.bufKey = null;
+    }
+    if (p.state === 'free') {
+      if (p.bufSkill && b.owner === p && p.skillCd <= 0 && !p.charge && !G.drill) startSkill(G, p, inp, mx, my, hasIn, p.bufSkill.mask);
       else handleCharge(G, p, inp, mx, my, hasIn, dt);
-    } else p.chord = null;
+    }
     if (p.state === 'free') {
       const owner = b.owner === p;
       const jock = !!inp.jockey;
@@ -545,16 +561,14 @@
       if (G.drill && owner) maxV = 0;       // drills are taken from the spot: you aim, you don't dribble
       if (p.boost > 0) maxV *= 1.1;
       if (p.jostle > 0) maxV *= 0.85;
-      let acc = (620 + 700 * q2(a.acc)) * (p.boost > 0 ? 1.4 : 1) * (jock ? 1.9 : 1);
-      if (hasIn) {
-        // changing direction: plant the foot and go. A cut is quicker than a standing start, never slower.
-        if (spd > 40 && (p.vx * mx + p.vy * my) / (spd * ml) < 0.5) acc *= 1.3 + 0.7 * q(a.agi);
-      } else acc = 900;
-      let dvx = mx * maxV - p.vx, dvy = my * maxV - p.vy;
-      if (!hasIn) { dvx = -p.vx; dvy = -p.vy; }
-      const dl = hyp(dvx, dvy), md = acc * dt;
-      if (dl > md) { dvx *= md / dl; dvy *= md / dl; }
-      p.vx += dvx; p.vy += dvy;
+      // Velocity eases straight toward what the stick asks for (no linear ramp): most of a start, stop or cut happens in the
+      // first tenth of a second, so the player answers the keys at once. Acceleration sets how fast, agility sharpens cuts.
+      let rate = (10.5 + 6 * q(a.acc)) * (p.boost > 0 ? 1.3 : 1) * (jock ? 1.5 : 1);
+      if (!hasIn) rate = 15;
+      else if (spd > 40 && (p.vx * mx + p.vy * my) / (spd * ml) < 0.5) rate *= 1.15 + 0.35 * q(a.agi);
+      const kf = 1 - Math.exp(-rate * dt);
+      p.vx += ((hasIn ? mx * maxV : 0) - p.vx) * kf; p.vy += ((hasIn ? my * maxV : 0) - p.vy) * kf;
+      if (!hasIn && spd < 6) p.vx = p.vy = 0;
       if (p.sprinting && spd > p.jog * 0.8) {
         p.stam -= (10 + 8 * (1 - q(a.sta))) * dt;
         if (p.stam <= 0) { p.stam = 0; p.exhausted = true; }
@@ -617,7 +631,7 @@
             let Pb = clamp(0.1 + 0.55 * (q(df.a.str) - (0.6 * q(o.a.bal) + 0.4 * q(o.a.str))), 0.02, 0.45);
             if (o.shield) Pb *= 0.5;
             if (G.rand() < Pb) {
-              b.owner = null; o.noCtrl = 0.2; setState(o, 'stumble', 0.14);
+              b.owner = null; o.noCtrl = 0.16; setState(o, 'stumble', 0.1);
               const s = o === A ? -1 : 1;
               b.vx += nx * s * 120; b.vy += ny * s * 120; b.lastTouch = df.team; mark(G);
               ev(G, 'bump', { p: df, on: o });
@@ -780,7 +794,7 @@
         if (p.state === 'free' && hyp(b.x - p.x, b.y - p.y) > 27) {
           for (const o of G.players) {
             if (o.team === p.team || o.state !== 'free' || o.noCtrl > 0 || hyp(b.x - o.x, b.y - o.y) >= PR + BR + 3) continue;
-            p.noCtrl = 0.22; b.owner = o; b.lastTouch = o.team; ev(G, 'steal', { p: o, on: p });
+            p.noCtrl = 0.16; b.owner = o; b.lastTouch = o.team; ev(G, 'steal', { p: o, on: p });
             break;
           }
         }
@@ -904,7 +918,7 @@
     return a.length === b.length && ga !== gb ? (ga > gb ? 0 : 1) : -1;          // level after five each: sudden death, pair by pair
   }
   ISO.soDecided = soDecided;
-  function setDef(p, def) { p.def = def; p.a = def.attr; p.top = 178 + 92 * q2(def.attr.pac); p.jog = p.top * 0.66; }
+  function setDef(p, def) { p.def = def; p.a = def.attr; p.top = topSpeed(def.attr); p.jog = p.top * JOG; }
 
   // The opposing taker's plan: where, how high and how hard, decided before the run-up and without looking at the keeper
   // (most of the time). Each taker has a favoured side; better finishers pick out the corners and miss the target less.
@@ -1081,7 +1095,7 @@
     b.x = SPOTX + 12; b.y = GCY; b.owner = A; b.lastTouch = atk;
     if (G.solo) { D.x = D.y = -900; D.state = 'away'; }       // testing arena: nobody else on the pitch
     G.attacker = atk; G.guard = null; G.shotTaken = false; G.armed = false; G.rep++;
-    G.phase = 'countdown'; G.cdTick = first ? 1 : G.drill ? 0.34 : 0.5; G.phaseT = 3 * G.cdTick; G.lastCount = 4;
+    G.phase = 'countdown'; G.cdTick = first ? 0.6 : G.drill ? 0.3 : 0.34;      // sim seconds per count: 3-2-1 takes 3 s of real time at kick-off, under 2 s after that G.phaseT = 3 * G.cdTick; G.lastCount = 4;
     G.msg = null; G.outInfo = null;
     if (G.drill) setupDrill(G);
   }
@@ -1324,7 +1338,7 @@
   // -------------------------------------------------------------------- game
   function create(opts) {
     const G = {
-      rand: rng(opts.seed || ((Math.random() * 1e9) | 0)),
+      rs: (opts.seed || ((Math.random() * 1e9) | 0)) >>> 0,
       t: 0, time: 0, phase: 'countdown', phaseT: 3, cdTick: 1, lastCount: 4, score: [0, 0], events: [],
       seq: 0, shotSeq: 0, winner: -1, concede: 0, own: false, msg: null, outInfo: null, goals: [],
       players: (opts.roster || [opts.home, opts.away]).map((d, i) => makePlayer(d, i % 2, i)),      // player i is on team i % 2 (2v2: four players)
@@ -1336,6 +1350,7 @@
     };
     if (opts.moves) G.players.forEach((p, i) => { p.moves = opts.moves[i] || null; });
     G.keepers = [G.keeper];
+    G.rand = rng(G);
     G.gauss = () => { let u = 0; for (let i = 0; i < 4; i++) u += G.rand(); return (u - 2) * 1.732; };
     setupRep(G, G.attacker, true);
     return G;

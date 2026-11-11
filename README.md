@@ -41,8 +41,11 @@ The main menu has four buttons: **Play**, **Store**, **Settings** and **Controls
 
 ## Gameplay notes
 
-- **Pace** — the whole game runs at 60% of real time (`C.SPEED` in `js/game.js`). The simulation still steps at a fixed 120 Hz; the main loop and the online server feed it real time × `C.SPEED`, so players, ball, keeper and every timer slow together. It is not a setting.
-- **Movement** — no turning phase: the body swings straight onto the line of travel and a change of direction is a quick plant-and-go. With the ball, touches land with the footfalls, the ball is nudged from foot to foot, and a change of horizontal direction rolls it across the body.
+- **Pace** — the whole game runs at 60% of real time (`C.SPEED` in `js/game.js`). The simulation steps at a fixed 120 Hz; the main loop and the online server feed it real time × `C.SPEED`, so players, ball, keeper and timers slow together. Countdowns and dead-ball pauses are short so play restarts quickly.
+- **Smooth drawing** — every frame is drawn part-way between the last two simulation steps (`js/smooth.js`), so motion is even on 60, 120 and 144 Hz screens.
+- **Movement** — velocity eases straight toward the stick: most of a start, stop or cut happens in the first tenth of a second, with no turning phase. Everyone is quick; pace and acceleration ratings separate players (a 50-rated runner has about 83% of the top speed of a 99) without making weak players sluggish.
+- **Input buffering** — a skill chord or a shoot / tackle press made a moment early (mid-move, mid-lunge, while stumbling) is held for a fraction of a second and fires the instant it can, so moves chain into moves and into shots. A buffered shot keeps charging while the key is held.
+- **Quick recoveries** — skill moves are short, a missed tackle or slide costs a beat rather than a second, and a player whose ankles are broken is back up in well under a second.
 - **Characters** — drawn live from a small rig (`js/sprites.js`) and a blended pose (`js/render.js`), so every movement eases into the next and figures stay sharp at any zoom.
 - **Ankle breakers** — a skill move close to a defender can put them on the floor for a moment. Close range, a skilful dribbler, and a defender who is lunging, recovering or running the wrong way all raise the odds; keeping your distance or jockeying keeps your balance.
 - **Goal replays** — every match goal (not drills, not the Testing Arena) is replayed through a low cinematic camera, the finish in slow motion. Offline, the shoot key skips it. The replay is a recording kept by the renderer: it never touches the match.
@@ -50,7 +53,7 @@ The main menu has four buttons: **Play**, **Store**, **Settings** and **Controls
 
 ## Online 1v1 and 2v2
 
-Play > Online (needs the server in `server/`, see `render.yaml`). Create a room and share the four-letter code, or use Quick Match. Pick **1V1** or **2V2** at the top of the lobby.
+Play > Online (needs the server in `server/`, see `render.yaml`). Your client predicts the match locally (same simulation, same dice as the server) and re-simulates from each server snapshot, so your own player answers at once whatever the ping; corrections to other players are blended in. Client and server must run the same version: redeploy the server after pulling. Tests: `cd server && node test.js && node test-determinism.js && node test-lag.js 50 10`. Create a room and share the four-letter code, or use Quick Match. Pick **1V1** or **2V2** at the top of the lobby.
 
 - **2V2** needs four players. Seats alternate between teams (players 1 and 3 against 2 and 4); new arrivals fill the smaller team, and **Switch Team** in the lobby moves you across if the other team has a free seat. Each team shares one kit.
 - **Pass** (default `R`, rebindable in Settings, Gamepad back button) sends a ground pass to the teammate you are pointing at (the nearest with no direction held). The ball carrier alternates between teammates at each restart.

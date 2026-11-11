@@ -1,18 +1,17 @@
-/* ISO FOOTBALL — online 1v1 / 2v2 client: connection, lobby screen and snapshot playback.
-   The match itself runs on the server (server/server.js); this applies its snapshots to the local Game object
-   that the renderer reads, and sends this player's inputs. */
+/* ISO FOOTBALL — online 1v1 / 2v2 client: connection, lobby screen and the match loop.
+   The match runs on the server (server/server.js), but nothing here waits for it: the local Game object is stepped at
+   once with this player's inputs and corrected whenever a snapshot arrives (ISO.Net.Predictor in js/net.js has the
+   details), so your own player answers as fast as offline. */
 (function () {
   'use strict';
   const ISO = globalThis.ISO, App = ISO.App, P = ISO.Profile;
   const $ = (id) => document.getElementById(id);
 
-  const DELAY = 90;                   // ms of playback delay: smooths over network jitter
-  const SEND_MS = 14;                 // inputs go out at up to ~70 Hz
   const params = new URLSearchParams(location.search);
 
   let ws = null, connecting = false, lobby = null, queued = false, qinfo = null, rematching = false, mode = '1v1';
   let pingMs = null, pingTimer = 0, retry = 0;
-  let buf = [], off = null, evIdx = 0, lastSend = 0, pending = null;
+  let pred = null, pending = null;
 
   // ?server=host[:port] overrides (add &secure=1 for wss), then js/config.js, then the host that served the page
   const serverUrl = () => {
@@ -46,7 +45,7 @@
       clearInterval(pingTimer); connecting = false;
       if (ws !== sock) return;
       ws = null; const wasIn = lobby || App.mode === 'online' && App.screen === 'match' || App.screen === 'end';
-      lobby = null; queued = false; qinfo = null; pingMs = null; buf = [];
+      lobby = null; queued = false; qinfo = null; pingMs = null; pred = null;
       if (wasIn && App.mode === 'online' && !App.demo) { App.toast('DISCONNECTED', 'Lost connection to the server', '#f1735f'); App.show('online'); }
       status(App.screen === 'online' ? 'DISCONNECTED' : '', '#f1735f'); render();
     };
@@ -60,10 +59,15 @@
     else if (m.t === 'error') { queued = false; App.toast('ONLINE', m.msg, '#f1735f'); render(); }
     else if (m.t === 'out') { lobby = null; queued = false; render(); }
     else if (m.t === 'start') {
-      buf = []; off = null; evIdx = 0; rematching = false;
-      App.startOnline(m.picks, m.names, m.kickoff, lobby ? lobby.you : 0);
+      rematching = false;
+      const me = lobby ? lobby.you : 0;
+      App.startOnline(m.picks, m.names, m.kickoff, me);
+      // everybody is re-simulated here, so every player needs the skill moves the server lets that seat use
+      if (m.moves) App.G.players.forEach((p, i) => { p.moves = m.moves[i] ? new Set(m.moves[i]) : null; });
+      pred = ISO.Net.Predictor({ me, send, smooth: ISO.Smooth });
+      ISO.Smooth.reset(); api.alpha = 0;
     }
-    else if (m.t === 's') { if (App.mode === 'online' && App.G && (App.screen === 'match' || App.screen === 'end')) addSnapshot(m); }
+    else if (m.t === 's') { if (pred && App.mode === 'online' && App.G && (App.screen === 'match' || App.screen === 'end')) pred.onSnapshot(m); }
     else if (m.t === 'rematch') {
       if (lobby && !rematching) { const n = m.who.filter(Boolean).length; if (n) $('endRematch').textContent = n + ' / ' + m.who.length + ' WANT A REMATCH'; }
     }
@@ -74,39 +78,16 @@
     }
   }
 
-  // ----------------------------------------------------------- snapshot playback
-  function addSnapshot(m) {
-    const now = performance.now(), sample = now - m.at;
-    off = off == null ? sample : Math.min(sample, off + 0.5);      // tracks the fastest path; drifts up slowly if the clock does
-    buf.push({ at: m.at, n: m.n });
-    if (buf.length > 60) buf.splice(0, buf.length - 60);
-  }
-
+  // ----------------------------------------------------------- the match
+  // Once per display frame: take in the snapshots that have arrived, then step the local game up to now. main.js plays
+  // G.events afterwards and draws between the last two steps (ISO.Smooth.begin(G, ISO.Online.alpha, dt)).
+  const IDLE = { mx: 0, my: 0 };
   function frame(G, dt) {
-    const online = ISO.Net;
-    if (buf.length) {
-      const rt = performance.now() - off - DELAY;
-      let i = 0;
-      while (i + 1 < buf.length && buf[i + 1].at <= rt) i++;
-      const a = buf[i], b = buf[i + 1];
-      // events of every snapshot we have just played past
-      for (let j = evIdx; j <= i; j++) for (const e of online.events(G, buf[j].n)) G.events.push(e);
-      evIdx = i + 1;
-      const f = b ? Math.max(0, Math.min(1, (rt - a.at) / (b.at - a.at))) : 0;
-      online.apply(G, a.n, b && b.n, f);
-      if (i > 2) { buf.splice(0, i - 2); evIdx -= i - 2; }
-    }
-    // inputs
-    const now = performance.now();
-    if (App.screen === 'match' && now - lastSend >= SEND_MS) {
-      lastSend = now;
-      const inp = App.paused ? { mx: 0, my: 0 } : App.humanInput();
-      const o = { mx: +inp.mx.toFixed(2), my: +inp.my.toFixed(2) };
-      for (const k in ISO.Game.ZERO) if (typeof ISO.Game.ZERO[k] === 'boolean' && inp[k]) o[k] = 1;
-      if (inp.ax != null) { o.ax = Math.round(inp.ax); o.ay = Math.round(inp.ay); }
-      send({ t: 'in', i: o });
-      ISO.Input.consume();
-    }
+    if (!pred) { api.alpha = 1; return; }
+    const live = App.screen === 'match' && !App.paused;
+    const n = pred.frame(G, dt, () => (live ? App.humanInput() : IDLE));
+    if (n) ISO.Input.consume();
+    api.alpha = pred.alpha;
   }
 
   // ----------------------------------------------------------- lobby screen
@@ -173,11 +154,12 @@
     }
   }
 
-  ISO.Online = {
-    frame,
+  const api = ISO.Online = {
+    frame, alpha: 0,
+    get net() { return pred && { ping: pingMs, rate: pred.rate, pending: pred.pending, stats: pred.stats }; },      // for a debug overlay / the console
     onShow() { render(); if (!ws || ws.readyState > 1) connect(); else status('CONNECTED' + (pingMs != null ? ' · ' + pingMs + ' MS' : '')); },
     rematch() { rematching = true; $('endRematch').textContent = 'WAITING FOR OPPONENT…'; $('endRematch').disabled = true; send({ t: 'rematch' }); },
-    leave() { send({ t: 'leave' }); lobby = null; queued = false; qinfo = null; buf = []; },
+    leave() { send({ t: 'leave' }); lobby = null; queued = false; qinfo = null; pred = null; },
   };
   start();
 })();

@@ -50,7 +50,7 @@
     };
     App.takerDef = defs[1]; App.V.canSkip = !quiet && App.mode !== 'online';
     App.acc = 0; App.endTimer = 0;
-    R.reset();
+    R.reset(); ISO.Smooth.reset();
   }
 
   function startDemo() {
@@ -446,6 +446,7 @@
         if (!App.demo && App.screen === 'match' && G.phase === 'goal' && R.inReplay(G, App.V) && ISO.Input.get('solo', 0).shoot) G.phaseT = Math.min(G.phaseT, 0.06);
         let stepped = false;
         while (App.acc >= C.STEP) {
+          ISO.Smooth.capture(G);
           ISO.Game.step(G, inputs());
           App.acc -= C.STEP; stepped = true;
         }
@@ -465,7 +466,10 @@
     const ST = ISO.Profile.data.settings;
     App.V.aim = App.screen === 'match' && !App.paused && !App.demo && ST.mouseAim && ST.reticle ? mouseCanvas() : null;
     ctx.setTransform(App.ratio, 0, 0, App.ratio, 0, 0);
+    // drawn part-way between the last two simulation steps, so motion is even on any display rate (see smooth.js)
+    ISO.Smooth.begin(App.G, !running ? 1 : online ? ISO.Online.alpha : App.acc / C.STEP, running ? dt : 0);
     R.draw(ctx, App.G, App.V, running ? dt : 0);
+    ISO.Smooth.end(App.G);
     if (App.screen === 'match') {
       updateHud();
       if (App.hintT > 0 && !App.paused) { App.hintT -= dt; if (App.hintT <= 0) $('hint').classList.add('hidden'); }

@@ -17,10 +17,11 @@ function client(name, pick) {
   c.ws.on('message', (raw) => {
     const m = JSON.parse(raw); c.msgs.push(m.t);
     if (m.t === 'start') {
+      c.start = m;
       const defs = m.picks.map((p) => ISO.outfit(ISO.playerById(p.id), p.prime, p.skin));
       c.G = ISO.Game.create({ roster: defs });
     }
-    if (m.t === 's') { c.snaps.push(m.n); ISO.Net.apply(c.G, m.n); c.lastEv = ISO.Net.events(c.G, m.n); c.evCount = (c.evCount || 0) + c.lastEv.length; }
+    if (m.t === 's') { c.last = m; c.snaps.push(m.n); ISO.Net.apply(c.G, m.n); c.lastEv = ISO.Net.events(c.G, m.n); c.evCount = (c.evCount || 0) + c.lastEv.length; }
     if (c.on) c.on(m);
   });
   c.send = (m) => c.ws.send(JSON.stringify(m));
@@ -42,6 +43,12 @@ srv.stdout.once('data', async () => {
   if (A.phase !== B.phase || Math.abs(A.ball.x - B.ball.x) > 60) fail('clients disagree');
   if (A.players[1].def.id !== 'ronaldo' || !A.players[1].def.prime) fail('pick not applied');
   if (!(A.players[0].x === A.players[0].x) || A.players[0].a == null) fail('bad state');
+  // what the clients' prediction needs: step count, per-seat ack / applied input / queue length, and the full sim state
+  const L = a.last;
+  if (!(L.k > 100) || [L.ack, L.inp, L.q].some((x) => !Array.isArray(x) || x.length !== 2)) fail('snapshot envelope: ' + JSON.stringify([L.k, L.ack, L.inp, L.q]));
+  if (!(L.ack[0] > 100) || L.inp[0].mx !== 1 || !L.inp[0].sprint) fail('inputs not consumed in order: ' + JSON.stringify([L.ack, L.inp]));
+  if (typeof L.n.rs !== 'number' || !L.n.pairs || !L.n.players[0].prev) fail('snapshot is missing simulation state');
+  if (!a.start.moves || a.start.moves.length !== 2) fail('start has no moves');
   // a bad room code and a full room
   const c = client('C', {}); await new Promise((r) => c.ws.on('open', r));
   const err = await new Promise((r) => { c.on = (m) => m.t === 'error' && r(m.msg); c.send({ t: 'join', code: code }); });

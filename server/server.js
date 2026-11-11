@@ -1,7 +1,9 @@
 /* ISO FOOTBALL — online server.
    Serves the game (static files) and runs 1v1 and 2v2 matches: players join a room by code (or the quick-match queue),
    send their inputs over a WebSocket, and the server runs the same deterministic simulation as the single-player
-   game at 120 Hz, broadcasting snapshots that the clients render.
+   game, broadcasting snapshots. Clients predict ahead of those snapshots (ISO.Net.Predictor in js/net.js): every
+   input carries a sequence number, the server consumes exactly one input per seat per simulation step, and every
+   snapshot says which input it got to, so a client can replay the rest on top of it.
 
      cd server && npm install && npm start          # http://localhost:8080   (PORT / HOST env vars)
 */
@@ -16,7 +18,11 @@ for (const f of ['data', 'game', 'net']) require(path.join(ROOT, 'js', f + '.js'
 const ISO = globalThis.ISO, C = ISO.C;
 
 const PORT = +process.env.PORT || 8080, HOST = process.env.HOST || '0.0.0.0';
-const SEND_EVERY = 2;                 // sim steps per snapshot: the sim advances 120 x C.SPEED steps a second, so 36 snapshots per second
+const SEND_EVERY = Math.max(1, +process.env.SEND_EVERY || 2);      // sim steps per snapshot: the sim advances 120 x C.SPEED steps a second, so 36 snapshots per second
+// A seat's input queue longer than Q_MAX is cut down to its newest Q_KEEP: the client is running ahead (after a hitch, say).
+// Normal jitter must never get there (the cut costs that client a visible correction), and a client that is merely a
+// little ahead slows its own clock down, so the limit is generous.
+const Q_MAX = +process.env.Q_MAX || 10, Q_KEEP = +process.env.Q_KEEP || 3;
 const MAX_ROOMS = +process.env.MAX_ROOMS || 200;
 const IDLE_MS = 10 * 60 * 1000;       // empty / abandoned rooms are dropped
 
@@ -62,14 +68,7 @@ function sanitizeMoves(list) {          // a client that sends nothing valid get
   return new Set(list.filter((id) => typeof id === 'string' && ISO.Game.SKILLS[id]).concat(FREE_MOVES));
 }
 const BOOLS = Object.keys(ISO.Game.ZERO).filter((k) => typeof ISO.Game.ZERO[k] === 'boolean');      // every button the sim reads
-function sanitizeInput(i) {
-  const o = {};
-  const num = (v) => (typeof v === 'number' && isFinite(v) ? Math.max(-1, Math.min(1, v)) : 0);
-  o.mx = num(i.mx); o.my = num(i.my);
-  for (const b of BOOLS) o[b] = !!i[b];
-  if (typeof i.ax === 'number' && typeof i.ay === 'number' && isFinite(i.ax) && isFinite(i.ay)) { o.ax = i.ax; o.ay = i.ay; }
-  return o;
-}
+const sanitizeInput = ISO.Net.sanitizeInput;        // shared with the clients, which predict with exactly the same values
 
 // ------------------------------------------------------------------ rooms
 const rooms = new Map();
@@ -81,7 +80,7 @@ class Room {
   constructor(code, size) {
     this.code = code; this.size = size; this.seats = new Array(size).fill(null); this.G = null; this.state = 'lobby';     // lobby | match | over
     this.kickoff = 0; this.rematch = new Array(size).fill(false); this.touched = Date.now();
-    this.inp = []; this.tap = []; this.events = []; this.steps = 0;
+    this.net = []; this.events = []; this.steps = 0;
   }
   get count() { return this.seats.filter(Boolean).length; }
   get full() { return this.count === this.size; }
@@ -120,23 +119,33 @@ class Room {
     this.state = 'match'; this.rematch.fill(false);
     const defs = this.seats.map((s) => defOf(s.pick));
     this.G = ISO.Game.create({ roster: defs, kickoff: this.kickoff, moves: this.seats.map((s) => s.moves), replay: true });      // the goal pause is long enough for the clients' replay
-    this.inp = this.seats.map(() => null); this.tap = this.seats.map(() => ({})); this.events = []; this.steps = 0; this.acc = 0; this.last = performance.now();
-    this.broadcast({ t: 'start', size: this.size, picks: this.seats.map((s) => s.pick), names: this.seats.map((s) => s.name), kickoff: this.kickoff });
+    // per seat: q = inputs waiting ({ n, i }), seen = newest seq received, ack = seq of the last one consumed, last = the input applied in the latest step
+    this.net = this.seats.map(() => ({ q: [], seen: 0, ack: 0, last: null, dry: false }));
+    this.events = []; this.steps = 0; this.acc = 0; this.last = performance.now();
+    // moves: the clients re-simulate everybody, so they need to know which skill moves each seat may use
+    this.broadcast({ t: 'start', size: this.size, picks: this.seats.map((s) => s.pick), names: this.seats.map((s) => s.name), kickoff: this.kickoff,
+      moves: this.seats.map((s) => Array.from(s.moves)) });
     this.sync();
   }
-  input(team, raw) {
-    const i = sanitizeInput(raw);
-    const t = this.tap[team];
-    for (const b of BOOLS) if (i[b]) t[b] = true;       // a tap between two sim steps must not be lost
-    this.inp[team] = i;
+  // One input per client step, numbered: { t:'in', n, i }. They queue up and are consumed one per simulation step.
+  // (An input without n, from an old client, simply counts as the next one.)
+  input(seat, m) {
+    const st = this.net[seat];
+    if (!st) return;
+    const n = Number.isSafeInteger(m.n) ? m.n : st.seen + 1;
+    if (n <= st.seen) return;                            // a duplicate, or out of order
+    st.seen = n;
+    st.q.push({ n, i: sanitizeInput(ISO.Net.packInput(sanitizeInput(m.i))) });      // through the wire form, so it is exactly what `inp` will tell the other clients
+    if (st.q.length > Q_MAX) {                           // the client is ahead of us: skip to its recent inputs...
+      const dropped = st.q.splice(0, st.q.length - Q_KEEP), keep = st.q[0].i;
+      for (const d of dropped) for (const b of BOOLS) if (d.i[b]) keep[b] = true;      // ...but a tap that was only in the skipped ones still counts
+    }
   }
-  frameInput(team) {
-    const cur = this.inp[team];
-    if (!cur) return ISO.Game.ZERO;
-    const o = { ...cur }, t = this.tap[team];
-    for (const b in t) o[b] = true;
-    this.tap[team] = {};
-    return o;
+  // the input of this seat for the next step: the next one in its queue, or the previous one again when nothing has arrived (held keys stay held)
+  frameInput(seat) {
+    const st = this.net[seat], e = st.q.shift();
+    if (e) { st.last = e.i; st.ack = e.n; } else st.dry = true;
+    return st.last || ISO.Game.ZERO;
   }
   tick(now) {
     if (this.state !== 'match') return;
@@ -152,9 +161,13 @@ class Room {
     }
   }
   flush() {
-    const snap = ISO.Net.snapshot(this.G, this.events);
+    const snap = ISO.Net.snapshot(this.G, this.events), net = this.net;
     this.events = [];
-    this.broadcast({ t: 's', at: Date.now(), n: snap });
+    // k: step count. ack: last input seq consumed per seat. inp: the input applied in the latest step per seat.
+    // q: inputs still queued per seat, or -1 if the queue ran dry since the last snapshot (the clients steer their clocks by it)
+    this.broadcast({ t: 's', at: Date.now(), k: this.steps, ack: net.map((s) => s.ack), inp: net.map((s) => (s.last ? ISO.Net.packInput(s.last) : null)),
+      q: net.map((s) => (s.dry ? -1 : s.q.length)), n: snap });
+    for (const s of net) s.dry = false;
   }
   wantRematch(i) {
     if (this.state !== 'over') return;
@@ -195,17 +208,17 @@ function makeSeat(ws, m) {
 wss.on('connection', (ws) => {
   let seat = { ws, name: 'Player', pick: sanitizePick(null), moves: null, room: null, team: 0 };
   ws.alive = true; ws.on('pong', () => { ws.alive = true; });
-  let budget = 200, refill = Date.now();                  // simple per-socket rate limit
+  let budget = 300, refill = Date.now();                  // simple per-socket rate limit (a client sends one input per sim step: ~72 a second, in bursts)
 
   ws.on('message', (raw) => {
     const now = Date.now();
-    budget = Math.min(200, budget + ((now - refill) / 1000) * 120); refill = now;
+    budget = Math.min(300, budget + ((now - refill) / 1000) * 180); refill = now;
     if (--budget < 0) return;
     let m;
     try { m = JSON.parse(raw); } catch { return; }
     if (!m || typeof m.t !== 'string') return;
 
-    if (m.t === 'in') { if (seat.room && seat.room.state === 'match' && m.i && typeof m.i === 'object') seat.room.input(seat.team, m.i); return; }
+    if (m.t === 'in') { if (seat.room && seat.room.state === 'match' && m.i && typeof m.i === 'object') seat.room.input(seat.team, m); return; }
     if (m.t === 'ping') { send(ws, { t: 'pong', c: m.c, at: Date.now() }); return; }
     if (m.t === 'rematch') { if (seat.room) seat.room.wantRematch(seat.team); return; }
     if (m.t === 'team') { if (seat.room) seat.room.switchTeam(seat); return; }
