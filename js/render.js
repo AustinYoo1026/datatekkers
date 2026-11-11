@@ -167,11 +167,9 @@
     for (const x of [GY0, GY1]) { c.fillStyle = TH.post; c.beginPath(); c.arc(x, 0, 4.6, 0, TAU); c.fill(); c.strokeStyle = 'rgba(0,0,0,.4)'; c.lineWidth = 1; c.stroke(); }
   }
 
-  function dirOf(face) {
-    const cx = Math.cos(face), sy = Math.sin(face);
-    if (Math.abs(cx) >= 0.5) return { dir: 'side', flip: cx < 0 };
-    return { dir: sy > 0 ? 'down' : 'up', flip: false };
-  }
+  // Figures are only ever drawn facing the camera or away from it: turning left/right is shown with the body and
+  // feet (a foot rolling the ball out to that side), never by swinging the whole figure into side profile.
+  function dirOf(face) { return { dir: Math.sin(face) < 0 ? 'up' : 'down', flip: false }; }
 
   // ------------------------------------------------------------ animation
   // Every figure keeps a blended pose. Each frame the state of the player gives a target pose and the drawn pose
@@ -194,11 +192,11 @@
   }
   // which of the three drawn views shows this facing; a little hysteresis stops it flickering on the boundary
   function viewDir(A, face) {
-    const cx = Math.cos(face), sy = Math.sin(face), was = A.dir, wf = A.flip;
-    if (A.dir === 'side' ? Math.abs(cx) < 0.4 : Math.abs(cx) > 0.6) A.dir = Math.abs(cx) > 0.5 ? 'side' : sy > 0 ? 'down' : 'up';
-    else if (A.dir !== 'side') A.dir = sy > 0 ? 'down' : 'up';
-    if (A.dir === 'side') A.flip = cx < 0; else A.flip = false;
-    if (A.init && (A.dir !== was || A.flip !== wf)) A.pop = 1;
+    const sy = Math.sin(face), was = A.dir;
+    let d = was === 'up' || was === 'down' ? was : 'down';
+    if (sy > 0.25) d = 'down'; else if (sy < -0.25) d = 'up';
+    A.dir = d; A.flip = false;
+    if (A.init && A.dir !== was) A.pop = 1;
   }
   // the stride: thighs swing, the knee folds as the leg comes through, arms counter-swing. amp 0..1.2, k = sprint 0..1
   function stride(T, ph, amp, k) {
@@ -266,6 +264,15 @@
     } else if (sp > 18) {
       const amp = clamp(sp / (p.jog || 150), 0.3, 1.2), k = clamp((sp - (p.jog || 150)) / ((p.top || 250) - (p.jog || 150) || 1), 0, 1);
       stride(T, p.runPh || 0, amp, k);
+      // moving left/right: no side-on stride. The body stays square to the camera, one foot pushes the ball out to
+      // that side and comes back while the other leg stays planted
+      const lat = p.vx / sp, m = clamp((Math.abs(lat) - 0.3) / 0.4, 0, 1);
+      if (m > 0) {
+        const sg = Math.sign(lat), dl = sg > 0 ? '2' : '1', pl = sg > 0 ? '1' : '2', pulse = Math.max(0, Math.sin(p.runPh || 0));
+        for (const key of ['t1', 'k1', 't2', 'k2', 's1', 's2']) T[key] *= 1 - 0.7 * m;
+        T['sw' + dl] = sg * 7 * pulse * m; T['sw' + pl] = -sg * 1.2 * pulse * m;
+        T['k' + dl] += 0.4 * pulse * m; T.tilt = sg * 0.09 * m; T.lean = (T.lean || 0) * (1 - 0.6 * m);
+      }
       o.rate = 34;
     } else {
       const br = Math.sin(fx.t * 2.4);

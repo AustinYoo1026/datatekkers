@@ -154,11 +154,12 @@
   //   t1 k1 t2 k2   thigh angle (rad, + = forward) and knee bend (rad) of each leg
   //   s1 e1 s2 e2   shoulder swing (+ = forward) and elbow bend of each arm;  ab = arms held out sideways
   //   armsUp 0..1   arms raised overhead;  lean = torso pitch (+ = forward);  tilt = roll to the side
+  //   sw1 sw2       a foot swept sideways on screen (px, + = right) - the front/back view's way of rolling the ball with one foot
   //   spread        feet apart (px);  air = height off the ground (px);  rot = whole-body rotation (lying down)
   // The legs are solved in the body's own side-on plane and the lower foot is put on the ground, so the hips rise and
   // fall with the stride instead of the feet sliding. The same solution is then drawn side-on, or from the front / back.
   const THIGH = 7.9, SHIN = 7.9, UARM = 5.3, FARM = 5.1, DZ = 0.42;
-  const REST = { t1: 0, k1: 0, t2: 0, k2: 0, s1: 0, e1: 0.2, s2: 0, e2: 0.2, ab: 0, armsUp: 0, lean: 0, tilt: 0, spread: 0, air: 0, rot: 0, bob: 0 };
+  const REST = { t1: 0, k1: 0, t2: 0, k2: 0, s1: 0, e1: 0.2, s2: 0, e2: 0.2, ab: 0, armsUp: 0, lean: 0, tilt: 0, spread: 0, air: 0, rot: 0, bob: 0, sw1: 0, sw2: 0 };
   const POSE_KEYS = Object.keys(REST);
   function legFK(t, k) {      // forward offset and drop below the hip of the knee and the foot
     const kf = Math.sin(t) * THIGH, kd = Math.cos(t) * THIGH;
@@ -231,7 +232,8 @@
     } else {
       const s = dir === 'up' ? -1 : 1, tw = 12.5 * w, hy = -hip;
       const leg = (F, sg) => {
-        const hx = sg * (3.3 * w + spr * 0.35), fx = sg * (3.3 * w + spr), kx = (hx + fx) / 2 + sg * Math.max(0, F.kf - F.ff) * 0.12;
+        const sw = sg < 0 ? g('sw1') : g('sw2');
+        const hx = sg * (3.3 * w + spr * 0.35), fx = sg * (3.3 * w + spr) + sw, kx = (hx + fx) / 2 + sg * Math.max(0, F.kf - F.ff) * 0.12;
         const ky = hy + F.kd + s * F.kf * DZ, fy = hy + F.fd + s * F.ff * DZ;
         limb2(c, hx, hy, kx, ky, fx, fy, lw, 3.9, skin, sock);
         bootFront(c, fx, fy, s * F.ff >= 0, boot);
