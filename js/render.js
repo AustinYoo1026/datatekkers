@@ -249,6 +249,11 @@
       else if (id === 'nutmeg' && u < 0.35) Object.assign(T, { t1: 1.1, k1: 0.1, t2: -0.4, k2: 0.5, lean: 0.1 });
       else stride(T, p.runPh || 0, 0.9, 0);
       o.dx = lx * (s.lean || 0) * 2.5; o.dy = ly * (s.lean || 0) * 2.5;
+    } else if (p.fakeT > 0) {               // fake shot: the foot on the ball's side drags it across to the other side
+      const u = sm(1 - p.fakeT / 0.4), dg = p.fakeDrag || 1, dl = dg > 0 ? '1' : '2', pl = dg > 0 ? '2' : '1';
+      Object.assign(T, { t1: 0.1, k1: 0.2, t2: 0.1, k2: 0.2, s1: 0.2, s2: -0.2, ab: 0.3, lean: 0.06, tilt: dg * 0.1 * Math.sin(u * Math.PI) });
+      T['sw' + dl] = dg * 7 * lerp(-1, 1, u); T['sw' + pl] = 0; T['k' + dl] = 0.45 * Math.sin(u * Math.PI);
+      o.rate = 40;
     } else if (p.kickT > 0) {               // the strike: back-swing through the ball into the follow-through
       const k = 1 - p.kickT / 0.3, a = k / 0.3;
       Object.assign(T, k < 0.3 ? { t1: lerp(-0.95, 1.4, sm(a)), k1: lerp(1.3, 0.05, a), lean: 0.1 } : { t1: lerp(1.4, 0.5, (k - 0.3) / 0.7), k1: 0.15, lean: -0.12 });
@@ -264,14 +269,14 @@
     } else if (sp > 18) {
       const amp = clamp(sp / (p.jog || 150), 0.3, 1.2), k = clamp((sp - (p.jog || 150)) / ((p.top || 250) - (p.jog || 150) || 1), 0, 1);
       stride(T, p.runPh || 0, amp, k);
-      // moving left/right: no side-on stride. The body stays square to the camera, one foot pushes the ball out to
-      // that side and comes back while the other leg stays planted
+      // moving left/right: no side-on stride. The body stays square to the camera; the ball sits on the far side and the
+      // opposite foot drags it across, while the other leg stays planted
       const lat = p.vx / sp, m = clamp((Math.abs(lat) - 0.3) / 0.4, 0, 1);
       if (m > 0) {
-        const sg = Math.sign(lat), dl = sg > 0 ? '2' : '1', pl = sg > 0 ? '1' : '2', pulse = Math.max(0, Math.sin(p.runPh || 0));
+        const sg = Math.sign(lat), dl = sg > 0 ? '1' : '2', pl = sg > 0 ? '2' : '1', ph = p.runPh || 0;
         for (const key of ['t1', 'k1', 't2', 'k2', 's1', 's2']) T[key] *= 1 - 0.7 * m;
-        T['sw' + dl] = sg * 7 * pulse * m; T['sw' + pl] = -sg * 1.2 * pulse * m;
-        T['k' + dl] += 0.4 * pulse * m; T.tilt = sg * 0.09 * m; T.lean = (T.lean || 0) * (1 - 0.6 * m);
+        T['sw' + dl] = sg * (-4 + 2.2 * (1 + Math.sin(ph))) * m; T['sw' + pl] = 0;
+        T['k' + dl] += 0.4 * Math.max(0, Math.cos(ph)) * m; T.tilt = sg * 0.09 * m; T.lean = (T.lean || 0) * (1 - 0.6 * m);
       }
       o.rate = 34;
     } else {
