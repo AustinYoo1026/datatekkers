@@ -1,6 +1,6 @@
 # ISO Football
 
-**Beta 2.4** — attacker and defender roles, a real defensive toolkit, tougher keepers
+**Beta 2.41** — attacker and defender roles, a real defensive toolkit, tougher keepers
 
 A 2D, top-down, 1v1 football game for the browser (online 2v2 too). Every rep is a rebound drill with the goal at the top of the screen: the attacker starts 10 yards outside the 18-yard box, in the centre, with the defender in front. Score, win the rebound, clear it outside the box, repeat. First to three wins a match (five in the rebound drill). No build step and no dependencies: open `index.html`.
 
