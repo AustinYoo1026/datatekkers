@@ -10,6 +10,7 @@
     mode: 'cpu',              // cpu | drill (one player, no opponent: see App.drill) | career (MyCareer ladder) | online (1v1 on the server)
     drill: 'arena',           // arena (free practice) | penalty | target | chip
     diff: 'normal',
+    rain: false,              // prematch weather: play the match in the rain
     pick: [ISO.playerById('messi'), ISO.playerById('ronaldo')],
     side: 0,                  // which side the selection grid is picking for
     paused: false,
@@ -38,6 +39,7 @@
     App.kits = kits;
     App.G = ISO.Game.create({ home, away, roster: defs, kickoff: App.kickoffFlip, solo: !quiet && App.mode === 'drill', drill: !quiet && App.mode === 'drill' ? App.drill : null, win: quiet ? 0 : App.matchWin,
       walls: !quiet && App.mode !== 'online' && !!(ISO.mapById(ISO.Profile.data.map).walls),      // futsal courts: the ball bounces off the walls (offline only)
+      rain: !quiet && App.mode === 'cpu' && !takers && !!App.rain,
       replay: !quiet, takers: takers || null,          // goals in a match are replayed; the menu demo and the drills play straight on
       keeperNerf: quiet ? 0 : ({ easy: 16, normal: 0, hard: -6 }[App.matchDiff] || 0),
       moves: ctrl.map((c) => (c === 'human' ? ISO.Profile.moveSet() : null)) });      // you can only use the skill moves you have unlocked
@@ -233,6 +235,8 @@
     $('selReward').innerHTML = 'WIN BONUS <b>×' + wm.total + '</b><small>' + (App.pick[1].ovr - me.ovr > 0 ? '+' : '') + (App.pick[1].ovr - me.ovr) + ' OVR GAP</small>';
     $('selKick').textContent = online ? 'CONFIRM ›' : 'START ›';
     $('diffSeg').classList.toggle('hidden', online);
+    $('weatherSeg').classList.toggle('hidden', online || arena);
+    $('segWx-clear').classList.toggle('on', !App.rain); $('segWx-rain').classList.toggle('on', !!App.rain);
     $('diffSeg').querySelector('.seg-label').textContent = arena ? 'KEEPER' : 'CPU';
     $('sideSeg').classList.toggle('hidden', arena);
     $('panel1').style.visibility = arena ? 'hidden' : '';
@@ -369,6 +373,8 @@
     'side-0': () => { App.side = 0; App.touched = true; renderSelect(); },
     'side-1': () => { App.side = 1; App.touched = true; renderSelect(); },
     'random': () => { const P = ISO.PLAYERS; App.pick[App.side] = P[(Math.random() * P.length) | 0]; renderSelect(); },
+    'wx-clear': () => { App.rain = false; renderSelect(); },
+    'wx-rain': () => { App.rain = true; renderSelect(); },
     'diff-easy': () => { App.diff = 'easy'; renderSelect(); },
     'diff-normal': () => { App.diff = 'normal'; renderSelect(); },
     'diff-hard': () => { App.diff = 'hard'; renderSelect(); },
@@ -513,7 +519,7 @@
       }
     }
     const ST = ISO.Profile.data.settings;
-    App.V.cam = !App.demo && (ST.camera === 'cinematic' || (App.mode === 'drill' && ['chip', 'freekick', 'oneonone', 'longshot', 'finesse'].includes(App.drill))) ? 'cinematic' : 'classic';
+    App.V.cam = !App.demo && (App.mode === 'drill' && ['chip', 'freekick', 'oneonone', 'longshot', 'finesse'].includes(App.drill)) ? 'cinematic' : 'classic';
     App.V.aim = App.screen === 'match' && !App.paused && !App.demo && ST.mouseAim && ST.reticle ? mouseCanvas() : null;
     ctx.setTransform(App.ratio, 0, 0, App.ratio, 0, 0);
     // drawn part-way between the last two simulation steps, so motion is even on any display rate (see smooth.js)

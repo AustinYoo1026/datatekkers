@@ -791,7 +791,9 @@
       let lowS = 0;
       for (let i = 0; i < GP.length; i++) { const p = GP[i]; v3.set(p[1] * h, p[2] * h, p[3] * h); p[0].localToWorld(v3); const y = v3.y - p[4] * h; if (y < lowS) lowS = y; }
       if (lowS < 0) bn.root.position.y -= lowS;
+      const clothSnap = !st.init;
       st.init = true;
+      if (actor.updateCloth) { try { actor.updateCloth(dt, clothSnap); } catch (e) { /* cloth never kills the pose */ } }
     }
 
     // the striking boot to a ball at (cx, cy, cz) (world): the ankle behind the ball on the line from the player, the instep at about its centre.

@@ -87,7 +87,7 @@
     return {
       credits: 300, owned: STARTERS.slice(), claimed: {}, pity: 0, career: null,
       skins: {}, equip: {}, prime: {}, moves: [], maps: ['stadium'], map: 'stadium', balls: [], ball: 'classic',      // store purchases
-      settings: { volume: 0.8, muted: false, crowd: true, speed: 0.75, mouseAim: false, reticle: true, camera: 'classic', hint: true, diff: 'normal', keys: null,
+      settings: { volume: 0.8, muted: false, crowd: true, speed: 0.75, mouseAim: false, reticle: true, camera: 'classic', hint: true, weather: true, diff: 'normal', keys: null,
         admin: { unlocked: false, allChars: false, allAch: false, infCredits: false } },
       stats: { matches: 0, wins: 0, goals: 0, powerGoals: 0, skills: 0, clears: 0, cleanSheets: 0, hardWins: 0,
         boxes: 0, careerWins: 0, careerDone: 0, arenaGoals: 0, iconPulls: 0, drillRuns: 0 },
@@ -313,7 +313,7 @@
     const [a, b] = CAREER_KITS[C.kit % CAREER_KITS.length];
     return {
       id: 'you' + C.look + '_' + C.kit, name: C.name, short: C.name, nat: 'YOU', flag: '⭐', club: 'MyCareer', era: 'modern',
-      ovr: careerOvr(C.attr), foot: 'R', num: 10, attr: Object.assign({}, C.attr), look,
+      ovr: careerOvr(C.attr), foot: 'R', num: C.num == null ? 10 : C.num, attr: Object.assign({}, C.attr), look,
       kit: { a, b, pat: 'cstripe', shorts: b, socks: a },
     };
   }
@@ -344,6 +344,8 @@
   const careerDiff = (stage) => (stage < 6 ? 'easy' : stage < 14 ? 'normal' : 'hard');
   function resetCareer() { P.career = newCareer(); save(); }
   function cycleLook(d) { P.career.look = (P.career.look + d + CAREER_LOOKS.length) % CAREER_LOOKS.length; save(); }
+  function setCareerName(v) { P.career.name = String(v || '').replace(/[^\w .'-]/g, '').trim().toUpperCase().slice(0, 12) || 'YOU'; save(); return P.career.name; }
+  function setCareerNum(v) { const n = Math.max(0, Math.min(99, parseInt(v, 10))); P.career.num = Number.isFinite(n) ? n : 10; save(); return P.career.num; }
   function cycleKit(d) { P.career.kit = (P.career.kit + d + CAREER_KITS.length) % CAREER_KITS.length; save(); }
 
   load();
@@ -356,7 +358,7 @@
     setAdmin(k, v) { P.settings.admin[k] = v; save(); },
     adminLogin(pw) { if (pw === 'datatekkers') { P.settings.admin.unlocked = true; save(); return true; } return false; },
     adminLogout() { P.settings.admin.unlocked = false; save(); },
-    ATTR_MIN, careerDef, careerOpponent, careerDiff, upgrade, upgradeCost, setAttr, reach, resetCareer, cycleLook, cycleKit, careerOvr,
+    ATTR_MIN, careerDef, careerOpponent, careerDiff, upgrade, upgradeCost, setAttr, reach, resetCareer, cycleLook, cycleKit, setCareerName, setCareerNum, careerOvr,
     reset() { const st = P.settings; P = fresh(); P.career = newCareer(); P.settings = st; save(); },
   };
 })();

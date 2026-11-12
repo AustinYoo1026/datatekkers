@@ -1,6 +1,6 @@
 /* ISO FOOTBALL 3D — procedural footballer / goalkeeper.
    A rigid-segment character (no skinning): every bone is an Object3D, every body segment a low-poly mesh parented to its
-   bone. 16 meshes per character (the whole head - skull, face, hair, brows, beard, headband - is one vertex-coloured
+   bone. 21 meshes per character (the whole head - skull, face, hair, brows, beard, headband - is one vertex-coloured
    mesh), all geometries / materials / textures shared through a cache keyed by size and colour.
 
    ISO.R3D.Player.create(THREE, spec) -> actor
@@ -24,7 +24,7 @@
     pelvis: 0.96, hipX: 0.10, hipY: -0.02, thigh: 0.44, shin: 0.42, ankle: 0.08, footL: 0.26, footH: 0.08,
     spine: 0.08, abd: 0.14, chest: 0.30, neck: 0.08, headR: 0.125, shX: 0.215, shY: 0.26, uarm: 0.29, farm: 0.26,
   };
-  const FACE = { long: [0.92, 1.12, 1.0], narrow: [0.88, 1.04, 0.97], oval: [0.95, 1.05, 1.0], round: [1.05, 0.98, 1.03], square: [1.0, 1.0, 1.0], wide: [1.1, 0.96, 1.03] };
+  const FACE = { sharp: [0.9, 1.1, 0.97], long: [0.92, 1.12, 1.0], narrow: [0.88, 1.04, 0.97], oval: [0.95, 1.05, 1.0], round: [1.05, 0.98, 1.03], square: [1.0, 1.0, 1.0], wide: [1.1, 0.96, 1.03] };
   const KEEPER_SCALE = 1.25;
   const DEF_SKIN = '#e8bd95', DEF_HAIR = '#2a1e16', DEF_BOOT = '#17171b', GLOVE = '#f2f4f6';
 
@@ -53,6 +53,7 @@
 
   // plain colour material, or a textured one
   function matCol(hex) { return cached(MAT, 'c' + hex, () => new T3.MeshStandardMaterial({ color: hex, roughness: 0.8, metalness: 0 })); }
+  function matCloth(hex) { return cached(MAT, 'd' + hex, () => new T3.MeshStandardMaterial({ color: hex, roughness: 0.85, metalness: 0, side: T3.DoubleSide })); }
   function matTex(key, paint, w, h) {
     return cached(MAT, 't' + key, () => {
       const tex = cached(TEX, key, () => { const cv = canvas(w, h); const c = cv.getContext('2d'); if (c) paint(c, w, h); return canvasTex(cv); });
@@ -62,15 +63,17 @@
   function matVC() { return cached(MAT, 'vc', () => new T3.MeshStandardMaterial({ vertexColors: true, roughness: 0.75, metalness: 0 })); }
 
   // a limb texture: colour bands along v (0 = bottom of the segment, 1 = top)
-  function bands(list) {
-    const key = 'b' + list.join(',');
-    return matTex(key, (c, w, h) => {
+  function bands(list, dbl) {
+    const key = 'b' + list.join(',') + (dbl ? '|d' : '');
+    const m = matTex(key, (c, w, h) => {
       for (let i = 0; i < list.length; i += 3) { c.fillStyle = list[i + 2]; const y0 = Math.round((1 - list[i + 1]) * h), y1 = Math.round((1 - list[i]) * h); c.fillRect(0, y0, w, Math.max(1, y1 - y0)); }
     }, 4, 64);
+    if (dbl) m.side = T3.DoubleSide;
+    return m;
   }
 
   // ------------------------------------------------------------------ kit texture (torso) — all 10 patterns, number + name on the back
-  // u 0..0.5 = front (centre at 0.25), 0.5..1 = back (centre at 0.75); v 1 = shoulders, the bottom 30% is the abdomen.
+  // u 0..0.5 = front (centre at 0.25), 0.5..1 = back (centre at 0.75); v 1 = shoulders, the bottom 38% is the abdomen.
   function kitFill(c, kit, x, y, w, h, u) {
     c.fillStyle = kit.a; c.fillRect(x, y, w, h);
     c.fillStyle = kit.b;
@@ -92,7 +95,7 @@
   }
   function kitMat(kit, num, name, keeper) {
     const key = 'k' + [kit.a, kit.b, kit.pat, num, name, keeper ? 1 : 0].join('|');
-    return matTex(key, (c, W, H) => {
+    const km = matTex(key, (c, W, H) => {
       const u = W / 18;
       kitFill(c, kit, 0, 0, W / 2, H, u);
       kitFill(c, kit, W / 2, 0, W / 2, H, u);
@@ -118,20 +121,23 @@
       c.fillStyle = ink; c.beginPath(); if (c.arc) c.arc(W * 0.31, H * 0.2, H * 0.03, 0, PI * 2); c.fill();
       c.fillStyle = kit.b === kit.a ? '#ffffff' : kit.b; c.beginPath(); if (c.arc) c.arc(W * 0.19, H * 0.2, H * 0.028, 0, PI * 2); c.fill();
     }, 256, 256);
+    km.side = T3.DoubleSide;
+    return km;
   }
 
   // ------------------------------------------------------------------ geometry helpers
-  function lathe(key, pts, flatZ, v0, v1) {
-    return cached(GEO, key, () => {
-      const P = pts.map((p) => new T3.Vector2(p[0], p[1]));
-      const g = new T3.LatheGeometry(P, 14, -PI / 2, PI * 2);
-      g.scale(1, 1, flatZ);
-      const uv = g.attributes.uv;
-      for (let i = 0; i < uv.count; i++) uv.setY(i, v0 + uv.getY(i) * (v1 - v0));
-      g.computeVertexNormals();
-      return g;
-    });
+  function latheRaw(pts, flatZ, v0, v1, sx, ox) {
+    const P = pts.map((p) => new T3.Vector2(p[0], p[1]));
+    const g = new T3.LatheGeometry(P, NR, -PI / 2, PI * 2);
+    g.scale(1, 1, flatZ);
+    if (sx && sx !== 1) g.scale(sx, 1, 1);
+    if (ox) g.translate(ox, 0, 0);
+    const uv = g.attributes.uv;
+    for (let i = 0; i < uv.count; i++) uv.setY(i, v0 + uv.getY(i) * (v1 - v0));
+    g.computeVertexNormals();
+    return g;
   }
+  function lathe(key, pts, flatZ, v0, v1) { return cached(GEO, key, () => latheRaw(pts, flatZ, v0, v1)); }
   function capsule(r, len, cy) { return cached(GEO, 'cap' + r + ',' + len + ',' + cy, () => { const g = new T3.CapsuleGeometry(r, len, 2, 7); g.translate(0, cy, 0); return g; }); }
   function box(w, h, d, x, y, z) { return cached(GEO, 'box' + [w, h, d, x, y, z].join(','), () => { const g = new T3.BoxGeometry(w, h, d); g.translate(x, y, z); return g; }); }
   function cyl(rt, rb, h, y, seg) { return cached(GEO, 'cyl' + [rt, rb, h, y, seg].join(','), () => { const g = new T3.CylinderGeometry(rt, rb, h, seg || 10); g.translate(0, y, 0); return g; }); }
@@ -193,15 +199,21 @@
     const fp = FACE[L.face] || FACE.oval, vol = L.vol || 1, band = hexOk(L.band, null);
     const key = ['h', skin, hair, hair2, style, beard, beardCol, brow, L.face || '', vol, band || ''].join('|');
     return cached(GEO, key, () => {
-      const R = B.headR, cy = 0.12, fx = fp[0], fy = fp[1], fz = fp[2], parts = [];
+      const R = B.headR, cy = 0.12, fx = fp[0], fy = fp[1], fz = fp[2], parts = [], locks = [];
+      let cur = parts;     // where cube / blob / shell put their geometry: the head, or a swinging hair lock
+      const lock = (pv, fn) => { const sv = cur; cur = []; fn(); const lg = merge(cur); lg.translate(-pv[0], -pv[1], -pv[2]); locks.push({ geo: lg, pivot: pv }); cur = sv; };
       const at = (g, x, y, z) => { g.translate(x, cy + y, z); return g; };
-      const shell = (k, ts, tl, tilt, col, sx, ps, pl) => { const g = part(parts, SPH(R * k, 12, 5, ps || 0, pl || PI * 2, ts || 0, tl), col); g.scale(fx * (sx || 1), fy, fz); if (tilt) g.rotateX(-tilt); at(g, 0, 0, 0); return g; };
-      const blob = (r, x, y, z, sx, sy, sz, col) => { const g = part(parts, SPH(r, r > 0.05 ? 7 : 5, r > 0.05 ? 5 : 4), col); g.scale(sx || 1, sy || 1, sz || 1); at(g, x * fx, y, z * fz); return g; };
-      const cube = (w, h, d, x, y, z, col, rx) => { const g = part(parts, new T3.BoxGeometry(w, h, d), col); if (rx) g.rotateX(rx); at(g, x, y, z); return g; };
+      const shell = (k, ts, tl, tilt, col, sx, ps, pl) => { const g = part(cur, SPH(R * k, 12, 5, ps || 0, pl || PI * 2, ts || 0, tl), col); g.scale(fx * (sx || 1), fy, fz); if (tilt) g.rotateX(-tilt); at(g, 0, 0, 0); return g; };
+      const blob = (r, x, y, z, sx, sy, sz, col) => { const g = part(cur, SPH(r, r > 0.05 ? 7 : 5, r > 0.05 ? 5 : 4), col); g.scale(sx || 1, sy || 1, sz || 1); at(g, x * fx, y, z * fz); return g; };
+      const cube = (w, h, d, x, y, z, col, rx) => { const g = part(cur, new T3.BoxGeometry(w, h, d), col); if (rx) g.rotateX(rx); at(g, x, y, z); return g; };
       const dark = mix(skin, '#000000', 0.18), lip = mix(skin, '#6a2a2a', 0.35);
       // skull + jaw, nose, ears, eyes, mouth
       { const g = part(parts, SPH(R, 14, 10), skin); g.scale(fx, fy, fz); at(g, 0, 0, 0); }
       if (L.face === 'square' || L.face === 'wide') cube(0.17 * fx, 0.07, 0.15 * fz, 0, -0.075, 0.015, skin);
+      else if (L.face === 'sharp') {   // long pointed chin: a tapered wedge below the jaw
+        blob(0.075, 0, -0.085, 0.02, 0.95 * fx, 0.8, 1.0, skin);
+        const g = part(parts, new T3.ConeGeometry(0.06, 0.12, 6), skin); g.rotateX(PI); g.scale(0.9 * fx, 1, 0.8 * fz); at(g, 0, -0.17, 0.04 * fz);
+      }
       else blob(0.085, 0, -0.07, 0.025, 1.05 * fx, 0.7, 1.05, skin);
       cube(0.032, 0.05, 0.045, 0, -0.012, R * fz * 0.97, dark, -0.25);
       blob(0.028, 0.122, -0.005, -0.005, 0.45, 1, 0.8, dark); blob(0.028, -0.122, -0.005, -0.005, 0.45, 1, 0.8, dark);
@@ -229,16 +241,18 @@
         case 'mop': shell(1.12, 0, 0.66 * PI, 0.12, hair); break;
         case 'long': {
           shell(1.08, 0, 0.55 * PI, 0.28, hair);
-          cube(0.25 * fx, 0.26, 0.07, 0, -0.07, -0.1 * fz, hair2, 0.12);
-          cube(0.05, 0.2, 0.09, 0.115 * fx, -0.05, -0.04, hair); cube(0.05, 0.2, 0.09, -0.115 * fx, -0.05, -0.04, hair);
+          lock([0, cy + 0.07, -0.08 * fz], () => {
+            cube(0.25 * fx, 0.26, 0.07, 0, -0.07, -0.1 * fz, hair2, 0.12);
+            cube(0.05, 0.2, 0.09, 0.115 * fx, -0.05, -0.04, hair); cube(0.05, 0.2, 0.09, -0.115 * fx, -0.05, -0.04, hair);
+          });
           break;
         }
         case 'braids': {
           shell(1.05, 0, 0.5 * PI, 0.3, hair);
-          for (let i = 0; i < 7; i++) { const a = -0.9 + (i / 6) * 1.8; const g = part(parts, new T3.CylinderGeometry(0.012, 0.012, 0.22, 4), hair2); g.translate(Math.sin(a) * 0.11 * fx, cy - 0.06, -Math.cos(a) * 0.1 * fz); }
+          lock([0, cy + 0.04, -0.09 * fz], () => { for (let i = 0; i < 7; i++) { const a = -0.9 + (i / 6) * 1.8; const g = part(cur, new T3.CylinderGeometry(0.012, 0.012, 0.22, 4), hair2); g.translate(Math.sin(a) * 0.11 * fx, cy - 0.06, -Math.cos(a) * 0.1 * fz); } });
           break;
         }
-        case 'bun': shell(1.06, 0, capH, 0.4, hair); blob(0.055, 0, 0.1, -0.12, 1, 1, 1, hair); break;
+        case 'bun': shell(1.06, 0, capH, 0.4, hair); lock([0, cy + 0.1, -0.1 * fz], () => blob(0.055, 0, 0.1, -0.12, 1, 1, 1, hair)); break;
         case 'mohawk': shell(1.02, 0, 0.42 * PI, 0.3, mix(hair2 === hair ? hair : hair2, skin, 0.3)); cube(0.04, 0.075, 0.25 * fz, 0, 0.13, -0.005, hair, 0.05); break;
         case 'tuft': shell(1.015, 0, 0.4 * PI, 0.3, mix(hair, skin, 0.4)); cube(0.05, 0.05, 0.06, 0, 0.13, 0.07, hair, -0.3); break;
         case 'balding': { const g = part(parts, new T3.CylinderGeometry(R * 1.04, R * 1.02, 0.075, 14, 1, true, PI * 0.3, PI * 1.4), hair); g.scale(fx, 1, fz); g.translate(0, cy + 0.01, -0.01); break; }
@@ -256,8 +270,129 @@
         else if (beard === 'chinstrap') full(1.04, 0.72 * PI, 0.13 * PI, beardCol);
         else full(1.04, 0.56 * PI, 0.36 * PI, beardCol);
       }
-      return merge(parts);
+      const hg = merge(parts); hg.userData.locks = locks; return hg;
     });
+  }
+
+
+  // ------------------------------------------------------------------ cloth: hem rings of shirt / shorts / sleeves follow their bones on springs
+  const CK = { shirt: [300, 12, 0.075], shorts: [380, 13, 0.06], sleeve: [420, 14, 0.024] };
+  const AIR = 1.4, GRAV = 8.8, FLUT = 0.0016, NR = 24;
+  let SC = null;
+  function scratch() { if (!SC) SC = { a: new T3.Vector3(), b: new T3.Vector3(), inv: new T3.Matrix4() }; return SC; }
+  function stepCloth(actor, c, dt, snapIn, clock) {
+    const S = scratch(), m = c.mesh.matrixWorld, np = c.np, nPts = c.nPts, ring = np > 1;
+    const P = c.P, V = c.V, Tp = c.Tp, Tg = c.Tg, D = c.D, N = c.N, rest = c.rest, tmp = c.tmp, a = S.a, b = S.b;
+    for (let p = 0; p < np; p++) {
+      const i = p * 3;
+      if (ring) { const r = p * nPts * 3; a.set(rest[r], rest[r + 1], rest[r + 2]); } else a.set(c.rc[0], c.rc[1], c.rc[2]);
+      a.applyMatrix4(m); Tg[i] = a.x; Tg[i + 1] = a.y; Tg[i + 2] = a.z;
+      b.set(c.nl[i], c.nl[i + 1], c.nl[i + 2]).transformDirection(m); N[i] = b.x; N[i + 1] = b.y; N[i + 2] = b.z;
+    }
+    let snap = snapIn || !c.init || !(dt > 0) || dt > 0.05;
+    if (!snap) for (let p = 0; p < np; p++) { const i = p * 3, dx = P[i] - Tg[i], dy = P[i + 1] - Tg[i + 1], dz = P[i + 2] - Tg[i + 2]; if (dx * dx + dy * dy + dz * dz > 0.1225) { snap = true; break; } }
+    c.init = true;
+    if (snap) {
+      for (let i = 0; i < np * 3; i++) { P[i] = Tp[i] = Tg[i]; V[i] = 0; D[i] = 0; }
+    } else {
+      const K = c.K, C = c.C, n = dt > 0.02 ? 2 : 1, hs = dt / n, id = 1 / dt;
+      for (let p = 0; p < np; p++) {
+        const i = p * 3;
+        const vx = (Tg[i] - Tp[i]) * id, vy = (Tg[i + 1] - Tp[i + 1]) * id, vz = (Tg[i + 2] - Tp[i + 2]) * id;
+        const fq = 11 + 4 * ((p * 0.618) % 1);
+        for (let s = 1; s <= n; s++) {
+          const f = s / n, fl = FLUT * Math.sqrt(vx * vx + vy * vy + vz * vz) * K * Math.sin(clock * 6.2832 * fq + c.phase);
+          for (let k = 0; k < 3; k++) {
+            const vt = k === 0 ? vx : k === 1 ? vy : vz, T = Tp[i + k] + (Tg[i + k] - Tp[i + k]) * f;
+            const ac = K * (T - P[i + k]) - C * (V[i + k] - vt) - AIR * V[i + k] + (k === 1 ? -GRAV : 0) + fl * N[i + k];
+            V[i + k] += ac * hs; P[i + k] += V[i + k] * hs;
+          }
+        }
+      }
+      for (let i = 0; i < np * 3; i++) Tp[i] = Tg[i];
+      // to local geometry space
+      const inv = S.inv.copy(m).invert();
+      for (let p = 0; p < np; p++) {
+        const i = p * 3, r = ring ? p * nPts * 3 : 0;
+        a.set(P[i], P[i + 1], P[i + 2]).applyMatrix4(inv);
+        const rx = ring ? rest[r] : c.rc[0], ry = ring ? rest[r + 1] : c.rc[1], rz = ring ? rest[r + 2] : c.rc[2];
+        D[i] = a.x - rx; D[i + 1] = a.y - ry; D[i + 2] = a.z - rz;
+      }
+      if (ring) {
+        for (let i = 0; i < np * 3; i++) tmp[i] = D[i];
+        for (let p = 0; p < np; p++) {
+          const q0 = ((p + np - 1) % np) * 3, q1 = ((p + 1) % np) * 3, i = p * 3;
+          for (let k = 0; k < 3; k++) D[i + k] = 0.5 * tmp[i + k] + 0.25 * (tmp[q0 + k] + tmp[q1 + k]);
+        }
+      }
+      const maxD = c.maxD;
+      for (let p = 0; p < np; p++) {
+        const i = p * 3;
+        const l = Math.sqrt(D[i] * D[i] + D[i + 1] * D[i + 1] + D[i + 2] * D[i + 2]);
+        if (l > maxD) { const s = maxD / l; D[i] *= s; D[i + 1] *= s; D[i + 2] *= s; }
+        if (D[i + 1] > 0.02) D[i + 1] = 0.02;
+      }
+      // collisions (local space)
+      if (c.kind !== 'sleeve') {
+        const bn = actor.bones, cap = c.cap;
+        for (let j = 0; j < 4; j++) {
+          const bb = j === 0 ? bn.thighL : j === 1 ? bn.shinL : j === 2 ? bn.thighR : bn.shinR;
+          b.setFromMatrixPosition(bb.matrixWorld).applyMatrix4(inv); cap[j * 3] = b.x; cap[j * 3 + 1] = b.y; cap[j * 3 + 2] = b.z;
+        }
+      }
+      for (let p = 0; p < np; p++) {
+        if (!ring) break;
+        const i = p * 3, r = p * nPts * 3;
+        let x = rest[r] + D[i], y = rest[r + 1] + D[i + 1], z = rest[r + 2] + D[i + 2], hit = false;
+        {
+          if (c.kind === 'shirt') { const q = (x / 0.166) * (x / 0.166) + (z / 0.124) * (z / 0.124); if (q < 1 && q > 1e-6) { const sc = 1 / Math.sqrt(q); x *= sc; z *= sc; hit = true; } }
+          const rad = c.kind === 'shorts' ? 0.105 : 0.125;
+          const cap = c.cap;
+          for (let j = 0; j < 2; j++) {
+            const o = j * 6, sx = cap[o + 3] - cap[o], sy = cap[o + 4] - cap[o + 1], sz = cap[o + 5] - cap[o + 2];
+            const px = x - cap[o], py = y - cap[o + 1], pz = z - cap[o + 2];
+            const ll = sx * sx + sy * sy + sz * sz;
+            let t = ll > 1e-9 ? (px * sx + py * sy + pz * sz) / ll : 0; t = t < 0 ? 0 : t > 1 ? 1 : t;
+            const dx = px - sx * t, dy = py - sy * t, dz = pz - sz * t, dd = Math.sqrt(dx * dx + dy * dy + dz * dz);
+            if (dd < rad && dd > 1e-6) { const s = rad / dd; x = cap[o] + sx * t + dx * s; y = cap[o + 1] + sy * t + dy * s; z = cap[o + 2] + sz * t + dz * s; hit = true; }
+          }
+        }
+        if (hit) { D[i] = x - rest[r]; D[i + 1] = y - rest[r + 1]; D[i + 2] = z - rest[r + 2]; V[i] *= 0.5; V[i + 1] *= 0.5; V[i + 2] *= 0.5; }
+      }
+      // keep the simulation on the constrained pose
+      for (let p = 0; p < np; p++) {
+        const i = p * 3, r = ring ? p * nPts * 3 : 0;
+        a.set((ring ? rest[r] : c.rc[0]) + D[i], (ring ? rest[r + 1] : c.rc[1]) + D[i + 1], (ring ? rest[r + 2] : c.rc[2]) + D[i + 2]).applyMatrix4(m);
+        P[i] = a.x; P[i + 1] = a.y; P[i + 2] = a.z;
+      }
+    }
+    // write the vertices (column 14 = column 0, so the seam stays shut)
+    const pos = c.geo.attributes.position, arr = pos.array, w = c.wRow;
+    for (let col = 0; col <= NR; col++) {
+      const p = ring ? col % NR : 0, i = p * 3;
+      for (let row = 0; row < nPts; row++) {
+        const o = (col * nPts + row) * 3, wr = w[row];
+        arr[o] = rest[o] + D[i] * wr; arr[o + 1] = rest[o + 1] + D[i + 1] * wr; arr[o + 2] = rest[o + 2] + D[i + 2] * wr;
+        if (!snap && ring && c.kind !== 'sleeve' && row < nPts - 1) {
+          const cap = c.cap, rad = c.kind === 'shorts' ? 0.098 : 0.115;
+          for (let j = 0; j < 2; j++) {
+            const q = j * 6, sx = cap[q + 3] - cap[q], sy = cap[q + 4] - cap[q + 1], sz = cap[q + 5] - cap[q + 2];
+            const px = arr[o] - cap[q], py = arr[o + 1] - cap[q + 1], pz = arr[o + 2] - cap[q + 2];
+            const ll = sx * sx + sy * sy + sz * sz;
+            let t = ll > 1e-9 ? (px * sx + py * sy + pz * sz) / ll : 0; t = t < 0 ? 0 : t > 1 ? 1 : t;
+            const dx = px - sx * t, dy = py - sy * t, dz = pz - sz * t, dd = Math.sqrt(dx * dx + dy * dy + dz * dz);
+            if (dd < rad && dd > 1e-6) { const k = rad / dd; arr[o] = cap[q] + sx * t + dx * k; arr[o + 1] = cap[q + 1] + sy * t + dy * k; arr[o + 2] = cap[q + 2] + sz * t + dz * k; }
+          }
+        }
+      }
+    }
+    pos.needsUpdate = true;
+    if (c.kind !== 'sleeve' && actor.clothNormals !== false) {
+      c.geo.computeVertexNormals();
+      const na = c.geo.attributes.normal, nr = na.array, e = NR * nPts * 3;
+      for (let row = 0; row < nPts; row++) { const o = row * 3; nr[e + o] = nr[o]; nr[e + o + 1] = nr[o + 1]; nr[e + o + 2] = nr[o + 2]; }
+      na.needsUpdate = true;
+    }
   }
 
   // ------------------------------------------------------------------ create
@@ -265,9 +400,10 @@
     'thighL', 'shinL', 'footL', 'thighR', 'shinR', 'footR'];
   const PARENT = { pelvis: 'root', spine: 'pelvis', chest: 'spine', neck: 'chest', head: 'neck', upperArmL: 'chest', foreArmL: 'upperArmL', handL: 'foreArmL',
     upperArmR: 'chest', foreArmR: 'upperArmR', handR: 'foreArmR', thighL: 'pelvis', shinL: 'thighL', footL: 'shinL', thighR: 'pelvis', shinR: 'thighR', footR: 'shinR' };
-  const MESHES = ['pelvis', 'abdomen', 'chest', 'neck', 'head', 'uarmL', 'farmL', 'handL', 'uarmR', 'farmR', 'handR', 'thighL', 'shinL', 'footL', 'thighR', 'shinR', 'footR'];
-  const MESH_BONE = { pelvis: 'pelvis', abdomen: 'spine', chest: 'chest', neck: 'neck', head: 'head', uarmL: 'upperArmL', farmL: 'foreArmL', handL: 'handL',
-    uarmR: 'upperArmR', farmR: 'foreArmR', handR: 'handR', thighL: 'thighL', shinL: 'shinL', footL: 'footL', thighR: 'thighR', shinR: 'shinR', footR: 'footR' };
+  const MESHES = ['pelvis', 'chest', 'neck', 'head', 'uarmL', 'farmL', 'handL', 'uarmR', 'farmR', 'handR', 'thighL', 'shinL', 'footL', 'thighR', 'shinR', 'footR', 'shortL', 'shortR', 'sleeveL', 'sleeveR'];
+  const MESH_BONE = { pelvis: 'pelvis', chest: 'chest', neck: 'neck', head: 'head', uarmL: 'upperArmL', farmL: 'foreArmL', handL: 'handL',
+    uarmR: 'upperArmR', farmR: 'foreArmR', handR: 'handR', thighL: 'thighL', shinL: 'shinL', footL: 'footL', thighR: 'thighR', shinR: 'shinR', footR: 'footR',
+    shortL: 'thighL', shortR: 'thighR', sleeveL: 'upperArmL', sleeveR: 'upperArmR' };
 
   function create(THREE, spec) {
     T3 = THREE;
@@ -284,10 +420,48 @@
       m.castShadow = true; m.receiveShadow = false; m.name = n;
       bones[MESH_BONE[n]].add(m); meshes[n] = m;
     }
-    const actor = { group, bones, meshes, rig: {}, spec: null, keeper: false, foot: 1, THREE, marker: null, setSpec, setMarker, dispose };
+    const actor = { group, bones, meshes, rig: {}, spec: null, keeper: false, foot: 1, THREE, marker: null, cloth: [], hair: [], clothClock: 0, clothNormals: true, setSpec, setMarker, updateCloth, dispose };
+
+    function disposeCloth() {
+      for (const c of actor.cloth) c.geo.dispose(); actor.cloth.length = 0;
+      for (const hm of actor.hair) { if (hm.mesh.parent) hm.mesh.parent.remove(hm.mesh); } actor.hair.length = 0;      // lock geometries are shared (cached with the head)
+    }
+    // hair locks: pendulums hung from the head. Each swings toward the effective gravity (gravity minus the head's acceleration) in head space.
+    const HQ = new THREE.Quaternion(), HV = new THREE.Vector3(), HG = new THREE.Vector3();
+    function updateHair(dt, snap) {
+      if (!actor.hair.length) return;
+      const hb = bones.head, ok = dt > 0 && dt <= 0.05 && !snap;
+      hb.getWorldQuaternion(HQ); HQ.invert();
+      for (const hm of actor.hair) {
+        hm.mesh.getWorldPosition(HV);
+        if (!ok || !hm.init) { hm.pw.copy(HV); hm.vw.set(0, 0, 0); hm.ax = hm.az = hm.vx = hm.vz = 0; hm.init = true; hm.mesh.rotation.set(0, 0, 0); continue; }
+        const ivx = (HV.x - hm.pw.x) / dt, ivy = (HV.y - hm.pw.y) / dt, ivz = (HV.z - hm.pw.z) / dt;
+        let ax = (ivx - hm.vw.x) / dt, ay = (ivy - hm.vw.y) / dt, az = (ivz - hm.vw.z) / dt;
+        const am = Math.hypot(ax, ay, az); if (am > 60) { const k = 60 / am; ax *= k; ay *= k; az *= k; }
+        hm.pw.copy(HV); hm.vw.set(ivx, ivy, ivz);
+        HG.set(-ax, -9.8 - ay, -az).applyQuaternion(HQ);       // effective gravity in head space
+        const ex = HG.x, ey = HG.y, ez = HG.z;
+        const tz = Math.max(-0.7, Math.min(0.7, Math.atan2(ex, -ey) * hm.k)), tx = Math.max(-0.7, Math.min(0.7, Math.atan2(-ez, -ey) * hm.k));
+        const n = dt > 0.02 ? 2 : 1, hs = dt / n;
+        for (let i = 0; i < n; i++) {
+          hm.vz += (196 * (tz - hm.az) - 9 * hm.vz) * hs; hm.az += hm.vz * hs;
+          hm.vx += (196 * (tx - hm.ax) - 9 * hm.vx) * hs; hm.ax += hm.vx * hs;
+        }
+        hm.mesh.rotation.set(hm.ax, 0, hm.az);
+      }
+    }
+    function updateCloth(dt, snap) {
+      if (!actor.cloth.length || !group.visible) return;
+      scratch();
+      group.updateMatrixWorld(true);
+      if (dt > 0 && dt <= 0.05) actor.clothClock += dt;
+      for (let i = 0; i < actor.cloth.length; i++) stepCloth(actor, actor.cloth[i], dt, snap, actor.clothClock);
+      updateHair(dt, snap);
+    }
 
     function setSpec(sp) {
       T3 = THREE;
+      disposeCloth();
       sp = sp || {};
       const def = sp.def || {}, L = def.look || {}, keeper = !!sp.keeper;
       const kit = sp.kit || def.kit || { a: '#cccccc', b: '#333333', pat: 'solid', shorts: '#333333', socks: '#cccccc' };
@@ -321,16 +495,41 @@
       const sleeve = k.pat === 'sleeves' ? k.b : k.a;
       const M = meshes, kitM = kitMat(k, def.num, keeper ? '' : (def.short || ''), keeper);
       const set = (n, g, m, sx, sy, sz) => { M[n].geometry = g; M[n].material = m; M[n].scale.set(sx, sy, sz); };
-      set('pelvis', lathe('pel', [[0.04, -0.17], [0.15, -0.15], [0.165, -0.08], [0.168, 0.0], [0.158, 0.07]], 0.72, 0, 1), matCol(k.shorts), w, h, w);
-      set('abdomen', lathe('abd', [[0.152, -0.02], [0.158, 0.06], [0.164, 0.15]], 0.64, 0, 0.3), kitM, w, h, w);
-      set('chest', lathe('chs', [[0.16, -0.01], [0.172, 0.1], [0.19, 0.2], [0.196, 0.25], [0.17, 0.29], [0.1, 0.315], [0.045, 0.32]], 0.62, 0.3, 1), kitM, w, h, w);
+      set('pelvis', lathe('pel2', [[0.04, -0.17], [0.14, -0.15], [0.158, -0.08], [0.160, 0.0], [0.150, 0.07]], 0.74, 0, 1), matCol(k.shorts), w, h, w);
+      // cloth garments: per-actor geometry (not in the cache) whose hem rings are simulated
+      let gi = 0;
+      const garment = (n, kind, bone, pts, flatZ, v0, v1, sx, ox, side, np, mat, pinRows) => {
+        if (kind !== 'sleeve') { const q = []; for (let i = 0; i < pts.length - 1; i++) { q.push(pts[i], [(pts[i][0] + pts[i + 1][0]) / 2, (pts[i][1] + pts[i + 1][1]) / 2]); } q.push(pts[pts.length - 1]); pinRows = 2 * pinRows - 1; pts = q; }
+        const g = latheRaw(pts, flatZ, v0, v1, sx, ox), nPts = pts.length;
+        g.computeBoundingSphere(); g.boundingSphere.radius += 0.1;
+        g.attributes.position.setUsage(THREE.DynamicDrawUsage);
+        set(n, g, mat, w, h, w);
+        const rest = new Float32Array(g.attributes.position.array), kc = CK[kind];
+        const wRow = new Float32Array(nPts);
+        for (let r = 0; r < nPts; r++) { const n0 = nPts - pinRows; wRow[r] = r >= n0 ? 0 : Math.pow((n0 - r) / n0, 1.6); }
+        const nl = new Float32Array(np * 3), rc = [0, 0, 0];
+        for (let p = 0; p < NR; p++) { const o = p * nPts * 3; rc[0] += rest[o] / NR; rc[1] += rest[o + 1] / NR; rc[2] += rest[o + 2] / NR; }
+        if (np > 1) for (let p = 0; p < NR; p++) { const o = p * nPts * 3, dx = rest[o] - rc[0], dz = rest[o + 2] - rc[2], l = Math.hypot(dx, dz) || 1; nl[p * 3] = dx / l; nl[p * 3 + 2] = dz / l; }
+        else nl[2] = 1;
+        actor.cloth.push({ mesh: M[n], bone, geo: g, rest, nPts, np, wRow, rc, nl, side, kind, K: kc[0], C: kc[1], maxD: kc[2], phase: gi++ * 1.7, init: false,
+          P: new Float32Array(np * 3), V: new Float32Array(np * 3), Tp: new Float32Array(np * 3), Tg: new Float32Array(np * 3), D: new Float32Array(np * 3), N: new Float32Array(np * 3),
+          tmp: new Float32Array(np * 3), cap: new Float32Array(12) });
+      };
+      garment('chest', 'shirt', 'chest', [[0.170, -0.275], [0.168, -0.21], [0.168, -0.14], [0.174, -0.07], [0.184, -0.01], [0.196, 0.10], [0.204, 0.20], [0.206, 0.25], [0.176, 0.29], [0.10, 0.315], [0.045, 0.32]], 0.70, 0, 1, 1, 0, 0, NR, kitM, 6);
       set('neck', cyl(0.052, 0.058, 0.12, 0.04, 8), matCol(skin), w, h, w);
-      set('head', headGeo(L), matVC(), h * 0.97, h * 0.97, h * 0.97);
+      const headG = headGeo(L);
+      set('head', headG, matVC(), h * 0.97, h * 0.97, h * 0.97);
+      for (const lk of (headG.userData.locks || [])) {
+        const m = new THREE.Mesh(lk.geo, matVC()); m.castShadow = true; m.name = 'hairlock';
+        m.position.set(lk.pivot[0] * h * 0.97, lk.pivot[1] * h * 0.97, lk.pivot[2] * h * 0.97); m.scale.setScalar(h * 0.97);
+        bones.head.add(m);
+        actor.hair.push({ mesh: m, k: 0.7, ax: 0, az: 0, vx: 0, vz: 0, pw: new THREE.Vector3(), vw: new THREE.Vector3(), init: false });
+      }
       // limbs: two-tone textures along the segment
-      const uarmM = keeper ? matCol(sleeve) : bands([0, 0.5, skin, 0.5, 1, sleeve, 0.5, 0.56, k.b]);
+      const uarmM = keeper ? matCol(sleeve) : matCol(skin);
       const farmM = keeper ? bands([0, 0.18, k.b, 0.18, 1, sleeve]) : matCol(skin);
-      const thighM = bands([0, 0.4, skin, 0.4, 1, k.shorts]);
-      const shinM = bands([0, 0.74, k.socks, 0.74, 0.8, k.b, 0.8, 1, skin]);
+      const thighM = matCol(skin);
+      const shinM = bands([0, 0.75, k.socks, 0.75, 1, skin]);
       const handG = keeper ? box(0.078, 0.13, 0.06, 0, -0.055, 0.005) : box(0.06, 0.1, 0.035, 0, -0.045, 0.005);
       const handM = keeper ? matCol(GLOVE) : matCol(skin);
       for (const s of ['L', 'R']) {
@@ -338,6 +537,10 @@
         set('farm' + s, capsule(keeper ? 0.046 : 0.041, 0.18, -0.125), farmM, w, h, w);
         set('hand' + s, handG, handM, w, h, w);
         set('thigh' + s, capsule(0.077, 0.3, -0.21), thighM, w, h, w);
+        const sd = s === 'L' ? 1 : -1;
+        garment('short' + s, 'shorts', 'thigh' + s, [[0.125, -0.27], [0.120, -0.20], [0.114, -0.12], [0.108, -0.04], [0.103, 0.02]], 1.0, 0, 1, 0.88, 0.012 * sd, sd, NR, matCloth(k.shorts), 1);
+        garment('sleeve' + s, 'sleeve', 'upperArm' + s, [[0.080, -0.155], [0.076, -0.10], [0.071, -0.04], [0.064, 0.005], [0.040, 0.032], [0.0, 0.04]], 1.0, 0, 1, 1, 0, sd, 1,
+          keeper ? matCloth(sleeve) : bands([0, 0.10, k.b, 0.10, 1, sleeve], true), 2);
         set('shin' + s, capsule(0.056, 0.31, -0.2), shinM, w, h, w);
         set('foot' + s, foot(), matCol(boot), w, h, h);
       }
@@ -359,6 +562,7 @@
 
     function dispose() {
       if (group.parent) group.parent.remove(group);
+      disposeCloth();
       if (actor.marker) { actor.marker.material.dispose(); actor.marker = null; }
       // geometries / materials / textures are shared: Player.clearCache() frees them
     }

@@ -332,6 +332,7 @@
       const off = Math.atan2(0.5 * accl * T * T * 0.7, Math.max(dGoal, 60));
       aim -= Math.sign(spin) * off;
     }
+    if (G.weather === 'rain' && !G.drill && type !== 'chip' && vz < 110) v *= 1.12;      // a wet ball skids through faster
     const ang = aim + G.gauss() * err;
     b.owner = null; b.vx = Math.cos(ang) * v; b.vy = Math.sin(ang) * v; b.vz = vz; b.z = Math.max(b.z, 1);
     b.spin = spin; b.pass = null;
@@ -411,7 +412,7 @@
     const lead = Math.min(0.55, d / 450);
     const tx = clamp(best.x + best.vx * lead, 4 - C.BACK, FW - 4), ty = clamp(best.y + best.vy * lead, 4, FH - 4);
     d = hyp(tx - b.x, ty - b.y) || 1;
-    const v = passSpeed(d) * (0.94 + 0.06 * q(p.a.lng)), ang = Math.atan2(ty - b.y, tx - b.x), err = G.gauss() * lerp(0.07, 0.015, q(p.a.lng));
+    const v = passSpeed(d) * (0.94 + 0.06 * q(p.a.lng)) * (G.weather === 'rain' && !G.drill ? 1.12 : 1), ang = Math.atan2(ty - b.y, tx - b.x), err = G.gauss() * lerp(0.07, 0.015, q(p.a.lng));
     b.owner = null; b.shot = null; b.spin = 0; b.z = 0; b.vz = 0;
     b.vx = Math.cos(ang + err) * v; b.vy = Math.sin(ang + err) * v;
     b.lastKicker = p; b.kickT = 0; b.lastTouch = p.team; mark(G);
@@ -673,7 +674,7 @@
       if (p.bufKey && (p.bufT -= dt) <= 0) p.bufKey = null;
     }
     if (p.state === 'free') {
-      if (p.bufSkill && b.owner === p && p.skillCd <= 0 && !p.charge && !G.drill) startSkill(G, p, inp, mx, my, hasIn, p.bufSkill.mask);
+      if (p.bufSkill && b.owner === p && p.skillCd <= 0 && !p.charge && (!G.drill || G.drill.kind === 'oneonone')) startSkill(G, p, inp, mx, my, hasIn, p.bufSkill.mask);
       else if (inp.focus && b.owner !== p && (autoBlock(G, p, inp) || autoTackle(G, p, inp))) { /* slid in to block the shot, or lunged at a dribbler who got past */ }
       else if (inp.shoulder && !p.prev.shoulder && p.shCd <= 0 && !G.drill) startShoulder(G, p, inp, mx, my, hasIn);
       else if (b.owner !== p && ((inp.tackle && !p.prev.tackle) || (inp.slide && !p.prev.slide))) {
@@ -701,7 +702,7 @@
         const f = p.charge.ft ? 0 : clamp(p.charge.t / C.CHG[p.charge.type].full, 0, 1);
         maxV *= 0.8 - 0.55 * f;
       }
-      if (G.drill && owner) maxV = 0;       // drills are taken from the spot: you aim, you don't dribble
+      if (G.drill && owner && G.drill.kind !== 'oneonone') maxV = 0;       // drills are taken from the spot: you aim, you don't dribble
       // a dribbler with a focused defender close by cannot burst away: the sprint and the skill-move boost are dampened
       const hemmed = owner && G.players.some((d) => d.team !== p.team && d.wasFocus > 0.3 && hyp(d.x - p.x, d.y - p.y) < 130);
       if (hemmed) {
@@ -717,6 +718,19 @@
       let rate = (10.5 + 6 * q(a.acc)) * (p.boost > 0 ? 1.3 : 1) * (jock ? 1.5 : 1);
       if (!hasIn) rate = 15;
       else if (spd > 40 && (p.vx * mx + p.vy * my) / (spd * ml) < 0.5) rate *= 1.15 + 0.35 * q(a.agi);
+      if (G.weather === 'rain' && !G.drill) {
+        rate *= 0.92;      // less grip
+        p.slipCd = Math.max(0, (p.slipCd || 0) - dt);
+        const cut = hasIn && spd > 40 && (p.vx * mx + p.vy * my) / (spd * ml) < 0.5;
+        if (G.phase === 'play' && p.state === 'free' && p.noCtrl <= 0 && p.slipCd <= 0 && spd > p.jog * 0.6) {
+          const pr = (p.sprinting ? 0.1 : spd > p.jog * 0.9 ? 0.04 : 0.012) * (cut && spd > p.jog * 0.8 ? 3 : 1);
+          if (G.rand() < pr * dt) {
+            p.slipCd = 3; p.noCtrl = 0.5; p.charge = null; p.vx *= 0.5; p.vy *= 0.5; setState(p, 'stumble', 0.4);
+            if (b.owner === p) { b.owner = null; b.vx = p.vx * 1.2 + (G.rand() - 0.5) * 80; b.vy = p.vy * 1.2 + (G.rand() - 0.5) * 80; b.lastTouch = p.team; mark(G); }
+            ev(G, 'slip', { p });
+          }
+        }
+      }
       const kf = 1 - Math.exp(-rate * dt);
       p.vx += ((hasIn ? mx * maxV : 0) - p.vx) * kf; p.vy += ((hasIn ? my * maxV : 0) - p.vy) * kf;
       if (!hasIn && spd < 6) p.vx = p.vy = 0;
@@ -817,7 +831,7 @@
         if (s.vz < -90) { s.vz = -s.vz * 0.48; s.vx *= 0.84; s.vy *= 0.84; s.bounced = true; } else s.vz = 0;
       }
     }
-    const air = s.z > 1, k1 = air ? 0.2 : 0.7, k0 = air ? 0 : 28;
+    const air = s.z > 1, k1 = air ? 0.2 : (s.wet ? 0.5 : 0.7), k0 = air ? 0 : (s.wet ? 20 : 28);
     sp = hyp(s.vx, s.vy);
     if (sp > 0) { const ns = Math.max(0, sp - (k1 * sp + k0) * dt); s.vx *= ns / sp; s.vy *= ns / sp; }
   }
@@ -896,6 +910,10 @@
     } else {
       b.bounced = false;
       ballMotion(b, dt, 1);
+      if (b.wet && b.z === 0 && b.vz === 0 && !b.owner && !b.holder && G.phase === 'play' && hyp(b.vx, b.vy) > 330) {      // skipping along the wet pitch: a tiny hop
+        b.skT = (b.skT || 0) - dt;
+        if (b.skT <= 0) { b.vz = 20 + G.rand() * 25; b.skT = 0.25 + G.rand() * 0.15; }
+      }
       if (b.bounced) { ev(G, 'bounce'); b.thrown = false; }
     }
     b.driven = false; b.zDriven = false;
@@ -1090,7 +1108,7 @@
     target:  { name: 'TARGET PRACTICE', total: 10, max: 30 },
     chip:    { name: 'CHIP CHALLENGE', total: 6, max: 6 },
     freekick: { name: 'FREE KICKS', total: 6, max: 6, tip: 'FREE KICK OVER THE WALL' },
-    oneonone: { name: 'ONE ON ONE', total: 6, max: 6, tip: 'BEAT THE KEEPER ONE ON ONE' },
+    oneonone: { name: 'ONE ON ONE', total: 6, max: 6, tip: 'DRIBBLE PAST THE KEEPER AND SCORE' },
     longshot: { name: 'LONG SHOTS', total: 6, max: 12, tip: 'SHOOT FROM DISTANCE · POWER SHOT SCORES DOUBLE' },
     finesse:  { name: 'FINESSE CURLERS', total: 6, max: 12, tip: 'CURL IT IN FROM THE WING · FINESSE SCORES DOUBLE' },
     power:    { name: 'POWER BLASTS', total: 6, max: 6, tip: 'ONLY THE POWER SHOT COUNTS' },
@@ -1289,8 +1307,8 @@
     if (b.holder) return drillResolve(G, 'saved');
     if (b.inNet !== null) return;
     if (D.so && b.lastTouch === 2) { D.touchT += dt; if (b.vx < 20 || D.touchT > 0.45) return drillResolve(G, 'saved'); }      // the keeper got something on it and it is not going in
-    D.still = hyp(b.vx, b.vy) < 14 && b.z < 2 ? D.still + dt : 0;
-    if (D.still > 0.8 || D.t > (D.so ? 3.5 : 7)) drillResolve(G, 'miss');
+    D.still = hyp(b.vx, b.vy) < 14 && b.z < 2 && !(D.kind === 'oneonone' && b.owner) ? D.still + dt : 0;
+    if (D.still > 0.8 || D.t > (D.so ? 3.5 : D.kind === 'oneonone' ? 14 : 7)) drillResolve(G, 'miss');
   }
 
   // The keeper's throw is contested where it lands, not at his feet: until it has left the box (and at least 0.3 s have passed; 1.2 s at most) nobody can
@@ -1596,6 +1614,8 @@
     if (opts.moves) G.players.forEach((p, i) => { p.moves = opts.moves[i] || null; });
     G.keepers = [G.keeper];
     G.rand = rng(G);
+    G.weather = 'clear'; G.ball.wet = false;
+    if (opts.rain && !G.drill && !opts.solo) { G.weather = 'rain'; G.ball.wet = true; }      // opt-in per match (never online: the server builds its own game)
     G.gauss = () => { let u = 0; for (let i = 0; i < 4; i++) u += G.rand(); return (u - 2) * 1.732; };
     setupRep(G, G.attacker, true);
     return G;

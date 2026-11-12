@@ -24,6 +24,7 @@
     const P = PF.data, C = P.career, me = PF.careerDef(), opp = PF.careerOpponent();
     drawTo('careerFace', me, 184);
     $('careerOvr').textContent = me.ovr;
+    { const ni = $('careerName'), nn = $('careerNum'); if (document.activeElement !== ni) ni.value = me.name; if (document.activeElement !== nn) nn.value = me.num; }
     $('careerPts').textContent = C.points;
     $('careerSub').textContent = 'STAGE ' + Math.min(C.stage + 1, C.ladder.length) + ' / ' + C.ladder.length;
     $('careerAttrs').innerHTML = ISO.ATTRS.map(([k, label]) =>
@@ -77,6 +78,10 @@
     const before = PF.data.career.attr[k], now = PF.setAttr(k, +e.target.value);
     if (now !== before) ISO.Audio.play('tick', { pitch: now > before ? 0.6 : 0 });
     paintSliders();
+  });
+  document.addEventListener('change', (e) => {
+    if (e.target.id === 'careerName') { PF.setCareerName(e.target.value); renderCareer(); }
+    else if (e.target.id === 'careerNum') { PF.setCareerNum(e.target.value); renderCareer(); }
   });
   document.addEventListener('change', (e) => { if (e.target.dataset && e.target.dataset.slide) renderCareer(); });     // refresh the portrait / opponent panel once you let go
 
@@ -360,7 +365,7 @@
   // ---------------------------------------------------------------- main menu: stats, a rotating featured player, a tip ticker
   const TIPS = ['Hold the shot key longer for a harder strike, but hold too long and it sails over the bar.', 'A skill move at the right moment can break a defender\'s ankles.', 'Futsal courts have walls: the ball bounces back into play.',
     'Open 5 boxes at once from the Box Draw tab.', 'Achievements now have levels. Some hand you a player.', 'Try the free-kick and one-on-one drills to sharpen your finishing.', 'Rematches in MyCareer get harder: bring upgraded stats.',
-    'Switch to the Cinematic camera in Settings to play from the replay angle.', 'Ball skins are in the Store: pick one that matches your style.', 'Keeper dives early? Chip it over him.'];
+    'Try the 3D camera in Settings to play from behind your player.', 'Ball skins are in the Store: pick one that matches your style.', 'Keeper dives early? Chip it over him.'];
   let menuTimer = null, featI = 0, tipI = 0;
   function menuFeature() {
     const pool = ISO.PLAYERS.filter((d) => PF.owns(d.id)), list = pool.length ? pool : ISO.PLAYERS;
@@ -478,7 +483,7 @@
     $('setVolume').value = Math.round(ST.volume * 100); $('setVolumeVal').textContent = Math.round(ST.volume * 100) + '%';
     $('setSound').checked = !ST.muted; $('setCrowd').checked = ST.crowd;
     $('setDiff').value = ST.diff || 'normal';
-    $('setCamera').value = ST.camera || 'classic';
+    $('setCamera').value = ST.camera === 'cinematic' ? 'classic' : (ST.camera || 'classic');
     $('setMouse').checked = ST.mouseAim; $('setReticle').checked = ST.reticle; $('setHint').checked = ST.hint;
     $('adminLogin').classList.toggle('hidden', A.unlocked); $('adminPanel').classList.toggle('hidden', !A.unlocked);
     document.querySelectorAll('[data-admin]').forEach((el) => { el.checked = !!A[el.dataset.admin]; });

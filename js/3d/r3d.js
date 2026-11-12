@@ -10,6 +10,40 @@
   let actors = [], keeperActor = null, keeperMine = null, pending = null, built = false, lastBall = null, castSig = null;
   const bad = {};                  // modules disabled after throwing
   let hemi = null, fxOn = false;
+  // rain: one LineSegments draw call, drops recycled in a box around the camera
+  let rain = null;
+  const RAIN_N = 1800, RAIN_W = 70, RAIN_H = 28, RAIN_D = 90;
+  function clearRain() { if (!rain) return; try { if (scene) scene.remove(rain.mesh); rain.mesh.geometry.dispose(); rain.mesh.material.dispose(); } catch (e) { /* ignore */ } rain = null; }
+  function makeRain() {
+    const d = new Float32Array(RAIN_N * 3), pos = new Float32Array(RAIN_N * 6);
+    for (let i = 0; i < RAIN_N; i++) { d[i * 3] = Math.random() * RAIN_W; d[i * 3 + 1] = Math.random() * RAIN_H; d[i * 3 + 2] = Math.random() * RAIN_D; }
+    const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    const mesh = new THREE.LineSegments(geo, new THREE.LineBasicMaterial({ color: 0xbfd4ea, transparent: true, opacity: 0.38, depthWrite: false, fog: false }));
+    mesh.frustumCulled = false; mesh.renderOrder = 5; scene.add(mesh);
+    rain = { mesh, d, pos };
+  }
+  function updateRain(dt) {
+    if (!rain || !camera || !camera.cam) return;
+    const cp = camera.cam.position, d = rain.d, p = rain.pos, fall = 26 * Math.min(dt, 0.05);
+    const ox = cp.x - RAIN_W / 2, oz = cp.z - RAIN_D / 2;
+    for (let i = 0; i < RAIN_N; i++) {
+      let y = d[i * 3 + 1] - fall * (0.85 + (i % 5) * 0.08); if (y < 0) y += RAIN_H;
+      d[i * 3 + 1] = y;
+      // x / z are stored relative to the box and wrapped around the camera so the drops follow it
+      const x = ox + ((((d[i * 3] - ox) % RAIN_W) + RAIN_W) % RAIN_W), z = oz + ((((d[i * 3 + 2] - oz) % RAIN_D) + RAIN_D) % RAIN_D);
+      const j = i * 6; p[j] = x; p[j + 1] = y; p[j + 2] = z; p[j + 3] = x + 0.1; p[j + 4] = y + 0.9; p[j + 5] = z + 0.05;
+    }
+    rain.mesh.geometry.attributes.position.needsUpdate = true;
+  }
+  function applyRainLook() {      // darker, bluer, closer: an overcast wet evening
+    if (!stadium) return;
+    const g = new THREE.Color(0x56626f);
+    if (stadium.hemi) stadium.hemi.intensity *= 0.62;
+    if (stadium.sun) stadium.sun.intensity *= 0.5;
+    if (stadium.fog) { stadium.fog.color.lerp(g, 0.55); stadium.fog.near *= 0.45; stadium.fog.far *= 0.6; }
+    if (stadium.background && stadium.background.lerp) stadium.background.lerp(g, 0.55);
+    stadium.group.traverse((o) => { if (o.name === 'pitch' && o.material && o.material.roughness !== undefined) o.material.roughness = Math.min(o.material.roughness, 0.55); });
+  }
   let pixelRatio = 1, tier = 0, tAvg = 16, tLow = 0, tHigh = 0, time = 0;
 
   function guard(name, fn, fallback) {
@@ -78,6 +112,7 @@
     rings = []; if (ringGeo) { ringGeo.dispose(); ringGeo = null; }
     if (sun) { scene.remove(sun, sun.target); sun = null; }
     if (hemi) { scene.remove(hemi); hemi = null; }
+    clearRain();
   }
 
   // simple stand-ins used when a helper module is missing or has failed
@@ -152,6 +187,7 @@
     });
     ring = new THREE.Mesh(new THREE.RingGeometry(0.62, 0.74, 40), new THREE.MeshBasicMaterial({ color: TEAM_COL[0], transparent: true, opacity: 0.9, depthWrite: false }));
     ring.rotation.x = -Math.PI / 2; ring.position.y = 0.03; scene.add(ring);
+    if (G.weather === 'rain') guard('rain', () => { applyRainLook(); makeRain(); });
     fx.reset(); camera.reset(); R3D.Adapter.reset(G); lastBall = null;
     built = true;       // only once everything above succeeded
   }
@@ -244,6 +280,7 @@
     if (stadium && stadium.setTargets) guard('stadium', () => (G.drill && G.drill.kind === 'target' ? stadium.setTargets(ISO.TARGETS, G.drill.target) : stadium.setTargets(null)));
     if (stadium) guard('stadium', () => { stadium.update(dt, time); if (stadium.setView) stadium.setView(camera.cam.position.z); });
     fx.update(dt);
+    if (rain) guard('rain', () => updateRain(dt));
     renderer.render(scene, camera.cam);
     adaptTier(dt);
     if (c2d) fx.draw2d(c2d, camera, G, V);

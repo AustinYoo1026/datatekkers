@@ -204,6 +204,11 @@
         <button class="segb" data-act="diff-normal" id="segDiff-normal" title="Win bonus ×0.7">NORMAL <small>×0.7 CR</small></button>
         <button class="segb" data-act="diff-hard" id="segDiff-hard" title="Win bonus ×1">HARD <small>×1 CR</small></button>
       </div>
+      <div class="seg" id="weatherSeg">
+        <span class="seg-label">WEATHER</span>
+        <button class="segb" data-act="wx-clear" id="segWx-clear">CLEAR</button>
+        <button class="segb" data-act="wx-rain" id="segWx-rain">RAIN</button>
+      </div>
       <div class="sel-reward" id="selReward" title="Beating a higher-rated opponent, on a harder CPU, pays a bigger win bonus"></div>
       <button class="btn primary" data-act="kickoff" id="selKick">START ›</button>
     </footer>
@@ -224,6 +229,7 @@
           <div>
             <div class="side">YOUR PLAYER</div>
             <div class="cme-ovr"><b id="careerOvr">0</b><span>OVR</span></div>
+            <div class="cyc"><input id="careerName" type="text" maxlength="12" placeholder="NAME" style="width:96px"><input id="careerNum" type="number" min="0" max="99" placeholder="#" style="width:48px"></div>
             <div class="cyc"><button class="segb" data-meta="look-prev">‹</button><span>LOOK</span><button class="segb" data-meta="look-next">›</button></div>
             <div class="cyc"><button class="segb" data-meta="kit-prev">‹</button><span>KIT</span><button class="segb" data-meta="kit-next">›</button></div>
           </div>
@@ -307,7 +313,7 @@
         <label class="set-row"><span>Sound effects</span><input type="checkbox" class="tog" id="setSound"></label>
         <label class="set-row"><span>Crowd ambience</span><input type="checkbox" class="tog" id="setCrowd"></label>
         <h3>GAMEPLAY</h3>
-        <label class="set-row"><span>Match camera</span><select id="setCamera"><option value="classic">Classic (top-down)</option><option value="cinematic">Cinematic (replay angle)</option><option value="3d">3D (behind the player)</option></select></label>
+        <label class="set-row"><span>Match camera</span><select id="setCamera"><option value="classic">Classic (top-down)</option><option value="3d">3D (behind the player)</option></select></label>
         <label class="set-row"><span>Default CPU difficulty</span><select id="setDiff"><option value="easy">Easy</option><option value="normal">Normal</option><option value="hard">Hard</option></select></label>
         <label class="set-row"><span>Mouse aiming</span><input type="checkbox" class="tog" id="setMouse"></label>
         <label class="set-row"><span>Aim reticle</span><input type="checkbox" class="tog" id="setReticle"></label>

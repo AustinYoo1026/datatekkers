@@ -50,7 +50,7 @@
       kit('#a50044', '#004d98', 'vstripes', '#004d98', '#004d98')),
     P('vinicius', 'Vinícius Júnior', 'VINÍCIUS', 'BRA', '🇧🇷', 'Real Madrid', 'modern', 91, 'R', 7,
       [96, 96, 94, 95, 80, 90, 87, 82, 78, 80, 70, 96, 66, 30, 86],
-      { skin: '#6b4226', hair: 'fade', hairColor: '#120d0a', face: 'oval', h: 0.98, w: 0.93 },
+      { skin: '#6b4226', hair: 'fade', hairColor: '#120d0a', face: 'sharp', h: 0.98, w: 0.93 },
       kit('#f7f7f4', '#c9a227', 'solid', '#f7f7f4', '#f7f7f4')),
     P('salah', 'Mohamed Salah', 'SALAH', 'EGY', '🇪🇬', 'Liverpool', 'modern', 90, 'L', 11,
       [92, 92, 90, 91, 90, 89, 93, 86, 86, 88, 64, 82, 74, 44, 88],

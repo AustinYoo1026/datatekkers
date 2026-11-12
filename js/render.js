@@ -940,6 +940,21 @@
     }
   }
 
+  // rain: a cool tint plus ~150 slanted streaks (positions are a pure function of time, no state)
+  function drawRain(c, dt) {
+    c.save();
+    c.fillStyle = 'rgba(18,34,60,0.16)'; c.fillRect(0, 0, VW, VH);
+    c.strokeStyle = 'rgba(205,225,245,0.35)'; c.lineWidth = 1.2; c.beginPath();
+    const t = fx.t;
+    for (let i = 0; i < 150; i++) {
+      const h1 = (Math.sin(i * 127.1) * 43758.5453) % 1, h2 = (Math.sin(i * 311.7) * 12345.6789) % 1;
+      const sp = 700 + 300 * Math.abs(h2), ph = Math.abs(h1);
+      const y = ((t * sp + ph * (VH + 60)) % (VH + 60)) - 30, x = ((ph * 7919 + i * 53) % (VW + 80)) + y * -0.12 - 20;
+      c.moveTo(x, y); c.lineTo(x - 5, y + 20);
+    }
+    c.stroke(); c.restore();
+  }
+
   function draw(c, G, V, dt) {
     if (!pitch) pitch = buildPitch(TH);
     fx.t += dt; fdt = dt; lastV = V; fx.cflash = Math.max(0, fx.cflash - dt * 1.6);
@@ -963,6 +978,7 @@
     if (rs) { fdt = dt * (rs.slowmo ? RT.slow : 1); drawReplay(c, G, V, rs, dt); fdt = dt; }
 
     if (fx.flash > 0) { c.fillStyle = 'rgba(255,255,255,' + fx.flash * 0.35 + ')'; c.fillRect(0, 0, VW, VH); fx.flash -= dt * 3; }
+    if (G.weather === 'rain' && !V.quiet) drawRain(c, dt);
     if (V.quiet) return;
     if (pen) penaltyOverlay(c, G, V);
     drawAim(c, G, V);
@@ -972,6 +988,7 @@
   // countdown / GOAL / SAVED / OUT banners: shared by the 2D views and the 3D mode (rs = null from the 3D path). Shootout banners are centred on the screen,
   // between the goal and the taker, whichever renderer is underneath.
   function overlays(c, G, V, rs, pen) {
+    if (G.weather === 'rain' && !V.quiet) { c.save(); c.font = '800 13px Arial,sans-serif'; c.textAlign = 'right'; c.textBaseline = 'middle'; c.fillStyle = 'rgba(170,205,240,.9)'; c.fillText('\u2614 RAIN', VW - 16, 92); c.restore(); }
     if (G.phase === 'countdown') {
       const n = Math.ceil(G.phaseT / G.cdTick), frac = (G.phaseT / G.cdTick) % 1;
       const sub = pen ? (G.drill.so.sudden ? 'SUDDEN DEATH · ' : '') + (G.drill.so.turn === 'shoot' ? 'YOUR KICK' : (G.players[1].def.short || 'CPU').toUpperCase() + ' TO SHOOT — SAVE IT')
