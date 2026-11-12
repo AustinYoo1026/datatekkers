@@ -6,18 +6,23 @@
   const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
   const mkPlayer = () => ({ idx: 0, team: 0, hidden: false, x: 0, z: 0, yaw: 0, vx: 0, vz: 0, speed: 0, jog: 0, top: 0, runPh: 0,
     state: 'free', u: 0, stT: 0, stDur: 0, kickT: 0, kick: null, charge: null, skill: null, fakeU: 0, fakeSide: 1, fallYaw: 0,
-    owner: false, sprint: false, jock: false, shield: false, focus: false, exhausted: false, wall: false, ballSide: 0 });
+    owner: false, sprint: false, jock: false, shield: false, focus: false, exhausted: false, wall: false, ballSide: 0, sim: null });
   const mkKeeper = () => ({ x: 0, z: 0, yaw: 0, vx: 0, vz: 0, speed: 0, state: 'set', u: 0, diveDir: 1, high: false, slid: false, chip: false,
-    holding: false, human: false, save: null, animDist: 0 });
-  const vf = { t: 0, phase: 'play', me: 0, attacker: 0, slowmo: false, players: [], keeper: mkKeeper(),
+    holding: false, human: false, save: null, animDist: 0, jump: false, sim: null });
+  const vf = { t: 0, phase: 'play', me: 0, attacker: 0, slowmo: false, walls: false, pen: null, mustClear: -1, myTeam: 0, players: [], keeper: mkKeeper(),
     ball: { x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, spin: 0, owner: -1, held: false, inNet: false, shot: null, rot: 0 } };
 
   // latched presentation state, resolved to indices immediately (events carry entity objects that must not be kept)
-  const latch = { kick: [], save: null, throwAt: -9, holdPrev: false, lastGoalBy: -1 };
+  const latch = { lastOwner: -1, kick: [], save: null, throwAt: -9, holdPrev: false, lastGoalBy: -1 };
   function reset(G) {
     vf.players.length = 0;
     for (let i = 0; i < G.players.length; i++) { vf.players.push(mkPlayer()); latch.kick[i] = null; }
-    latch.save = null; latch.holdPrev = false;
+    clear();
+  }
+  // forget the latched events (new match, or the 3D view comes back after the 2D one was showing: what it latched is stale)
+  function clear() {
+    for (let i = 0; i < latch.kick.length; i++) latch.kick[i] = null;
+    latch.save = null; latch.holdPrev = false; latch.throwAt = -9; latch.lastGoalBy = -1;
   }
 
   function onEvent(G, e) {
@@ -28,7 +33,7 @@
       const lat = -(b.x - p.x) * Math.sin(p.face) + (b.y - p.y) * Math.cos(p.face);
       let foot = p.def.foot === 'L' || p.def.foot === 'left' ? -1 : 1;
       if (Math.abs(lat * S) > 0.15) foot = lat > 0 ? 1 : -1;
-      latch.kick[i] = { type: e.shot || null, foot, high: b.z >= 20, z: b.z, cross: !!(e.shot === 'chip' && (p.y < C.BOXY0 || p.y > C.BOXY1)) };
+      latch.kick[i] = { type: e.shot || null, owned: latch.lastOwner === i, foot, high: b.z >= 20, z: b.z, cross: !!(e.shot === 'chip' && (p.y < C.BOXY0 || p.y > C.BOXY1)) };
     } else if (e.type === 'kick') latch.throwAt = G.t;
     else if (e.type === 'save') latch.save = { kind: e.catch ? 'catch' : e.smother ? 'smother' : e.weak ? 'weak' : e.slide ? 'slide' : 'parry', at: G.t };
     else if (e.type === 'goal') { const lg = G.goals[G.goals.length - 1]; latch.lastGoalBy = lg && lg.by != null ? lg.by : -1; }
@@ -37,13 +42,19 @@
   function snapshot(G, V) {
     if (vf.players.length !== G.players.length) reset(G);
     vf.t = G.t; vf.phase = G.phase; vf.me = (V && V.me) || 0; vf.attacker = G.attacker; vf.slowmo = false;
+    vf.walls = !!G.walls;
+    vf.pen = G.drill && G.drill.so ? G.drill.so.turn : null;      // penalty shootout: 'shoot' (you take it) or 'save' (you keep)
+    vf.mustClear = G.mustClear == null ? -1 : G.mustClear;
+    vf.myTeam = G.players[vf.me] ? G.players[vf.me].team : 0;
     const b = G.ball, B = vf.ball;
     B.x = (b.y - K.GCY) * S; B.z = (C.FW - b.x) * S; B.y = Math.max(0, b.z) * S;
     B.vx = b.vy * S; B.vz = -b.vx * S; B.vy = b.vz * S; B.spin = b.spin || 0; B.rot = b.rot || 0;
-    B.owner = b.owner ? G.players.indexOf(b.owner) : -1; B.held = !!b.holder; B.inNet = b.inNet !== null && b.inNet !== undefined; B.shot = b.shot ? b.shot.type || 'normal' : null;
+    B.owner = b.owner ? G.players.indexOf(b.owner) : -1; if (!(B.owner < 0 && b.kickT < 0.02)) latch.lastOwner = B.owner;      // who had the ball just before a kick released it (pv.kick.owned)
+    B.held = !!b.holder; B.inNet = b.inNet !== null && b.inNet !== undefined; B.shot = b.shot ? b.shot.type || 'normal' : null;
     for (let i = 0; i < G.players.length; i++) {
       const p = G.players[i], o = vf.players[i];
       o.idx = i; o.team = p.team; o.hidden = p.state === 'away';
+      o.sim = p;      // sim: the live sim player, READ ONLY (an escape hatch for fields not copied below)
       o.x = (p.y - K.GCY) * S; o.z = (C.FW - p.x) * S; o.yaw = Math.PI - p.face;
       o.vx = p.vy * S; o.vz = -p.vx * S; o.speed = Math.hypot(p.vx, p.vy) * S; o.jog = p.jog * S; o.top = p.top * S; o.runPh = p.runPh;
       o.state = p.state; o.stT = p.stT; o.stDur = p.stDur; o.u = p.stDur > 0 ? clamp(p.stT / p.stDur, 0, 1) : 0;
@@ -62,9 +73,10 @@
     }
     const kp = G.keeper, kv = vf.keeper;
     kv.x = (kp.y - K.GCY) * S; kv.z = (C.FW - kp.x) * S; kv.yaw = Math.PI - kp.face; kv.vx = kp.vy * S; kv.vz = -kp.vx * S; kv.speed = Math.hypot(kp.vx, kp.vy) * S;
-    kv.state = kp.state; kv.diveDir = kp.diveDir || 1; kv.high = !!kp.high; kv.slid = !!kp.slid; kv.chip = !!kp.chip; kv.animDist = kp.animDist || 0;
+    kv.state = kp.state; kv.diveDir = kp.diveDir || 1; kv.high = !!kp.high; kv.slid = !!kp.slid; kv.chip = !!kp.chip; kv.animDist = kp.animDist || 0; kv.jump = !!kp.jump; kv.sim = kp;
     kv.u = kp.state === 'dive' ? clamp(kp.stT / (kp.diveT || kp.stDur || 0.42), 0, 1) : kp.stDur > 0 ? clamp(kp.stT / kp.stDur, 0, 1) : 0;
-    kv.holding = kp.state === 'hold'; kv.human = false;
+    kv.holding = kp.state === 'hold'; kv.human = !!kp.human;
+    if (kp.human && kp.state === 'dive') kv.u = clamp(kp.stT / 0.42, 0, 1);      // the human keeper's dive always lasts 0.42 s (diveT / stDur can be left over from an AI dive)
     const sv = latch.save;
     if (sv && G.t - sv.at < 0.5) { kv.save = kv.save || { kind: '', age: 0 }; kv.save.kind = sv.kind; kv.save.age = G.t - sv.at; } else kv.save = null;
     if (latch.holdPrev && !kv.holding && G.t - latch.throwAt < 0.2) kv.save = { kind: 'throw', age: G.t - latch.throwAt };
@@ -72,5 +84,5 @@
     return vf;
   }
 
-  R3D.Adapter = { snapshot, onEvent, reset, vf };
+  R3D.Adapter = { snapshot, onEvent, reset, clear, vf };
 })();

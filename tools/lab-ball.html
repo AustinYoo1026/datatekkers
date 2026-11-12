@@ -7,7 +7,8 @@
 <style>
   html, body { margin: 0; height: 100%; background: #0d1117; color: #e6edf3; font: 13px/1.4 system-ui, sans-serif; overflow: hidden; }
   #cv { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
-  #ui { position: absolute; left: 12px; top: 12px; background: rgba(13,17,23,.82); border: 1px solid #30363d; border-radius: 8px; padding: 10px; max-width: 300px; }
+  #ui { position: absolute; left: 12px; top: 12px; background: rgba(13,17,23,.82); border: 1px solid #30363d; border-radius: 8px; padding: 10px; max-width: 330px; }
+  #arena { margin: 6px 0; padding-top: 6px; border-top: 1px solid #30363d; font-size: 11px; color: #9da7b3; }
   #ui button, #ui select { background: #21262d; color: #e6edf3; border: 1px solid #30363d; border-radius: 6px; padding: 5px 9px; margin: 2px; cursor: pointer; font: inherit; }
   #ui button:hover { background: #30363d; }
   #ui label { display: inline-flex; align-items: center; gap: 4px; margin: 4px 6px 0 2px; }
@@ -24,18 +25,27 @@
     <button data-c="chip">Chip</button><button data-c="bounce">Bounce</button><button data-c="out">Out wide</button>
     <button data-c="over">Over bar</button><button data-c="held">Keeper hold</button><button data-c="goal">Goal</button>
   </div>
+  <div id="arena">REAL SIM (Testing Arena, scripted):<br>
+    <button data-a="run">Dribble</button><button data-a="sprint">Sprint</button><button data-a="shield">Shield</button><button data-a="fake">Fake shot</button>
+    <button data-a="stepover">Stepover</button><button data-a="feint">Feint</button><button data-a="knock">Knock on</button><button data-a="roll">Roll</button>
+    <button data-a="croqueta">Croqueta</button><button data-a="roulette">Roulette</button><button data-a="elastico">Elastico</button><button data-a="rainbow">Rainbow</button>
+    <button data-a="heel">Heel</button><button data-a="dragback">Drag back</button><button data-a="shot">Shot</button><button data-a="finesse">Finesse</button><button data-a="chip">Chip</button>
+  </div>
   <div>
     <select id="skin"></select>
     <label><input type="checkbox" id="futsal"> futsal walls</label>
     <label><input type="checkbox" id="slow"> slow-mo</label>
     <label><input type="checkbox" id="showSim" checked> sim ball</label>
+    <label><input type="checkbox" id="chase"> chase cam</label>
   </div>
   <div id="info"></div>
 </div>
 <script src="../js/vendor/three.min.js"></script>
 <script src="../js/data.js"></script>
 <script src="../js/game.js"></script>
+<script src="../js/smooth.js"></script>
 <script src="../js/3d/coords.js"></script>
+<script src="../js/3d/adapter.js"></script>
 <script src="../js/3d/ball3d.js"></script>
 <script>
 (function () {
@@ -58,9 +68,10 @@
   ground.rotation.x = -Math.PI / 2; ground.position.z = 12; ground.receiveShadow = true; scene.add(ground);
   const lineMat = new THREE.LineBasicMaterial({ color: '#ffffff' });
   const line = (pts) => { const g = new THREE.BufferGeometry().setFromPoints(pts.map((p) => new THREE.Vector3(p[0], 0.01, p[1]))); scene.add(new THREE.Line(g, lineMat)); };
-  line([[-K.half, 0], [K.half, 0]]); line([[-K.half, K.depth], [K.half, K.depth]]);
+  const DA = K.depthAll || K.depth;   // the back board: the sim bounces the ball off it, it is never out there
+  line([[-K.half, 0], [K.half, 0]]); line([[-K.half, DA], [K.half, DA]]);
   line([[-K.boxHalf, 0], [-K.boxHalf, K.boxD], [K.boxHalf, K.boxD], [K.boxHalf, 0]]);
-  line([[-K.half, 0], [-K.half, K.depth]]); line([[K.half, 0], [K.half, K.depth]]);
+  line([[-K.half, 0], [-K.half, DA]]); line([[K.half, 0], [K.half, DA]]);
   // goal frame + net box
   const postM = new THREE.MeshStandardMaterial({ color: '#ffffff' }), gx = K.goalW / 2;
   for (const x of [-gx, gx]) { const p = new THREE.Mesh(new THREE.CylinderGeometry(K.postR, K.postR, K.goalH, 12), postM); p.position.set(x, K.goalH / 2, 0); p.castShadow = true; scene.add(p); }
@@ -87,6 +98,11 @@
   const kp = new THREE.Mesh(new THREE.BoxGeometry(0.5, 1.85, 0.3), new THREE.MeshStandardMaterial({ color: '#e8c21a' })); kp.position.y = 0.92; kp.castShadow = true;
   const kg = new THREE.Group(); kg.add(kp); scene.add(kg);
   const simDot = new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 6), new THREE.MeshBasicMaterial({ color: '#ff00ff' })); scene.add(simDot);
+  // foot range around the stand-in: 0.25 m and 0.7 m rings, hip line across, a tick on the forward axis
+  const ringM = new THREE.LineBasicMaterial({ color: '#ffe066' });
+  for (const r of [0.25, 0.7]) { const pts = []; for (let i = 0; i <= 48; i++) pts.push(new THREE.Vector3(Math.cos(i / 48 * 6.2832) * r, 0.015, Math.sin(i / 48 * 6.2832) * r)); pl.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), ringM)); }
+  pl.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(-0.7, 0.015, 0), new THREE.Vector3(0.7, 0.015, 0)]), ringM));
+  pl.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, 0.015, 0), new THREE.Vector3(0, 0.015, 0.7)]), ringM));
 
   // ---- ball under test
   const ball = ISO.R3D.Ball.create(THREE, ISO.ballById('classic'), { onNetHit: (x, y, z, s) => { netFlash = 0.25; } });
@@ -118,7 +134,8 @@
     if (b.z < -0.3) {
       if (Math.abs(b.x) < gx && b.y < K.goalH - 0.25) { b.inNet = true; vf.phase = 'goal'; send({ type: 'goal' }); }
       else out();
-    } else if (Math.abs(b.x) > K.half + 0.3 || b.z > K.depth + 0.3) out();
+    } else if (Math.abs(b.x) > K.half + 0.3) out();
+    else if (b.z > DA - 0.3) { b.z = DA - 0.3; b.vz = -Math.abs(b.vz) * 0.35; b.vx *= 0.9; send({ type: 'post', power: 0.2 }); }   // the sim's back board
   }
   function out() { vf.phase = 'out'; vf.ball.shot = null; vf.ball.spin = 0; send({ type: 'out', kind: 'out' }); }
   function place(x, y, z) {
@@ -141,7 +158,51 @@
     held() { place(0, 0.6, 1.3); vf.keeper.z = 0.9; vf.ball.held = true; mode = 'held'; modeT = 0; },
     goal() { place(1.5, 0, 9); vf.keeper.z = 0.9; mode = 'free'; kick('power', -0.8, 3, -32); },
   };
-  document.querySelectorAll('[data-c]').forEach((b) => b.addEventListener('click', () => CMD[b.dataset.c]()));
+  document.querySelectorAll('[data-c]').forEach((b) => b.addEventListener('click', () => { mode = 'idle'; CMD[b.dataset.c](); }));
+
+  // ---- the real sim (Testing Arena: one player, the keeper), driven by a small script, through the real adapter and Smooth
+  const A = { G: null, acc: 0, st: 0, ph: 0, item: null, cur: { mx: 0, my: 0 }, last: null, vf: null };
+  const KEYS = { run: {}, sprint: { sprint: 1 }, shield: { jockey: 1 }, fake: { shoot: 1 }, stepover: { j: 1 }, feint: { k: 1 }, knock: { l: 1 }, roll: { l: 1 }, croqueta: { j: 1, k: 1 },
+    roulette: { j: 1, l: 1 }, elastico: { k: 1, l: 1 }, rainbow: { j: 1, k: 1, l: 1 }, heel: { j: 1, sprint: 1 }, dragback: { k: 1, sprint: 1 }, shot: { shoot: 1 }, finesse: { finesse: 1 }, chip: { chip: 1 } };
+  function arena(item) {
+    if (!A.G) {
+      A.G = ISO.Game.create({ home: ISO.PLAYERS[0], away: ISO.PLAYERS[1], seed: 7, solo: true });
+      ISO.Smooth.reset(); ISO.R3D.Adapter.reset(A.G); A.acc = 0; A.last = null; ball.reset();
+    }
+    mode = 'arena'; A.item = item === 'run' ? null : item; A.ph = 0; A.st = 0;
+  }
+  function arenaInput(dt) {
+    const G = A.G, p = G.players[0], b = G.ball, C = ISO.C, it = A.item, kick = it && /shot|finesse|chip|fake/.test(it);
+    A.st += dt;
+    if (G.phase !== 'play' || b.owner !== p && A.ph === 0) { const dx = b.x - p.x, dy = b.y - p.y, l = Math.hypot(dx, dy) || 1; return { mx: dx / l, my: dy / l }; }
+    if (A.ph === 0) {             // carry it in a lazy circle around the middle of the half (toward goal before a kick)
+      const a = modeT * 0.5, tx = C.FW * 0.4 + Math.cos(a) * 70, ty = K.GCY + Math.sin(a) * 150, dx = tx - p.x, dy = ty - p.y, l = Math.hypot(dx, dy) || 1;
+      A.cur = kick ? { mx: 1, my: 0 } : { mx: dx / l, my: dy / l };
+      if (it && A.st > 0.5) { A.ph = 1; A.st = 0; }
+      return A.cur;
+    }
+    const hold = it === 'shield' || it === 'sprint' ? 1.6 : it === 'fake' ? 0.1 : kick ? 0.45 : 0.08;
+    if (A.ph === 1) { if (A.st >= hold) { A.ph = 2; A.st = 0; } return Object.assign({}, it === 'roll' ? { mx: -Math.sin(p.face), my: Math.cos(p.face) } : A.cur, KEYS[it]); }
+    if (A.st > 1.2) { A.ph = 0; A.st = 0; if (kick || it === 'shield' || it === 'sprint') A.item = null; }      // skill moves repeat until another button is pressed
+    return kick && it !== 'fake' ? { mx: 0, my: 0 } : A.cur;
+  }
+  function arenaStep(dt) {
+    const G = A.G, C = ISO.C;
+    A.acc += dt * C.SPEED;
+    while (A.acc >= C.STEP) {
+      A.acc -= C.STEP; ISO.Smooth.capture(G);
+      ISO.Game.step(G, [arenaInput(C.STEP / C.SPEED), {}]);
+      for (const e of G.events) { ISO.R3D.Adapter.onEvent(G, e); ball.onEvent({ type: e.type, power: e.power, shot: e.shot, kind: e.kind }, ISO.R3D.Adapter.vf); }
+      G.events.length = 0;
+    }
+    ISO.Smooth.begin(G, A.acc / C.STEP, dt);
+    const v = ISO.R3D.Adapter.snapshot(G, { me: 0 });
+    ISO.Smooth.end(G);
+    if (A.last && Math.abs(v.ball.x - A.last.x) + Math.abs(v.ball.z - A.last.z) > 3) ball.reset();       // as r3d.js does
+    A.last = A.last || {}; A.last.x = v.ball.x; A.last.z = v.ball.z;
+    return v;
+  }
+  document.querySelectorAll('[data-a]').forEach((b) => b.addEventListener('click', () => arena(b.dataset.a)));
   const sel = $('skin');
   for (const b of ISO.BALLS) { const o = document.createElement('option'); o.value = b.id; o.textContent = b.name; sel.appendChild(o); }
   sel.onchange = () => ball.setSkin(sel.value);
@@ -156,7 +217,7 @@
       const a = modeT * 0.55, ox = P.x, oz = P.z;
       P.x = Math.sin(a) * 6; P.z = 10 + Math.sin(a * 2) * 3;
       const vx = (P.x - ox) / Math.max(sdt, 1e-6) , vz = (P.z - oz) / Math.max(sdt, 1e-6);
-      P.speed = Math.hypot(vx, vz); if (P.speed > 0.2) P.yaw = Math.atan2(vx, vz);
+      P.vx = vx; P.vz = vz; P.speed = Math.hypot(vx, vz); if (P.speed > 0.2) P.yaw = Math.atan2(vx, vz);
       P.runPh += P.speed * sdt / (ISO.C.STRIDE * S) * Math.PI * 2;
       if (Math.abs(vx) > P.speed * 0.6) ballSd = -Math.sign(vx);
       const fx = Math.sin(P.yaw), fz = Math.cos(P.yaw);
@@ -186,26 +247,34 @@
   function frame(now) {
     let dt = Math.min(0.05, (now - last) / 1000); last = now;
     if ($('slow').checked) dt *= 0.2;
-    drive(dt);
-    vf.t += dt;
-    ball.update(vf, dt);
-    pl.position.set(P.x, 0, P.z); pl.rotation.y = P.yaw;
-    kg.position.set(vf.keeper.x, 0, vf.keeper.z); kg.rotation.y = vf.keeper.yaw;
-    simDot.visible = $('showSim').checked; simDot.position.set(vf.ball.x, vf.ball.y + 0.2, vf.ball.z);
+    let V = vf, PV = P;
+    if (mode === 'arena') { modeT += dt; V = arenaStep(dt); PV = V.players[0]; }
+    else { drive(dt); vf.t += dt; }
+    ball.update(V, dt);
+    pl.position.set(PV.x, 0, PV.z); pl.rotation.y = PV.yaw;
+    kg.position.set(V.keeper.x, 0, V.keeper.z); kg.rotation.y = V.keeper.yaw;
+    simDot.visible = $('showSim').checked; simDot.position.set(V.ball.x, V.ball.y + K.ballR, V.ball.z);
     const tr = ball.getTrailPoints();
     for (let i = 0; i < 16; i++) { const p = tr.points[Math.min(i, Math.max(0, tr.count - 1))]; trailPos[i * 3] = p.x; trailPos[i * 3 + 1] = p.y; trailPos[i * 3 + 2] = p.z; }
     trailGeo.attributes.position.needsUpdate = true; trail.visible = tr.count > 1 && tr.speed > 16 * TS;
     netFlash = Math.max(0, netFlash - dt); net.material.opacity = 0.25 + netFlash * 2;
     const m = ball.mesh.position;
-    tgt.lerp(look.set(m.x * 0.5, 0.6, Math.max(2, m.z * 0.6 + 2)), 1 - Math.exp(-2 * dt));
-    cam.position.set(tgt.x + Math.sin(yaw) * Math.cos(pitch) * dist, tgt.y + Math.sin(pitch) * dist, tgt.z + Math.cos(yaw) * Math.cos(pitch) * dist);
-    cam.lookAt(tgt);
+    if ($('chase').checked) {      // the game's follow camera (camera3d.js): 8 m behind the player, 3.4 m up, fov 50, looking 2.5 m ahead at 0.9 m
+      cam.position.set(PV.x, 3.4, PV.z + 8); cam.lookAt(PV.x, 0.9, PV.z - 2.5);
+    } else {
+      if (mode === 'arena') tgt.lerp(look.set(PV.x, 0.4, PV.z), 1 - Math.exp(-6 * dt));
+      else tgt.lerp(look.set(m.x * 0.5, 0.6, Math.max(2, m.z * 0.6 + 2)), 1 - Math.exp(-2 * dt));
+      cam.position.set(tgt.x + Math.sin(yaw) * Math.cos(pitch) * dist, tgt.y + Math.sin(pitch) * dist, tgt.z + Math.cos(yaw) * Math.cos(pitch) * dist);
+      cam.lookAt(tgt);
+    }
     renderer.render(scene, cam);
     $('info').textContent =
-      'mode ' + mode + '  phase ' + vf.phase + '\n' +
+      'mode ' + mode + (mode === 'arena' ? ' ' + (A.item || 'run') + '  ' + PV.state : '') + '  phase ' + V.phase + '\n' +
       'drawn ' + [m.x, m.y, m.z].map((v) => v.toFixed(2)).join(', ') + '\n' +
-      'sim   ' + [vf.ball.x, vf.ball.y + 0.2, vf.ball.z].map((v) => v.toFixed(2)).join(', ') + '\n' +
-      'dribble w ' + ball.dribbleW.toFixed(2) + '  dead ' + ball.dead + '\n' +
+      'sim   ' + [V.ball.x, V.ball.y + K.ballR, V.ball.z].map((v) => v.toFixed(2)).join(', ') + '\n' +
+      'drawn - sim ' + Math.hypot(ball.drawn.x - V.ball.x, ball.drawn.y - K.ballR - V.ball.y, ball.drawn.z - V.ball.z).toFixed(3) + ' m\n' +
+      (V.ball.owner >= 0 ? 'from owner: sim ' + Math.hypot(V.ball.x - PV.x, V.ball.z - PV.z).toFixed(2) + '  drawn ' + Math.hypot(ball.drawn.x - PV.x, ball.drawn.z - PV.z).toFixed(2) + ' m\n' : 'from owner: -\n') +
+      'settled ' + ball.dribbleW.toFixed(2) + '  dead ' + ball.dead + '\n' +
       'squash ' + ball.mesh.scale.y.toFixed(2) + '  shadow a ' + ball.shadow.material.opacity.toFixed(2) + '\n' +
       'speed (real m/s) ' + tr.speed.toFixed(1) + '\n' +
       'drag: orbit  wheel: zoom';

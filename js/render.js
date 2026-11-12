@@ -4,7 +4,10 @@
   const ISO = (globalThis.ISO = globalThis.ISO || {});
   const C = ISO.C, { FW, FH, GY0, GY1, GD, BOXD, BOXY0, BOXY1, SIXD, SIXY0, SIXY1, CR, PEN } = C;
   const GCY = (GY0 + GY1) / 2;
-  const VW = 1280, VH = 720, Z = 1.6, OX = (1280 - FH * Z) / 2, OY = 135;      // Z zooms the whole pitch, characters included
+  // The pitch runs from the goal line (x = FW) back to the low back board at x = -BACK. Z zooms the whole pitch, characters included:
+  // 1.6 when there is no extra depth, otherwise just small enough that the net (below the HUD, which ends at y ~ 75) and the back board (above the controls hint, y ~ 698) both fit.
+  const BACK = C.BACK || 0, L = FW + BACK, VW = 1280, VH = 720, ST = 76, BH = 10;      // L: playable depth; ST: top of the playing surface (ad boards sit above it); BH: height of the back board strip
+  const Z = Math.min(1.6, (VH - 32 - ST - 4) / (L + GD)), OX = (1280 - FH * Z) / 2, OY = ST + GD * Z + 4, YB = OY + L * Z;      // YB: screen y of the back board
   // The sim has the goal on +x; the screen has it at the top. Sim (x, y) -> screen (y, FW - x): a pure rotation.
   const faceS = (f) => Math.atan2(-Math.cos(f), Math.sin(f));
   const T = (o) => ({ x: o.y, y: FW - o.x });
@@ -59,7 +62,8 @@
   });
   let mapId = 'stadium', TH = THEMES.stadium, pitch = null;
   const thumbs = new Map();
-  const fx = { parts: [], texts: [], shake: 0, trail: [], flash: 0, t: 0 };
+  const fx = { parts: [], texts: [], shake: 0, trail: [], flash: 0, t: 0, cflash: 0 };
+  let lastV = null;      // the view the last frame was drawn for (who 'me' is), for events
   let ballSkin = 'classic';
   function setBall(id) { ballSkin = ISO.ballById(id).id; }
   function setMap(id) { if (!THEMES[id] || id === mapId) return; mapId = id; TH = THEMES[id]; pitch = null; }
@@ -101,12 +105,12 @@
     };
     const fill = th.around === 'bricks' ? bricks : th.around === 'beach' ? sand : dots;
     if (th.around === 'beach') {      // the sea behind the goal
-      const g = c.createLinearGradient(0, 0, 0, 70); g.addColorStop(0, '#1d6fa5'); g.addColorStop(0.75, '#4fb6d6'); g.addColorStop(1, '#e9f7f4');
-      c.fillStyle = g; c.fillRect(0, 0, VW, 70);
+      const g = c.createLinearGradient(0, 0, 0, ST - 20); g.addColorStop(0, '#1d6fa5'); g.addColorStop(0.75, '#4fb6d6'); g.addColorStop(1, '#e9f7f4');
+      c.fillStyle = g; c.fillRect(0, 0, VW, ST - 20);
       c.strokeStyle = 'rgba(255,255,255,.55)'; c.lineWidth = 1.4;
-      for (let i = 0; i < 90; i++) { const x = rnd() * VW, y = 6 + rnd() * 54, w = 10 + rnd() * 26; c.beginPath(); c.moveTo(x, y); c.quadraticCurveTo(x + w / 2, y - 3, x + w, y); c.stroke(); }
-    } else { fill(0, 2, VW, 70); c.fillStyle = 'rgba(8,10,14,.45)'; c.fillRect(0, 0, VW, 70); }
-    fill(0, VH - 14, VW, VH); fill(2, 70, 50, VH - 14); fill(VW - 48, 70, VW, VH - 14);
+      for (let i = 0; i < 90; i++) { const x = rnd() * VW, y = 4 + rnd() * (ST - 30), w = 10 + rnd() * 26; c.beginPath(); c.moveTo(x, y); c.quadraticCurveTo(x + w / 2, y - 3, x + w, y); c.stroke(); }
+    } else { fill(0, 2, VW, ST - 20); c.fillStyle = 'rgba(8,10,14,.45)'; c.fillRect(0, 0, VW, ST - 20); }
+    fill(0, YB + BH, VW, VH); fill(2, ST - 20, 50, YB + BH); fill(VW - 48, ST - 20, VW, YB + BH);
     if (th.around === 'bricks') {     // chain-link over the walls
       c.strokeStyle = 'rgba(200,210,225,.13)'; c.lineWidth = 0.8; c.beginPath();
       for (let i = -VH; i < VW; i += 9) { c.moveTo(i, 0); c.lineTo(i + VH, VH); c.moveTo(i + VH, 0); c.lineTo(i, VH); }
@@ -121,35 +125,41 @@
       c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(a[0], x + w / 2, y + h / 2 + 1);
       c.strokeStyle = 'rgba(0,0,0,.5)'; c.lineWidth = 1; c.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
     };
-    for (let i = 0; i < 7; i++) { board(64 + i * 164.6, 72, 164.6, 20, i); board(64 + i * 164.6, VH - 34, 164.6, 20, i + 3); }
-    c.fillStyle = th.wall; c.fillRect(50, 72, 14, VH - 86); c.fillRect(VW - 64, 72, 14, VH - 86);
+    for (let i = 0; i < 7; i++) { if (i === 0 || i === 6) board(64 + i * 164.6, ST - 20, 164.6, 20, i); board(64 + i * 164.6, YB, 164.6, BH, i + 3); }      // the top row shows only beside the HUD; the lower row is the back board
+    c.fillStyle = th.wall; c.fillRect(50, ST - 20, 14, YB + BH - ST + 20); c.fillRect(VW - 64, ST - 20, 14, YB + BH - ST + 20);
     // playing surface
-    c.fillStyle = th.base; c.fillRect(64, 92, VW - 128, VH - 126);
-    const bands = 10, bh = FW / bands;
-    for (let i = 0; i < bands; i++) { c.fillStyle = th.bands[i % 2 ? 1 : 0]; c.fillRect(OX, OY + i * bh * Z, FH * Z, bh * Z + 0.5); }
+    const SH = YB - ST;
+    c.fillStyle = th.base; c.fillRect(64, ST, VW - 128, SH);
+    const bh = FW / 10, bands = Math.ceil(L / bh - 1e-6);      // stripes keep their size and start at the goal line; the extra depth just gets more of them
+    for (let i = 0; i < bands; i++) { c.fillStyle = th.bands[i % 2 ? 1 : 0]; c.fillRect(OX, OY + i * bh * Z, FH * Z, Math.min(bh, L - i * bh) * Z + 0.5); }
     for (let i = 0; i < 9000; i++) {
       c.fillStyle = rnd() < 0.5 ? 'rgba(255,255,255,.035)' : 'rgba(0,0,0,.05)';
-      c.fillRect(64 + rnd() * (VW - 128), 92 + rnd() * (VH - 126), 1.2, 2.4);
+      c.fillRect(64 + rnd() * (VW - 128), ST + rnd() * SH, 1.2, 2.4);
     }
     if (th.snow) {      // drifts on the pitch, flakes over everything
-      c.save(); c.beginPath(); c.rect(64, 92, VW - 128, VH - 126); c.clip();
-      for (let i = 0; i < 70; i++) { c.fillStyle = 'rgba(255,255,255,' + (0.1 + rnd() * 0.16) + ')'; c.beginPath(); c.ellipse(64 + rnd() * (VW - 128), 92 + rnd() * (VH - 126), 20 + rnd() * 50, 6 + rnd() * 12, 0, 0, TAU); c.fill(); }
+      c.save(); c.beginPath(); c.rect(64, ST, VW - 128, SH); c.clip();
+      for (let i = 0; i < 70; i++) { c.fillStyle = 'rgba(255,255,255,' + (0.1 + rnd() * 0.16) + ')'; c.beginPath(); c.ellipse(64 + rnd() * (VW - 128), ST + rnd() * SH, 20 + rnd() * 50, 6 + rnd() * 12, 0, 0, TAU); c.fill(); }
       c.restore();
       for (let i = 0; i < 500; i++) { c.fillStyle = 'rgba(255,255,255,' + (0.35 + rnd() * 0.5) + ')'; c.beginPath(); c.arc(rnd() * VW, rnd() * VH, 0.6 + rnd() * 1.5, 0, TAU); c.fill(); }
     }
-    const vg = c.createRadialGradient(VW / 2, OY + FW * Z / 2, 200, VW / 2, OY + FW * Z / 2, 860);
+    const vg = c.createRadialGradient(VW / 2, OY + L * Z / 2, 200, VW / 2, OY + L * Z / 2, 860);
     vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,' + th.vig + ')');
-    c.fillStyle = vg; c.fillRect(64, 92, VW - 128, VH - 126);
+    c.fillStyle = vg; c.fillRect(64, ST, VW - 128, SH);
     // markings
     c.save(); c.translate(OX, OY); c.scale(Z, Z);
     if (th.glow) { c.shadowColor = th.glow; c.shadowBlur = 10 * res; }
     c.strokeStyle = th.line; c.lineWidth = 2.5; c.lineJoin = 'round';
     const GC = (GY0 + GY1) / 2;
-    c.strokeRect(0, 0, FH, FW);
+    if (BACK) { c.beginPath(); c.moveTo(0, L); c.lineTo(0, 0); c.lineTo(FH, 0); c.lineTo(FH, L); c.stroke(); }      // touchlines run on to the back board
+    else c.strokeRect(0, 0, FH, FW);
     if (th.cage) {      // futsal: walls round the court (the goal mouth stays open)
       c.save(); c.shadowBlur = 0; c.strokeStyle = th.cage; c.globalAlpha = 0.85; c.lineWidth = 7; c.lineJoin = 'miter';
-      c.beginPath(); c.moveTo(GY0, 0); c.lineTo(0, 0); c.lineTo(0, FW); c.lineTo(FH, FW); c.lineTo(FH, 0); c.lineTo(GY1, 0); c.stroke();
+      c.beginPath(); c.moveTo(GY0, 0); c.lineTo(0, 0); c.lineTo(0, L); c.lineTo(FH, L); c.lineTo(FH, 0); c.lineTo(GY1, 0); c.stroke();
       c.globalAlpha = 0.18; c.lineWidth = 22; c.stroke(); c.restore();
+    } else if (BACK) {      // a low back board along x = -BACK, where the ball bounces back into play
+      c.save(); c.shadowBlur = 0; c.lineCap = 'butt';
+      c.strokeStyle = 'rgba(0,0,0,.4)'; c.lineWidth = 8; c.beginPath(); c.moveTo(-3, L + 1); c.lineTo(FH + 3, L + 1); c.stroke();
+      c.strokeStyle = th.post; c.globalAlpha = 0.9; c.lineWidth = 4; c.beginPath(); c.moveTo(-3, L); c.lineTo(FH + 3, L); c.stroke(); c.restore();
     }
     c.strokeRect(BOXY0, 0, BOXY1 - BOXY0, BOXD);
     c.strokeRect(SIXY0, 0, SIXY1 - SIXY0, SIXD);
@@ -464,7 +474,10 @@
       fx.parts.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - (grav ? sp * 0.4 : 0), life: life * (0.5 + Math.random() * 0.5), max: life, col: cols[(Math.random() * cols.length) | 0], g: grav || 0, s: 1.5 + Math.random() * 2.5 });
     }
   }
-  function text(x, y, str, col, big) { fx.texts.push({ x, y, str, col: col || '#fff', life: 1.1, big }); }
+  function text(x, y, str, col, big, life, slot) {
+    if (slot) fx.texts = fx.texts.filter((t) => t.slot !== slot);      // one pop-up slot: a new message replaces the old one
+    fx.texts.push({ x, y, str, col: col || '#fff', life: life || 1.1, big, slot });
+  }
 
   function onEvent(G, e) {
     const b = T(G.ball);
@@ -472,6 +485,7 @@
     switch (e.type) {
       case 'kick': if (e.shot) burst(b.x, b.y, 6, ['#e9f7ee', '#bfe8cb'], 90, 0.3); break;
       case 'post': fx.shake = Math.max(fx.shake, 5 * e.power); burst(b.x, b.y, 8, ['#ffffff'], 120, 0.3); text(b.x, b.y + 24, 'WOODWORK!', '#fff'); break;
+      case 'board': fx.shake = Math.max(fx.shake, 1.5 * (e.power || 0.5)); burst(b.x, Math.min(b.y, L - 2), 4, ['#cfd6dd'], 60, 0.25); break;      // the soft back board: a thud, no text
       case 'goal': fx.shake = 12; fx.flash = 1;
         burst(b.x, b.y, 30, ['#ffffff', '#35e08a'], 240, 0.6);
         for (let i = 0; i < 90; i++) fx.parts.push({ x: Math.random() * FH, y: -40 - Math.random() * 160, vx: (Math.random() - 0.5) * 60, vy: 120 + Math.random() * 140, life: 2.6, max: 2.6, col: [TEAM_COL[e.team], '#ffffff', '#ffe066'][i % 3], g: 0, s: 3 + Math.random() * 3, conf: Math.random() * TAU });
@@ -486,7 +500,15 @@
       case 'botch': text(P.x, P.y - 58, 'HEAVY TOUCH', '#ff8a8a'); break;
       case 'steal': text(P.x, P.y - 52, 'NICKED', TEAM_COL[e.p.team]); break;
       case 'block': burst(b.x, b.y, 6, ['#ffffff'], 100, 0.25); text(P.x, P.y - 52, 'BLOCK', TEAM_COL[e.p.team]); break;
-      case 'clear': text(b.x, b.y - 30, 'CLEARED', TEAM_COL[e.team]); break;
+      // the clear cue is for the team concerned only; the opponent's screen shows nothing
+      case 'clearit': case 'clearfirst': case 'clear': {
+        if (!(lastV && G.players[lastV.me || 0] && G.players[lastV.me || 0].team === e.team)) break;
+        // one slot per player, drawn under the feet so it never lands on the tackle / save text above the head
+        const q = P || b, y = Math.min(q.y + 30, L - 8), slot = 'clr' + (e.p ? G.players.indexOf(e.p) : -1);
+        if (e.type === 'clear') { text(q.x, y, 'CLEARED', 'rgba(210,225,215,.85)', false, 0.6, slot); fx.cflash = 1; }
+        else text(q.x, y, e.type === 'clearit' ? 'CLEAR IT' : 'CLEAR IT FIRST', '#ffe066', false, 0.8, slot);
+        break;
+      }
       case 'bump': text(P.x, P.y - 52, 'SHOULDER', TEAM_COL[e.p.team]); break;
     }
   }
@@ -526,7 +548,7 @@
     let td = FW - b.x, sx = b.y;
     if (me && me.state !== 'away') { td = Math.max(td, FW - me.x); sx = (sx + me.y) / 2; }
     for (const p of G.players) if (p.state !== 'away') td = Math.max(td, FW - p.x);
-    const tx = clamp(GCY + (sx - GCY) * 0.85, GCY - 170, GCY + 170); td = clamp(td, 45, FW);
+    const tx = clamp(GCY + (sx - GCY) * 0.85, GCY - 170, GCY + 170); td = clamp(td - (BACK ? 40 : 0), 45, L - (BACK ? 40 : 0));      // with a back board: the deepest figure sits below the view centre, so the board shows and the rest of the frame is pitch
     if (!LIVE.init || G.phase === 'countdown' || G.phase === 'ready') { LIVE.X = tx; LIVE.Dd = td; LIVE.init = true; }
     else { const k = 1 - Math.exp(-3.2 * dt); LIVE.X += (tx - LIVE.X) * k; LIVE.Dd += (td - LIVE.Dd) * k; }
     return (LIVE.cam = mkCam({ X: LIVE.X, D: LIVE.Dd + CINE.off, H: CINE.H, th: CINE.th, f: CINE.f, cy: CINE.cy }));
@@ -577,11 +599,12 @@
       const g = c.createLinearGradient(0, 0, 0, wall.y); g.addColorStop(0, 'rgba(6,8,12,.86)'); g.addColorStop(1, 'rgba(6,8,12,.3)');
       c.fillStyle = g; c.fillRect(0, 0, VW, wall.y);
     }
-    const far = Math.min(cam.D + (cam.H * cam.st) / cam.ct * 0.85, FW + 420);
+    const far = Math.min(cam.D + (cam.H * cam.st) / cam.ct * 0.85, L + 420);
     quad(c, cam, [[-900, -84, 0], [FH + 900, -84, 0], [FH + 900, far, 0], [-900, far, 0]], TH.wall);
-    quad(c, cam, [[-70, -60, 0], [FH + 70, -60, 0], [FH + 70, far, 0], [-70, far, 0]], TH.base);
+    const turfEnd = Math.min(far, L);      // the turf stops at the back board: behind it is the wall colour
+    quad(c, cam, [[-70, -60, 0], [FH + 70, -60, 0], [FH + 70, turfEnd, 0], [-70, turfEnd, 0]], TH.base);
     const bh = FW / 10;
-    for (let i = 0; i * bh < far; i++) quad(c, cam, [[0, i * bh, 0], [FH, i * bh, 0], [FH, Math.min(far, (i + 1) * bh), 0], [0, Math.min(far, (i + 1) * bh), 0]], TH.bands[i % 2]);
+    for (let i = 0; i * bh < turfEnd; i++) quad(c, cam, [[0, i * bh, 0], [FH, i * bh, 0], [FH, Math.min(turfEnd, (i + 1) * bh), 0], [0, Math.min(turfEnd, (i + 1) * bh), 0]], TH.bands[i % 2]);
     const ads = TH.ads, bw = 150;
     for (let i = -3; i < 8; i++) {
       const a = pr(cam, i * bw, -62, 18), b = pr(cam, (i + 1) * bw, -62, 0), ad = ads[((i % ads.length) + ads.length) % ads.length];
@@ -593,14 +616,19 @@
     // markings
     c.strokeStyle = TH.line; c.lineCap = 'butt';
     if (TH.glow) { c.shadowColor = TH.glow; c.shadowBlur = 8; }
-    const fl = Math.min(far, FW);
+    const fl = Math.min(far, L);
     if (TH.cage) {      // futsal: low glass-and-board walls along both sides
       for (const x of [0, FH]) quad(c, cam, [[x, 0, 0], [x, fl, 0], [x, fl, 34], [x, 0, 34]], 'rgba(255,255,255,.12)');
       c.strokeStyle = TH.cage; c.lineWidth = 2;
       for (const x of [0, FH]) { const a = pr(cam, x, 0, 34), b = pr(cam, x, fl, 34); c.beginPath(); c.moveTo(a.x, a.y); c.lineTo(b.x, b.y); c.stroke(); }
     }
     gline(c, cam, [[0, fl], [0, 0], [FH, 0], [FH, fl]], 3.2);
-    if (far >= FW) gline(c, cam, [[0, FW], [FH, FW]], 3.2);      // the far end line, so the whole boundary reads
+    if (far >= L) {      // the far end: the low back board (futsal: the wall), so the whole boundary reads
+      const h = TH.cage ? 34 : 12;
+      quad(c, cam, [[0, L, 0], [FH, L, 0], [FH, L, h], [0, L, h]], TH.cage ? 'rgba(255,255,255,.12)' : 'rgba(0,0,0,.35)');
+      c.strokeStyle = TH.cage || TH.post; c.lineWidth = 2.4; const a = pr(cam, 0, L, h), b = pr(cam, FH, L, h); c.beginPath(); c.moveTo(a.x, a.y); c.lineTo(b.x, b.y); c.stroke();
+      c.strokeStyle = TH.line;
+    }
     gline(c, cam, [[BOXY0, 0], [BOXY0, BOXD], [BOXY1, BOXD], [BOXY1, 0]], 2.5);
     gline(c, cam, [[SIXY0, 0], [SIXY0, SIXD], [SIXY1, SIXD], [SIXY1, 0]], 2.5);
     const da = Math.acos((BOXD - PEN) / CR), arc = [];
@@ -641,10 +669,39 @@
     }
   }
 
+  // ---- the clear cue: the box line the ball has to cross glows and flutters on the screen of the team that must clear ----
+  // proj maps view coordinates (X across, D out from the goal line) to the screen: the 2D view's own transform or a camera.
+  const BOX = [[BOXY0, 0], [BOXY0, BOXD], [BOXY1, BOXD], [BOXY1, 0]];
+  const BOXPTS = (() => { const o = []; let s = 0; for (let i = 0; i + 1 < BOX.length; i++) { const [x0, d0] = BOX[i], [x1, d1] = BOX[i + 1], len = hyp(x1 - x0, d1 - d0), n = Math.ceil(len / 10); for (let j = i ? 1 : 0; j <= n; j++) o.push([x0 + (x1 - x0) * j / n, d0 + (d1 - d0) * j / n, s + len * j / n]); s += len; } return o; })();
+  function clearGlow(c, proj, w) {
+    const t = fx.t, pulse = 0.5 + 0.5 * Math.sin(t * 5.5), flash = Math.max(0, fx.cflash || 0), P = BOXPTS.map((q) => proj(q[0], q[1]));
+    c.save(); c.lineCap = 'round'; c.lineJoin = 'round';
+    const run = (col, wd, a, blur, per) => {      // the whole line in one stroke, or (per) in pieces whose brightness follows a wave travelling along it
+      c.shadowColor = col; c.shadowBlur = blur; c.strokeStyle = col;
+      if (!per) { c.globalAlpha = a; c.lineWidth = wd * P[0].s; c.beginPath(); P.forEach((q, i) => (i ? c.lineTo(q.x, q.y) : c.moveTo(q.x, q.y))); c.stroke(); return; }
+      for (let i = 0; i + 1 < P.length; i++) {
+        const k = 0.5 + 0.5 * Math.sin(BOXPTS[i][2] * 0.05 - t * 7) * Math.sin(BOXPTS[i][2] * 0.021 + t * 3.1);
+        c.globalAlpha = a * (0.25 + 0.75 * k); c.lineWidth = wd * (0.7 + 0.6 * k) * (P[i].s + P[i + 1].s) / 2;
+        c.beginPath(); c.moveTo(P[i].x, P[i].y); c.lineTo(P[i + 1].x, P[i + 1].y); c.stroke();
+      }
+    };
+    run('#000', w * 2.6, 0.38, 0, false);      // dark underlay: the cue reads on pale and bright turf too
+    run('#ffd23d', w * 2.2, 0.35 + 0.4 * pulse, 16 + 14 * pulse, false);
+    run('#ffffff', w * 0.9, 0.9, 6, true);
+    if (flash > 0) run('#ffffff', w * (1.6 + 2.4 * flash), Math.min(1, flash * 1.4), 26 * flash, false);
+    c.restore();
+  }
+  // does this screen belong to the team that has to clear?
+  function mustClearMine(G, V) {
+    const mc = G.mustClear == null ? -1 : G.mustClear, me = G.players[V.me || 0];
+    return mc >= 0 && !!me && me.team === mc;
+  }
+
   // Draw a scene (players, keeper and ball in view coordinates) through a 3D camera.
   // S: { players: [{ v, sheet, label, key, own }], keeper: { v, sheet, key, ring }, ball }
   function drawScene3D(c, S, cam, G) {
     drawGround3D(c, cam);
+    if (S.clear) clearGlow(c, (X, D) => pr(cam, X, D, 0), 3);
     drawNet3D(c, cam);
     if (G && G.drill && G.drill.kind === 'target') { /* targets are a top-down drill */ }
     const b = S.ball, ents = [];
@@ -741,7 +798,7 @@
   }
   function replayCam(E, st, dt) {
     const bx = E.b.y, bd = FW - E.b.x;               // view coordinates of the ball
-    const tx = clamp(GCY + (bx - GCY) * 0.7, GCY - 190, GCY + 190), td = clamp(bd, 45, FW);
+    const tx = clamp(GCY + (bx - GCY) * 0.7, GCY - 190, GCY + 190), td = clamp(bd + (BACK ? 26 : 0), 45, L + (BACK ? 26 : 0));
     const cine = !!LIVE.cam;
     if (!RP.cam) RP.cam = cine ? { X: LIVE.X, Dd: LIVE.Dd, zoom: 0 } : { X: tx, Dd: td, zoom: 0 };
     const k = 1 - Math.exp(-3.2 * dt);
@@ -791,6 +848,7 @@
     for (const t of fx.trail) { t.life -= dt; if (t.life > 0) { c.fillStyle = 'rgba(255,255,255,' + t.life * 1.6 + ')'; c.beginPath(); c.arc(t.x, t.y, 5 * (t.life / 0.22), 0, TAU); c.fill(); } }
     fx.trail = fx.trail.filter((t) => t.life > 0);
 
+    if (!V.quiet && (mustClearMine(G, V) || fx.cflash > 0)) clearGlow(c, (X, D) => ({ x: X, y: D, s: 1 }), 2.6);
     drawNets(c);          // the net sits behind everything, so the keeper stands in front of the goal
     if (G.drill && G.drill.kind === 'target') drawTargets(c, G);
     drawBallShadow(c, b);
@@ -846,6 +904,7 @@
       players: G.players.map((p0, i) => ({ v: viewP(p0), sheet: V.sheets[i], label: V.labels[i], key: p0, own: G.ball.owner === p0 })),
       keeper: { v: viewP(G.keeper), sheet: V.keeperSheet, key: G.keeper },
       ball: Object.assign(Object.create(G.ball), { x: G.ball.y, y: FW - G.ball.x, vx: G.ball.vy, vy: -G.ball.vx }),
+      clear: !V.quiet && (mustClearMine(G, V) || fx.cflash > 0),
     };
     c.save();
     if (fx.shake > 0.2) { c.translate((Math.random() - 0.5) * fx.shake, (Math.random() - 0.5) * fx.shake); fx.shake *= Math.pow(0.004, dt); } else fx.shake = 0;
@@ -859,12 +918,13 @@
     // the shootout so far: a row of kicks for each side
     const rows = [[V.labels[0] || 'YOU', so.kicks[0], TEAM_COL[0]], ['OPPONENTS', so.kicks[1], TEAM_COL[1]]];
     const n = Math.max(N, so.kicks[0].length, so.kicks[1].length + (mine ? 0 : 1)), x0 = VW / 2 - (n * 26) / 2 + 40, y0 = 100;
-    c.fillStyle = 'rgba(6,10,14,.72)'; c.fillRect(x0 - 150, y0 - 16, n * 26 + 170, 58);
+    c.fillStyle = 'rgba(6,10,14,.82)'; c.fillRect(x0 - 150, y0 - 16, n * 26 + 170, 58);
     rows.forEach(([name, kicks, col], r) => {
       const y = y0 + r * 26;
       c.font = '800 14px "Avenir Next Condensed","Arial Narrow",Arial,sans-serif'; c.textAlign = 'right'; c.textBaseline = 'middle'; c.fillStyle = col; c.fillText(name, x0 - 16, y + 1);
       for (let i = 0; i < n; i++) {
         const res = kicks[i], cx = x0 + i * 26 + 4, now = !res && i === kicks.length && (r === 0) === mine && G.phase !== 'end';
+        c.beginPath(); c.arc(cx, y, 10.5, 0, TAU); c.fillStyle = 'rgba(6,10,14,.88)'; c.fill();      // dark backing: reads over any crowd
         c.beginPath(); c.arc(cx, y, 8, 0, TAU);
         c.fillStyle = res === 'goal' ? '#35e08a' : res ? '#f1735f' : 'rgba(255,255,255,.08)'; c.fill();
         c.lineWidth = 2; c.strokeStyle = now ? '#ffffff' : res ? 'rgba(0,0,0,.4)' : 'rgba(255,255,255,.3)'; c.stroke();
@@ -882,7 +942,7 @@
 
   function draw(c, G, V, dt) {
     if (!pitch) pitch = buildPitch(TH);
-    fx.t += dt; fdt = dt;
+    fx.t += dt; fdt = dt; lastV = V; fx.cflash = Math.max(0, fx.cflash - dt * 1.6);
     const pen = !!(G.drill && G.drill.so);
     // the tape runs whenever a replay-able match is live; a new rep, a new match or the end of the goal pause resets the replay
     if (G.phase !== 'goal') { RP.goalAt = -1; RP.ents = null; RP.cam = null; }
@@ -909,28 +969,25 @@
     overlays(c, G, V, rs, pen);
   }
 
-  // countdown / GOAL / SAVED / rebound-hint banners: shared by the 2D views and the 3D mode
+  // countdown / GOAL / SAVED / OUT banners: shared by the 2D views and the 3D mode (rs = null from the 3D path). Shootout banners are centred on the screen,
+  // between the goal and the taker, whichever renderer is underneath.
   function overlays(c, G, V, rs, pen) {
     if (G.phase === 'countdown') {
       const n = Math.ceil(G.phaseT / G.cdTick), frac = (G.phaseT / G.cdTick) % 1;
       const sub = pen ? (G.drill.so.sudden ? 'SUDDEN DEATH · ' : '') + (G.drill.so.turn === 'shoot' ? 'YOUR KICK' : (G.players[1].def.short || 'CPU').toUpperCase() + ' TO SHOOT — SAVE IT')
         : G.drill ? G.drill.name + ' · ' + (G.drill.tip ? G.drill.tip + ' · ' + (G.drill.n + 1) + ' OF ' + G.drill.total : G.drill.kind === 'target' ? 'HIT ' + ISO.TARGETS[G.drill.target].name : G.drill.kind === 'chip' ? 'LOB THE KEEPER' : 'KICK ' + (G.drill.n + 1) + ' OF ' + G.drill.total) : (V.teams || V.labels)[G.attacker] + ' ATTACKS';
-      if (n > 0) banner(c, String(n), sub, '#ffffff', 1 - frac, pen ? 400 : OY + 120, pen ? 215 : 0);
+      if (n > 0) banner(c, String(n), sub, '#ffffff', 1 - frac, pen ? 350 : OY + 120, pen ? VW / 2 : 0);
     } else if (G.phase === 'goal') {
       const t = (G.goalDur || C.GOAL_T) - G.phaseT, lg = G.goals[G.goals.length - 1], name = G.players[lg && lg.by != null ? lg.by : 1 - G.concede].def.short;
-      if (G.drill) banner(c, G.drill.msg, G.drill.sub, pen && G.drill.so.turn !== 'shoot' ? '#f1735f' : '#35e08a', t, pen ? 400 : OY + 130, pen ? 215 : 0);
+      if (G.drill) banner(c, G.drill.msg, G.drill.sub, pen && G.drill.so.turn !== 'shoot' ? '#f1735f' : '#35e08a', t, pen ? 350 : OY + 130, pen ? VW / 2 : 0);
       else if (!rs || rs.mix < 0.5) banner(c, 'GOAL!', (G.own ? 'OWN GOAL · ' : '') + name + '  ' + G.score[0] + ' – ' + G.score[1], TEAM_COL[1 - G.concede], t);
     } else if ((G.phase === 'ready' || G.phase === 'out') && (G.msg || G.outInfo || G.drill)) {
-      const str = G.drill ? G.drill.msg : G.phase === 'ready' ? G.msg : { clear: 'CLEARED!', saved: 'SAVED', out: 'OUT' }[G.outInfo.kind];
-      if (pen) banner(c, str, '', G.drill.so.turn === 'shoot' ? '#f1735f' : '#35e08a', 1.0 - G.phaseT, 400, 215);
+      const str = G.drill ? G.drill.msg : G.phase === 'ready' ? G.msg : { saved: 'SAVED', out: 'OUT' }[G.outInfo.kind];
+      if (pen) banner(c, str, '', G.drill.so.turn === 'shoot' ? '#f1735f' : '#35e08a', 1.0 - G.phaseT, 350, VW / 2);
       else {
         c.font = '800 italic 34px "Avenir Next Condensed","Arial Narrow",Arial,sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
         c.lineWidth = 7; c.strokeStyle = 'rgba(6,10,14,.85)'; c.strokeText(str, VW / 2, OY + 60); c.fillStyle = '#fff'; c.fillText(str, VW / 2, OY + 60);
       }
-    } else if (G.phase === 'play' && (G.armed || (G.ball.owner && G.ball.owner.team !== G.attacker))) {
-      c.font = '800 italic 18px "Avenir Next Condensed","Arial Narrow",Arial,sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
-      c.lineWidth = 5; c.strokeStyle = 'rgba(6,10,14,.85)'; const t = G.ball.owner && G.ball.owner.team !== G.attacker ? 'CLEAR IT OUTSIDE THE BOX BEFORE YOU SHOOT' : 'REBOUND — CLEAR IT OUTSIDE THE BOX';
-      c.strokeText(t, VW / 2, OY + 24); c.fillStyle = '#ffe066'; c.fillText(t, VW / 2, OY + 24);
     } else if (G.phase === 'play' && !pen && G.t - G.time < 4 && G.time < 0.9 && G.score[0] + G.score[1] === 0) {
       c.globalAlpha = Math.min(1, (0.9 - G.time) * 4);
       c.font = '900 italic 54px "Avenir Next Condensed","Arial Narrow",Arial,sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
@@ -939,7 +996,7 @@
     }
   }
 
-  function reset() { fx.parts = []; fx.texts = []; fx.trail = []; fx.shake = 0; fx.flash = 0; RP.tape.length = 0; RP.goalAt = -1; RP.ents = null; RP.cam = null; LIVE.init = false; LIVE.cam = null; }
+  function reset() { fx.parts = []; fx.texts = []; fx.trail = []; fx.shake = 0; fx.flash = 0; fx.cflash = 0; RP.tape.length = 0; RP.goalAt = -1; RP.ents = null; RP.cam = null; LIVE.init = false; LIVE.cam = null; }
 
   // mouse aim reticle (screen coords) with a guide from the human player
   function drawAim(c, G, V) {
@@ -957,5 +1014,5 @@
   }
   // is the goal replay on screen right now? (the match underneath is paused in its goal phase)
   const inReplay = (G, V) => !!replayState(G, V);
-  ISO.Render = { draw, onEvent, reset, VW, VH, TEAM_COL, Z, OX, OY, drawAim, setMap, thumb, unprojectGoal, unprojectLive, inReplay, setBall, overlays, theme: () => TH, mapId: () => mapId };
+  ISO.Render = { draw, onEvent, reset, VW, VH, TEAM_COL, Z, OX, OY, drawAim, setMap, thumb, unprojectGoal, unprojectLive, inReplay, setBall, overlays, penaltyOverlay, theme: () => TH, mapId: () => mapId };
 })();

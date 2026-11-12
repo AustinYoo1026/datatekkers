@@ -8,8 +8,10 @@
   const C = ISO.C;
   const S = 0.05, GCY = (C.GY0 + C.GY1) / 2 - 0;   // metres per sim px; goal centre y (360)
   const K = (R3D.K = {
-    S, GCY, FW: C.FW, FH: C.FH,
-    depth: C.FW * S,                    // 17 m of playable depth
+    S, GCY, FW: C.FW, FH: C.FH, BACK: C.BACK || 0,
+    depth: C.FW * S,                    // 17 m: world z of sim x = 0 (the old far edge)
+    back: (C.BACK || 0) * S,            // extra playable pitch behind sim x = 0 (3.5 m); 0 when the sim has none
+    depthAll: (C.FW + (C.BACK || 0)) * S,   // z of the back board: the pitch is playable for z in [0, depthAll]
     width: C.FH * S,                    // 36 m of playable width
     half: (C.FH * S) / 2,
     goalW: (C.GY1 - C.GY0) * S,         // 7.5 m
@@ -19,7 +21,9 @@
     boxD: C.BOXD * S, boxHalf: (C.BOXY1 - C.BOXY0) / 2 * S,
     sixD: C.SIXD * S, sixHalf: (C.SIXY1 - C.SIXY0) / 2 * S,
     penD: C.PEN * S,
-    ballR: 0.2,
+    ballR: 0.11,                        // drawn ball radius: a size 5 ball (22 cm across) next to 1.8 m players. Visual only; the sim has its own BR
+    kickHold: 0.036,                    // sim seconds (60 ms of real time): after a player kicks a ball he owned, the drawn ball stays at his feet this long while the leg swings through, then catches the sim up
+    kickFollow: 1,                      // during that hold the ball rides with the kicker (1) instead of staying at a fixed world point (0)
     PI: Math.PI,
     // sim -> world
     wx: (sy) => (sy - GCY) * S,

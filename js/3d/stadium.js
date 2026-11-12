@@ -82,9 +82,11 @@
   // ---------------------------------------------------------------- canvases
   function canvas(w, h) { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; }
   const FONT = '"Avenir Next Condensed","Arial Narrow",Arial,sans-serif';
-  // Pitch plane: 70 x 60 m, x in [-35, 35], z in [-18, 42]. Canvas top row = z = -18 (texture flipY).
-  const PX0 = -35, PZ0 = -18, PW = 70, PH = 60;
+  // Pitch plane: 70 m wide, x in [-35, 35], z in [-18, 42 + back]; `back` is the extra playable depth behind the old far edge.
+  // Canvas top row = z = -18 (texture flipY).
+  const PX0 = -35, PZ0 = -18, PW = 70, PH0 = 60;
   function paintPitch(th, fl, D, size, futsal) {
+    const BK = D.back || 0, PH = PH0 + BK, DEPA = D.depth + BK;
     const cv = canvas(size, size), c = cv.getContext('2d'), R = rng(7);
     const sx = size / PW, sz = size / PH;
     c.setTransform(sx, 0, 0, sz, -PX0 * sx, -PZ0 * sz);       // draw in world metres (x, z)
@@ -119,8 +121,8 @@
     // surround
     if (futsal) {
       c.fillStyle = css(mixc(th.base, th.wall, 0.55), 1);
-      c.fillRect(PX0, PZ0, PW, -PZ0); c.fillRect(PX0, DEP, PW, PZ0 + PH - DEP);
-      c.fillRect(PX0, 0, -PX0 - HX, DEP); c.fillRect(HX, 0, PX0 + PW - HX, DEP);
+      c.fillRect(PX0, PZ0, PW, -PZ0); c.fillRect(PX0, DEPA, PW, PZ0 + PH - DEPA);
+      c.fillRect(PX0, 0, -PX0 - HX, DEPA); c.fillRect(HX, 0, PX0 + PW - HX, DEPA);
     } else {
       c.fillStyle = 'rgba(0,0,0,.2)';
       c.fillRect(PX0, PZ0, PW, -3 - PZ0); c.fillRect(PX0, -3, -PX0 - HX - 2, PZ0 + PH + 3); c.fillRect(HX + 2, -3, PX0 + PW - HX - 2, PZ0 + PH + 3);
@@ -134,7 +136,7 @@
     c.save();
     if (th.glow) { c.shadowColor = th.glow; c.shadowBlur = size / 140; }
     c.strokeStyle = th.line; c.fillStyle = th.line; c.lineWidth = 0.13; c.lineJoin = 'miter'; c.lineCap = 'butt';
-    const far = PZ0 + PH, half = 30.2, CR = (C.CR || 100) * S;
+    const far = PZ0 + PH, half = 30.2 + BK, CR = (C.CR || 100) * S;
     c.beginPath();
     c.moveTo(-HX, 0); c.lineTo(HX, 0);                                   // goal line
     c.moveTo(-HX, 0); c.lineTo(-HX, far); c.moveTo(HX, 0); c.lineTo(HX, far);   // touchlines (run on through the far half)
@@ -150,9 +152,9 @@
     c.beginPath(); c.arc(0, half, CR * 1.06, 0, TAU); c.stroke();           // centre circle
     c.beginPath(); c.arc(0, D.penD, 0.12, 0, TAU); c.fill();                // penalty spot
     c.beginPath(); c.arc(0, half, 0.14, 0, TAU); c.fill();                  // centre spot
-    // the drill's out line (the end of the playable half) and the start spot, in `mark`
+    // the back line (the end of the playable pitch, at the back board) and the start spot, in `mark`
     c.strokeStyle = th.mark; c.fillStyle = th.mark;
-    c.beginPath(); c.moveTo(-HX, DEP); c.lineTo(HX, DEP); c.stroke();
+    c.beginPath(); c.moveTo(-HX, DEPA - 0.07); c.lineTo(HX, DEPA - 0.07); c.stroke();
     const sz0 = ISO.SPOTX != null ? (D.FW - ISO.SPOTX) * S : 14.75;
     c.lineWidth = 0.1; c.setLineDash([0.25, 0.25]); c.beginPath(); c.moveTo(-2, sz0); c.lineTo(2, sz0); c.stroke(); c.setLineDash([]);
     c.beginPath(); c.arc(0, sz0, 0.175, 0, TAU); c.fill();
@@ -256,6 +258,11 @@
     for (let i = -64; i <= 64; i += 32) { c.moveTo(i, 0); c.lineTo(i + 64, 64); c.moveTo(i + 64, 0); c.lineTo(i, 64); }
     c.stroke(); return cv;
   }
+  function paintStopNet() {   // one square of a fine knotted mesh; mipmaps average it to an even haze at range
+    const cv = canvas(64, 64), c = cv.getContext('2d');
+    c.clearRect(0, 0, 64, 64); c.strokeStyle = 'rgba(255,255,255,1)'; c.lineWidth = 3; c.beginPath();
+    c.moveTo(32, 0); c.lineTo(32, 64); c.moveTo(0, 32); c.lineTo(64, 32); c.stroke(); return cv;
+  }
   function paintWindows(night) {
     const a = canvas(256, 256), e = canvas(256, 256), c = a.getContext('2d'), ce = e.getContext('2d'), R = rng(21);
     c.fillStyle = '#9aa0aa'; c.fillRect(0, 0, 256, 256); ce.fillStyle = '#000000'; ce.fillRect(0, 0, 256, 256);
@@ -345,7 +352,7 @@
     if (!futsal && around !== 'crowd' && around !== 'bricks' && around !== 'beach' && !build.warned) { build.warned = 1; console.warn('[stadium] unmapped around "' + around + '": using stands'); }
     const kind = futsal ? (around === 'bricks' || fl.rooftop ? 'rooftop' : 'hall') : around === 'bricks' ? 'bricks' : around === 'beach' ? 'beach' : 'crowd';
     const indoor = kind === 'hall', night = indoor ? 1 : fl.night;
-    const HX = D.half, DEP = D.depth, W2 = D.goalW / 2, GH = D.goalH, GDp = D.goalD, PR = D.postR || 0.06;
+    const BK = D.back || 0, HX = D.half, DEP = D.depth, DEPA = DEP + BK, W2 = D.goalW / 2, GH = D.goalH, GDp = D.goalD, PR = D.postR || 0.06;
     const R = rng(1234);
 
     const keep = { geo: [], mat: [], tex: [] };
@@ -368,6 +375,7 @@
 
     // ---- pitch
     const pitchTex = tex(paintPitch(th, fl, D, q >= 2 ? 1024 : 2048, futsal), { aniso: 16 });
+    const PH = PH0 + BK;
     const pg = G(new THREE.PlaneGeometry(PW, PH)); pg.rotateX(-Math.PI / 2); pg.translate(PX0 + PW / 2, 0, PZ0 + PH / 2);
     const pitch = add(new THREE.Mesh(pg, M(new THREE.MeshStandardMaterial({ map: pitchTex, roughness: fl.wood ? 0.55 : fl.glass ? 0.45 : 0.93, metalness: 0 }))), 'pitch');
     pitch.receiveShadow = true;
@@ -385,18 +393,20 @@
     const Bl = new Builder();          // lamps, light strips (unlit)
     const Bg = new Builder();          // glass (transparent)
     const Bk = new Builder();          // brick walls
+    const Bq = new Builder();          // ball-stop net (transparent)
+    const Bbb = new Builder(), Bgb = new Builder(), BnS = new Builder(), BnL = new Builder();      // the back end's own meshes (low board, glass, lit / unlit rail + posts): they fade out when the chase camera stands behind them
     const Bf = new Builder();          // chain-link fence (transparent)
     const Bw = new Builder();          // buildings (window texture)
     const fans = [];                   // instanced spectators: x, y, z, yaw
     const glows = [], lamps = [];      // glow sprite points / point light positions
-    const colliders = { boardZ: -3, boardX: HX + 2, boardH: 0.95, standZ: -5, standX: HX + 5, walls: futsal, wallH: 1.2 };
+    const colliders = { backZ: DEPA, backH: futsal ? 1.2 : 0.6, boardZ: -3, boardX: HX + 2, boardH: 0.95, standZ: -5, standX: HX + 5, walls: futsal, wallH: 1.2 };
 
     // ---- goal frame: round posts + bar, back stanchions (one mesh, casts shadows)
     {
       const B = new Builder(), cPost = lin(th.post), cSup = lin(mixc(th.post, '#50565e', 0.35));
       const up = new THREE.Vector3(0, 1, 0), m = new THREE.Matrix4(), qt = new THREE.Quaternion(), dv = new THREE.Vector3(), one = new THREE.Vector3(1, 1, 1);
-      const cyl = (r, x0, y0, z0, x1, y1, z1, seg, col) => {
-        dv.set(x1 - x0, y1 - y0, z1 - z0); const len = dv.length(); dv.normalize(); qt.setFromUnitVectors(up, dv);
+      const cyl = (r, x0, y0, z0, x1, y1, z1, seg, col, ext = 0.02) => {      // ext: end caps 2 cm beyond the ends, clear of the pitch and the net planes
+        dv.set(x1 - x0, y1 - y0, z1 - z0); const len = dv.length() + 2 * ext; dv.normalize(); qt.setFromUnitVectors(up, dv);
         m.compose(new THREE.Vector3((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2), qt, one);
         B.geo(new THREE.CylinderGeometry(r, r, len, seg, 1, false), m, col);
       };
@@ -476,40 +486,41 @@
     const adUV = (i) => { const r = i % nAds, px = 0.6 / (128 * AR); return [0, 1 - (r + 1) / AR + px, 1, 1 - r / AR - px]; };
     const darkUV = [0.1, 0.5 / AR, 0.9, 0.5 / AR];
     let adi = 0;
-    const boardRun = (P, L, seg, h, t) => { const n = Math.max(1, Math.round(L / seg)), sl = L / n; for (let i = 0; i < n; i++) lbox(Bb, P, i * sl + 0.03, (i + 1) * sl - 0.03, 0, t, 0, h, WHITE, adUV(adi++), darkUV); };
+    const boardRun = (P, L, seg, h, t, B) => { const n = Math.max(1, Math.round(L / seg)), sl = L / n; for (let i = 0; i < n; i++) lbox(B || Bb, P, i * sl + 0.03, (i + 1) * sl - 0.03, 0, t, 0, h, WHITE, adUV(adi++), darkUV); };
     if (!futsal) {
       boardRun(frame(-HX - 2, -3, 1, 0), 2 * HX + 4, 8, 0.95, 0.12);
-      boardRun(frame(-HX - 2, 25, 0, -1), 28, 7, 0.95, 0.12);
-      boardRun(frame(HX + 2, -3, 0, 1), 28, 7, 0.95, 0.12);
+      boardRun(frame(-HX - 2, DEPA + 0.12, 0, -1), DEPA + 3.12, 7, 0.95, 0.12);
+      boardRun(frame(HX + 2, -3, 0, 1), DEPA + 3.12, 7, 0.95, 0.12);
+      boardRun(frame(HX + 2, DEPA, -1, 0), 2 * HX + 4, 8, 0.6, 0.12, Bbb);       // the low back board the ball bounces off
     } else {
       // futsal: 1.2 m boards on the playable boundary (goal mouth open); the near/far end is glass so it never hides the player
       const glass = !!fl.glass, cage = lin(th.cage || th.line);
-      const run = (P, L, see) => {
-        if (glass || see) { Bg.quad(P(0, 0, 0), P(L, 0, 0), P(L, 0, 1.2), P(0, 0, 1.2), null, cage); }
+      const run = (P, L, see, bk) => {      // bk: the back end (fades with the chase camera)
+        if (glass || see) { (bk ? Bgb : Bg).quad(P(0, 0, 0), P(L, 0, 0), P(L, 0, 1.2), P(0, 0, 1.2), null, cage); }
         else boardRun(P, L, 8.5, 1.2, 0.1);
-        (glass ? Bl : Bs).quad(P(0, -0.03, 1.2), P(L, -0.03, 1.2), P(L, -0.03, 1.28), P(0, -0.03, 1.28), null, cage);   // rail
-        for (let al = 0; al <= L + 0.01; al += L / Math.max(1, Math.round(L / 2.5))) lbox(Bs, P, al - 0.03, al + 0.03, 0.1, 0.16, 0, 1.28, cage);   // posts
+        (bk ? (glass ? BnL : BnS) : glass ? Bl : Bs).quad(P(0, -0.03, 1.2), P(L, -0.03, 1.2), P(L, -0.03, 1.28), P(0, -0.03, 1.28), null, cage);   // rail
+        for (let al = 0; al <= L + 0.01; al += L / Math.max(1, Math.round(L / 2.5))) lbox(bk ? BnS : Bs, P, al - 0.03, al + 0.03, 0.12, 0.18, 0, 1.28, cage);   // posts, 2 cm clear of the boards' back faces
       };
-      run(frame(-HX, DEP, 0, -1), DEP); run(frame(HX, 0, 0, 1), DEP);
+      run(frame(-HX, DEPA, 0, -1), DEPA); run(frame(HX, 0, 0, 1), DEPA);
       run(frame(-HX, 0, 1, 0), HX - W2); run(frame(W2, 0, 1, 0), HX - W2);
-      run(frame(HX, DEP, -1, 0), 2 * HX, true);
+      run(frame(HX, DEPA, -1, 0), 2 * HX, true, true);
       colliders.boardZ = 0; colliders.boardX = HX; colliders.boardH = 1.2;
     }
 
     // ---- stands: stepped tiers with the crowd texture, parapet, end caps, back wall, cantilever roof + light strip
     function stand(P, L, cfg) {
       const T = cfg.T, dep = cfg.dep, rise = cfg.rise, fh = cfg.fh, back = T * dep, top = fh + T * rise;
-      lbox(Bs, P, 0, L, -0.22, 0, 0, fh + 0.1, cWallFront);
+      lbox(Bs, P, 0, L, -0.22, -0.01, 0, fh + 0.1, cWallFront);
       for (let k = 0; k < T; k++) {
         const h0 = fh + k * rise, h1 = h0 + rise, o0 = k * dep, o1 = o0 + dep, r = k % 4, v0 = 1 - (r + 1) / 4, v1 = 1 - r / 4, vs = v0 + 0.1, u0 = R(), u1 = u0 + L / 16;
         Bc.quad(P(0, o0, h0), P(L, o0, h0), P(L, o0, h1), P(0, o0, h1), [u0, v0 + 0.003, u1, vs], WHITE);
         Bc.quad(P(0, o0, h1), P(L, o0, h1), P(L, o1, h1), P(0, o1, h1), [u0, vs, u1, v1 - 0.003], WHITE);
       }
-      for (let al = 10; al < L - 4; al += 10) lbox(Bs, P, al, al + 1.1, 0, back, fh, fh + 0.06, cConc);     // aisles
+      for (let al = 10; al < L - 4; al += 10) lbox(Bs, P, al, al + 1.1, 0.02, back, fh, fh + 0.06, cConc);     // aisles (front 2 cm behind the first riser: coplanar faces flicker)
       for (const a of [0, L]) Bs.quad(P(a, 0, 0), P(a, back, 0), P(a, back, top + 0.1), P(a, 0, fh + rise + 0.1), null, cConc);
       const hb = cfg.roof ? cfg.roofH + 0.9 : top + 1.4;
       Bs.quad(P(0, back, top), P(L, back, top), P(L, back, hb), P(0, back, hb), null, cDark);
-      lbox(Bs, P, -0.3, L + 0.3, back, back + 0.4, 0, hb, cConc);
+      lbox(Bs, P, -0.3, L + 0.3, back + 0.06, back + 0.4, 0, hb, cConc);      // set back from the dark panel above the top tier: coplanar faces flicker
       if (cfg.roof) {
         const rf = -2.2, rh = cfg.roofH;
         Bs.quad(P(-0.3, rf, rh), P(L + 0.3, rf, rh), P(L + 0.3, back + 0.4, hb), P(-0.3, back + 0.4, hb), null, cRoofUnder);
@@ -551,62 +562,62 @@
     if (kind === 'crowd') {
       const cfg = { T: 10, dep: 0.85, rise: 0.55, fh: 1.3, roof: true, roofH: 9.8, fans: 3 };
       stand(FR(-31, -5, 1, 0), 62, cfg);
-      stand(FR(-HX - 5, 26, 0, -1), 30.6, cfg);
-      stand(FR(HX + 5, -4.6, 0, 1), 30.6, cfg);
-      for (const [x, z] of [[-34, -15], [34, -15], [-34, 33], [34, 33]]) tower(x, z, 30, true);
+      stand(FR(-HX - 5, 26 + BK, 0, -1), 30.6 + BK, cfg);
+      stand(FR(HX + 5, -4.6, 0, 1), 30.6 + BK, cfg);
+      for (const [x, z] of [[-34, -15], [34, -15], [-34, 33 + BK], [34, 33 + BK]]) tower(x, z, 30, true);
       colliders.standZ = -5; colliders.standX = HX + 5;
     } else if (kind === 'beach') {
       const cfg = { T: 5, dep: 0.8, rise: 0.45, fh: 0.7, roof: false, fans: 2 };
-      stand(FR(-HX - 4, 22, 0, -1), 24, cfg);
-      stand(FR(HX + 4, -2, 0, 1), 24, cfg);
+      stand(FR(-HX - 4, 22 + BK, 0, -1), 24 + BK, cfg);
+      stand(FR(HX + 4, -2, 0, 1), 24 + BK, cfg);
       const P = FR(-HX - 2, -4.3, 1, 0);
       for (let al = 0.6; al < 2 * HX + 4; al += 0.75 + R() * 0.3) { if (R() < 0.25) continue; const p = P(al, R() * 0.6, 0); fans.push(p[0], p[1], p[2], P.yaw); }
       for (let i = 0; i < 12; i++) {           // parasols
-        const side = i < 6, x = side ? (R() * 2 - 1) * 16 : (i % 2 ? 1 : -1) * (27 + R() * 5), z = side ? -6 - R() * 4 : -2 + R() * 30, c = lin(th.crowd[i % th.crowd.length]);
+        const side = i < 6, x = side ? (R() * 2 - 1) * 16 : (i % 2 ? 1 : -1) * (27 + R() * 5), z = side ? -6 - R() * 4 : -2 + R() * (30 + BK), c = lin(th.crowd[i % th.crowd.length]);
         Bs.geo(new THREE.CylinderGeometry(0.03, 0.03, 2.2, 5, 1, true), _m.makeTranslation(x, 1.1, z), lin('#e8e8e8'));
         Bs.geo(new THREE.ConeGeometry(1.3, 0.5, 8, 1, true), _m.makeTranslation(x, 2.3, z), (px, py, pz) => (Math.floor((Math.atan2(pz - z, px - x) + Math.PI) / (Math.PI / 4)) % 2 ? c : WHITE));
       }
-      for (const [x, z] of [[-27, -6], [27, -6], [-27, 26], [27, 26]]) tower(x, z, 14, false);
+      for (const [x, z] of [[-27, -6], [27, -6], [-27, 26 + BK], [27, 26 + BK]]) tower(x, z, 14, false);
       colliders.standZ = -12; colliders.standX = HX + 4;
     } else if (kind === 'bricks') {
       const wall = (P, L) => {
         lbox(Bk, P, 0, L, 0, 0.4, 0, 4.2, WHITE, [0, 0, L / 4, 4.2 / 2], [0, 0, L / 4, 0.2]);
-        lbox(Bs, P, -0.05, L + 0.05, -0.05, 0.45, 4.2, 4.35, cConc);
+        lbox(Bs, P, -0.07, L + 0.07, -0.07, 0.45, 4.2, 4.35, cConc);
         Bf.quad(P(0, 0.2, 4.35), P(L, 0.2, 4.35), P(L, 0.2, 9), P(0, 0.2, 9), [0, 0, L / 0.6, 4.65 / 0.6], WHITE);
         for (let al = 0; al <= L; al += 3.5) lbox(Bs, P, al - 0.05, al + 0.05, 0.15, 0.25, 4.2, 9.1, cSteel);
         lbox(Bs, P, 0, L, 0.15, 0.25, 8.95, 9.05, cSteel);
       };
-      wall(FR(-31, -5.5, 1, 0), 62); wall(FR(-HX - 5, 30, 0, -1), 35.5); wall(FR(HX + 5, -5.5, 0, 1), 35.5);
-      for (const [P, L] of [[FR(-HX - 2, -4.7, 1, 0), 2 * HX + 4], [FR(-HX - 4.3, 25, 0, -1), 28], [FR(HX + 4.3, -3, 0, 1), 28]])
+      wall(FR(-31, -5.5, 1, 0), 62); wall(FR(-HX - 5, 30 + BK, 0, -1), 35.5 + BK); wall(FR(HX + 5, -5.5, 0, 1), 35.5 + BK);
+      for (const [P, L] of [[FR(-HX - 2, -4.7, 1, 0), 2 * HX + 4], [FR(-HX - 4.3, 25 + BK, 0, -1), 28 + BK], [FR(HX + 4.3, -3, 0, 1), 28 + BK]])
         for (let al = 0.5; al < L; al += 0.7 + R() * 0.5) { if (R() < 0.3) continue; const p = P(al, 0, 0); fans.push(p[0], p[1], p[2], P.yaw); }
-      for (const [x, z] of [[-24.5, -7], [24.5, -7], [-24.5, 28], [24.5, 28]]) tower(x, z, 15, false);
+      for (const [x, z] of [[-24.5, -7], [24.5, -7], [-24.5, 28 + BK], [24.5, 28 + BK]]) tower(x, z, 15, false);
       colliders.standZ = -5.5; colliders.standX = HX + 5;
     } else if (kind === 'hall') {
       const cfg = { T: 6, dep: 0.8, rise: 0.5, fh: 1.1, roof: false, fans: 2 };
       stand(FR(-25, -4.5, 1, 0), 50, cfg);
-      stand(FR(-21.5, 24, 0, -1), 28.1, cfg);
-      stand(FR(21.5, -4.1, 0, 1), 28.1, cfg);
-      const hx = 27.1, hz0 = -10.1, hz1 = 40, hy = 12.5, cH = lin(mixc(th.wall, th.bg, 0.3)), cCeil = lin(scl(th.bg, 0.8));
+      stand(FR(-21.5, 24 + BK, 0, -1), 28.1 + BK, cfg);
+      stand(FR(21.5, -4.1, 0, 1), 28.1 + BK, cfg);
+      const hx = 27.1, hz0 = -10.1, hz1 = 40 + BK, hy = 12.5, cH = lin(mixc(th.wall, th.bg, 0.3)), cCeil = lin(scl(th.bg, 0.8));
       Bs.quad([-hx, 0, hz0], [hx, 0, hz0], [hx, hy, hz0], [-hx, hy, hz0], null, cH);
       Bs.quad([hx, 0, hz1], [-hx, 0, hz1], [-hx, hy, hz1], [hx, hy, hz1], null, cH);
       Bs.quad([-hx, 0, hz1], [-hx, 0, hz0], [-hx, hy, hz0], [-hx, hy, hz1], null, cH);
       Bs.quad([hx, 0, hz0], [hx, 0, hz1], [hx, hy, hz1], [hx, hy, hz0], null, cH);
       Bs.quad([-hx, hy, hz1], [hx, hy, hz1], [hx, hy, hz0], [-hx, hy, hz0], null, cCeil);
-      for (let z = -6; z < hz1; z += 8) wbox(Bs, -hx, hx, hy - 0.7, hy - 0.4, z, z + 0.3, cSteel);
-      for (const x of [-12, 0, 12]) for (let z = -2; z < 36; z += 9.5) Bl.quad([x - 1.6, hy - 0.75, z + 1.2], [x + 1.6, hy - 0.75, z + 1.2], [x + 1.6, hy - 0.75, z], [x - 1.6, hy - 0.75, z], null, lin('#ffffff'));
+      for (let z = -6; z < hz1; z += 8) wbox(Bs, -hx - 0.02, hx + 0.02, hy - 0.7, hy - 0.4, z, z + 0.3, cSteel);
+      for (const x of [-12, 0, 12]) for (let z = -2; z < 36 + BK; z += 9.5) Bl.quad([x - 1.6, hy - 0.75, z + 1.2], [x + 1.6, hy - 0.75, z + 1.2], [x + 1.6, hy - 0.75, z], [x - 1.6, hy - 0.75, z], null, lin('#ffffff'));
       lbox(Bb, frame(-20, hz0 + 0.05, 1, 0), 0, 40, -0.02, 0, 7.6, 9.6, WHITE, adUV(0), darkUV);   // banner over the end stand
       colliders.standZ = -4.5; colliders.standX = 21.5;
     } else {   // rooftop cage
       const fence = (P, L) => {
-        Bf.quad(P(0, 0, 0), P(L, 0, 0), P(L, 0, 4), P(0, 0, 4), [0, 0, L / 0.6, 4 / 0.6], WHITE);
+        Bf.quad(P(0, -0.02, 0), P(L, -0.02, 0), P(L, -0.02, 4), P(0, -0.02, 4), [0, 0, L / 0.6, 4 / 0.6], WHITE);
         for (let al = 0; al <= L; al += 3) lbox(Bs, P, al - 0.05, al + 0.05, 0, 0.1, 0, 4.1, cSteel);
         lbox(Bs, P, 0, L, 0, 0.1, 3.95, 4.05, cSteel);
         lbox(Bs, P, 0, L, 0.5, 0.9, 0, 0.9, cConc);
       };
-      fence(FR(-HX - 3, -4, 1, 0), 2 * HX + 6); fence(FR(-HX - 3, 32, 0, -1), 36); fence(FR(HX + 3, -4, 0, 1), 36); fence(FR(HX + 3, 32, -1, 0), 2 * HX + 6);
-      for (const [P, L] of [[FR(-HX - 2.6, -3.6, 1, 0), 2 * HX + 5], [FR(-HX - 2.6, 24, 0, -1), 27], [FR(HX + 2.6, -3, 0, 1), 27]])
+      fence(FR(-HX - 3, -4, 1, 0), 2 * HX + 6); fence(FR(-HX - 3, 32 + BK, 0, -1), 36 + BK); fence(FR(HX + 3, -4, 0, 1), 36 + BK); fence(FR(HX + 3, 32 + BK, -1, 0), 2 * HX + 6);
+      for (const [P, L] of [[FR(-HX - 2.6, -3.6, 1, 0), 2 * HX + 5], [FR(-HX - 2.6, 24 + BK, 0, -1), 27 + BK], [FR(HX + 2.6, -3, 0, 1), 27 + BK]])
         for (let al = 0.5; al < L; al += 0.8 + R() * 0.6) { if (R() < 0.4) continue; const p = P(al, 0, 0); fans.push(p[0], p[1], p[2], P.yaw); }
-      for (const [x, z] of [[-HX - 2.5, -3.5], [HX + 2.5, -3.5], [-HX - 2.5, 22], [HX + 2.5, 22]]) tower(x, z, 10, false);
+      for (const [x, z] of [[-HX - 2.5, -3.5], [HX + 2.5, -3.5], [-HX - 2.5, 22 + BK], [HX + 2.5, 22 + BK]]) tower(x, z, 10, false);
       colliders.standZ = -4; colliders.standX = HX + 3;
     }
 
@@ -632,7 +643,7 @@
         const behind = fl.dock ? 0 : 11;
         for (let i = 0; i < behind; i++) bld(-60 + i * 12 + R() * 4, -20 - R() * 26, 9 + R() * 8, 9 + R() * 10, -0.05, 12 + R() * 26);
         for (let s = -1; s <= 1; s += 2) for (let i = 0; i < 7; i++) bld(s * (36 + R() * 18), -8 + i * 9 + R() * 3, 8 + R() * 8, 7 + R() * 4, -0.05, 9 + R() * 22);
-        for (let i = 0; i < 6; i++) bld(-50 + i * 20 + R() * 5, 72 + R() * 20, 12 + R() * 8, 10, -0.05, 12 + R() * 20);
+        for (let i = 0; i < 6; i++) bld(-50 + i * 20 + R() * 5, 72 + BK + R() * 20, 12 + R() * 8, 10, -0.05, 12 + R() * 20);
       }
       if (fl.dock) {        // container stacks + two gantry cranes behind the goal
         for (let i = 0; i < 22; i++) {
@@ -656,6 +667,19 @@
       Bs.geo(new THREE.SphereGeometry(1, 16, 6, 0, TAU, 0, Math.PI / 2), _m, lin(mixc(th.base, '#e8b070', 0.3 + R() * 0.3)));
     }
 
+    // ---- ball-stop net: the sim keeps the ball in at the back edge with a full-height wall, so show it. Slim posts and a
+    // light mesh, 5 m tall (the highest measured contact is 3.8 m), above the low board / glass; depthWrite off so it never hides play.
+    {
+      const NET_H = 5, NET_Z = DEPA + 0.2, NET_B = colliders.backH - 0.1, NET_C = 0.25, cPole = lin('#3b4048');
+      const nPost = Math.max(2, Math.round(2 * HX / 6) + 1);
+      for (let i = 0; i < nPost; i++) {
+        const x = -HX + 2 * HX * i / (nPost - 1);
+        BnS.geo(new THREE.CylinderGeometry(0.04, 0.05, NET_H + 0.1, 8, 1, false), _m.makeTranslation(x, NET_H / 2, NET_Z + 0.07), cPole);
+      }
+      Bq.quad([-HX, NET_B, NET_Z], [HX, NET_B, NET_Z], [HX, NET_H, NET_Z], [-HX, NET_H, NET_Z], [0, 0, 2 * HX / NET_C, (NET_H - NET_B) / NET_C], WHITE);
+      wbox(BnS, -HX, HX, NET_H - 0.02, NET_H + 0.02, NET_Z + 0.05, NET_Z + 0.09, cPole);   // top cable
+    }
+
     // ---- merge into meshes
     const lambertVC = () => M(new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide }));
     const meshOf = (B, mat, name) => (B.nv ? add(new THREE.Mesh(G(B.build(THREE)), mat), name) : null);
@@ -665,10 +689,18 @@
       meshOf(Bc, M(new THREE.MeshLambertMaterial({ map: ct, emissive: new THREE.Color(night ? 0.32 : 0.18, night ? 0.32 : 0.18, night ? 0.32 : 0.18), emissiveMap: ct })), 'stands');
     }
     meshOf(Bb, M(new THREE.MeshBasicMaterial({ map: adTex })), 'boards');
+    // the back end (low board, glass, rail + posts, ball-stop net with its posts and cable) fades out while the chase camera is behind it
+    const backFade = [];
+    const backMesh = (B, mat, name, order) => { const m = meshOf(B, mat, name); if (m) { if (order != null) m.renderOrder = order; backFade.push({ m, mat, op: mat.opacity, tr: mat.transparent }); } return m; };
+    backMesh(Bbb, M(new THREE.MeshBasicMaterial({ map: adTex })), 'backBoard');
+    backMesh(BnS, lambertVC(), 'backPosts');
+    backMesh(BnL, M(new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide })), 'backRail');
+    backMesh(Bgb, M(new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.16, depthWrite: false, side: THREE.DoubleSide })), 'backGlass', 3);
     meshOf(Bl, M(new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide })), 'lamps');
     if (Bg.nv) { const gm = meshOf(Bg, M(new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.16, depthWrite: false, side: THREE.DoubleSide })), 'glass'); gm.renderOrder = 3; }
     if (Bk.nv) meshOf(Bk, M(new THREE.MeshLambertMaterial({ map: tex(paintBricks(th), { ws: 1, wt: 1, aniso: 8 }) })), 'brickWalls');
     if (Bf.nv) { const fm = meshOf(Bf, M(new THREE.MeshBasicMaterial({ map: tex(paintFence(), { ws: 1, wt: 1, aniso: 8 }), color: color(mixc(th.cage || '#c8d2e0', '#ffffff', 0.2)), transparent: true, opacity: 0.85, depthWrite: false, side: THREE.DoubleSide })), 'fence'); fm.renderOrder = 1; }
+    if (Bq.nv) { const nm = meshOf(Bq, M(new THREE.MeshBasicMaterial({ map: tex(paintStopNet(), { ws: 1, wt: 1, aniso: 8 }), color: color(mixc(th.cage || '#c8d2e0', '#ffffff', 0.2)).multiplyScalar(night ? 0.6 : 1), transparent: true, opacity: 0.32, depthWrite: false, side: THREE.DoubleSide })), 'ballNet'); nm.renderOrder = 1; backFade.push({ m: nm, mat: nm.material, op: nm.material.opacity, tr: true }); }
     if (Bw.nv) {
       const w = paintWindows(night), wm = tex(w.map, { ws: 1, wt: 1 }), we = tex(w.emi, { ws: 1, wt: 1 });
       meshOf(Bw, M(new THREE.MeshLambertMaterial({ vertexColors: true, map: wm, emissive: new THREE.Color(night ? 1 : 0, night ? 1 : 0, night ? 1 : 0), emissiveMap: we })), 'buildings');
@@ -737,8 +769,8 @@
       const pos = [];
       const tryPut = (x, z) => { for (let i = 0; i < pos.length; i += 2) if (Math.hypot(pos[i] - x, pos[i + 1] - z) < 4.5) return; pos.push(x, z); };
       for (let g = 0; g < 400 && pos.length < 48; g++) {
-        if (kindT === 'palm') { const r = R(); if (r < 0.6) tryPut((R() < 0.5 ? -1 : 1) * (27.5 + R() * 9), -4 + R() * 44); else tryPut((R() * 2 - 1) * 42, 42 + R() * 16); }
-        else tryPut((R() * 2 - 1) * 46, 44 + R() * 24);
+        if (kindT === 'palm') { const r = R(); if (r < 0.6) tryPut((R() < 0.5 ? -1 : 1) * (27.5 + R() * 9), -4 + R() * (44 + BK)); else tryPut((R() * 2 - 1) * 42, 42 + BK + R() * 16); }
+        else tryPut((R() * 2 - 1) * 46, 44 + BK + R() * 24);
       }
       const n = pos.length / 2, tm = Bt.nv ? new THREE.InstancedMesh(G(Bt.build(THREE)), lambertVC(), n) : null;
       const cm = new THREE.InstancedMesh(G(Bn.build(THREE)), lambertVC(), n), cl = new THREE.Color(), e = new THREE.Euler(), sc = new THREE.Vector3();
@@ -872,6 +904,16 @@
       if (seaTex) { seaTex.offset.x = (U.uT.value * 0.004) % 1; seaTex.offset.y = (U.uT.value * 0.012) % 1; }
       if (lMesh.visible) litMat.opacity = 0.55 + 0.45 * (0.5 + 0.5 * Math.sin(U.uT.value * 7));
     }
+    // The chase camera may stand behind the back end (camera3d place()): its pieces are gone by the time the lens is level with the board
+    // (before that they are behind the lens, so the fade is never seen) and nothing of it can sit between the lens and the player
+    function setView(camZ) {
+      const u = clamp((camZ - (DEPA - 0.5)) / 0.9, 0, 1), f = 1 - u * u * (3 - 2 * u);
+      for (const b of backFade) {
+        const tr = b.tr || f < 0.999;
+        b.m.visible = f > 0.01; b.mat.opacity = b.op * f;
+        if (b.mat.transparent !== tr) { b.mat.transparent = tr; b.mat.needsUpdate = true; }
+      }
+    }
     function cheer(k) { cheerJ = Math.max(cheerJ, k == null ? 1.6 : k); }
     function applyTo(scene) { scene.fog = fog; scene.background = background; }
     function dispose() {
@@ -883,7 +925,7 @@
       keep.geo.length = keep.mat.length = keep.tex.length = 0;
     }
     group.traverse((o) => { if (o.isMesh && o.geometry && keep.geo.indexOf(o.geometry) < 0) keep.geo.push(o.geometry); });
-    return { group, update, netHit, setTargets, sun, hemi, cheer, fog, background, applyTo, dispose, colliders, kind, night: !!night, id, fans: fanCap };
+    return { group, update, setView, netHit, setTargets, sun, hemi, cheer, fog, background, applyTo, dispose, colliders, kind, night: !!night, id, fans: fanCap };
   }
 
   R3D.Stadium = { build, flavours: FLAV, parseColor: parse };

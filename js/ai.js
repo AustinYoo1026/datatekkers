@@ -27,7 +27,7 @@
     if (G.phase !== 'play') { m.shot = null; m.aimHold = 0; m.fool = null; return o; }
 
     const tgx = FW, ogx = FW;           // both players attack the one goal; the defender protects it too
-    const inBox = ISO.inBox(b), clearing = b.owner === me && inBox && me.team !== G.attacker;
+    const inBox = ISO.inBox(b), clearing = b.owner === me && inBox && (G.mustClear === me.team || me.team !== G.attacker);      // won the ball in the box: carry it out before anything else
     const dB = hyp(b.x - me.x, b.y - me.y);
     const go = (x, y, s) => { const dx = x - me.x, dy = y - me.y, d = hyp(dx, dy); if (d > 4) { o.mx = (dx / d) * s; o.my = (dy / d) * s; } return d; };
 
@@ -63,7 +63,7 @@
       // stay on the pitch
       if (me.y < 55 && dy < 0.25) dy = 0.25 + (55 - me.y) / 55;
       else if (me.y > FH - 55 && dy > -0.25) dy = -0.25 - (me.y - (FH - 55)) / 55;
-      if (Math.abs(tgx - me.x) < 45 && (me.y < GY0 || me.y > GY1)) { dx = -dir * 0.2; dy = me.y < GCY ? 1 : -1; }
+      if (Math.abs(tgx - me.x) < 45 && (me.y < GY0 || me.y > GY1)) { dx = -dir * 0.8; dy = me.y < GCY ? -0.3 : 0.3; }      // beside the goal on the line: back out, never push against the post
       d = hyp(dx, dy) || 1; dx /= d; dy /= d;
       o.mx = dx * D.speed; o.my = dy * D.speed;
       o.sprint = me.stam > 22 && !(ahead && od < 75);
@@ -143,9 +143,9 @@
     if (b.holder) { go(C.FW - C.BOXD - 70, GCY, 0.9); return o; }       // the keeper is about to throw it out: get ready
     let tt = Math.min(0.45, dB / 350);
     if (b.z > 18 || b.vz > 150) tt = Math.max(tt, (b.vz + Math.sqrt(b.vz * b.vz + 1800 * b.z)) / 900 * 0.9);   // run to where a high ball lands
-    const d = go(clamp(b.x + b.vx * tt, 4, FW - 4), clamp(b.y + b.vy * tt, 4, FH - 4), 1);
+    const d = go(clamp(b.x + b.vx * tt, 4 - C.BACK, FW - 4), clamp(b.y + b.vy * tt, 4, FH - 4), 1);
     o.sprint = d > 40 && me.stam > 10;
-    if (!m.shot && m.shotCd <= 0 && dB < 85 && hyp(tgx - b.x, GCY - b.y) < 270 && hyp(b.vx, b.vy) > 60 && R() < D.smart * dt * 6) {
+    if (!m.shot && me.team === G.attacker && G.mustClear !== me.team && m.shotCd <= 0 && dB < 85 && hyp(tgx - b.x, GCY - b.y) < 270 && hyp(b.vx, b.vy) > 60 && R() < D.smart * dt * 6) {
       m.shot = { key: 'shoot', t: 0.6, aim: G.keeper.y > GCY ? -1 : 1 };    // first-time finish
       o.shoot = true;
     }

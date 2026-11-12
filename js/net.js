@@ -106,7 +106,7 @@
   function packInput(i) {
     const o = { mx: +(+i.mx || 0).toFixed(2), my: +(+i.my || 0).toFixed(2) };
     for (const b of bools()) if (i[b]) o[b] = 1;
-    if (i.ax != null && i.ay != null) { o.ax = Math.round(i.ax); o.ay = Math.round(i.ay); }
+    if (i.ax != null && i.ay != null) { o.ax = Math.round(i.ax) + 0; o.ay = Math.round(i.ay) + 0; }      // + 0: never -0, which JSON would turn into 0 on the wire only
     return o;
   }
 

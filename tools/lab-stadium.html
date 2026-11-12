@@ -27,14 +27,14 @@
     <option value="game">cam: gameplay (kick-off)</option>
     <option value="gameL">cam: gameplay (box, left)</option>
     <option value="gameR">cam: gameplay (box, right)</option>
-    <option value="gameDeep">cam: gameplay (deep, z=17)</option>
+    <option value="gameDeep">cam: gameplay (deep, z=20)</option>
     <option value="goal">cam: goal orbit</option>
     <option value="over">cam: overview</option>
     <option value="far">cam: far end</option>
     <option value="orbit">cam: free orbit</option>
   </select>
   <label>x <input type="range" id="ax" min="-17" max="17" step="0.1" value="0"></label>
-  <label>z <input type="range" id="az" min="0.5" max="17" step="0.1" value="14.75"></label>
+  <label>z <input type="range" id="az" min="0.5" max="20.5" step="0.1" value="14.75"></label>
   <button id="hit">net hit</button>
   <button id="cheer">cheer</button>
   <button id="tgt">targets</button>
@@ -175,7 +175,7 @@ $('tgt').onclick = cycleTargets;
 // ---- cameras
 const orbit = { tx: 0, ty: 1, tz: 6, yaw: 0, pitch: 0.35, dist: 26 };
 const presets = {
-  game: [0, 14.75], gameL: [-7, 8], gameR: [9, 6], gameDeep: [0, 17],
+  game: [0, 14.75], gameL: [-7, 8], gameR: [9, 6], gameDeep: [0, 20],
 };
 function gameplayCam(px, pz) {
   const psi = Math.max(-0.33, Math.min(0.33, 0.5 * Math.atan2(-px, pz + 3)));

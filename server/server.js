@@ -29,7 +29,7 @@ const IDLE_MS = 10 * 60 * 1000;       // empty / abandoned rooms are dropped
 // ------------------------------------------------------------------ static files
 const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8',
   '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.ico': 'image/x-icon', '.json': 'application/json', '.mp3': 'audio/mpeg', '.ogg': 'audio/ogg', '.wav': 'audio/wav' };
-const PUBLIC = /^\/(?:index\.html|css\/[\w.-]+|js\/[\w.-]+|assets\/[\w./-]+)?$/;      // only the game itself; never server/, tools/ or .git
+const PUBLIC = /^\/(?:index\.html|css\/[\w.-]+|js\/(?:(?:3d|vendor)\/)?[\w.-]+|assets\/[\w./-]+)?$/;      // only the game itself; never server/, tools/ or .git
 
 const httpServer = http.createServer((req, res) => {
   let url;

@@ -327,7 +327,21 @@
 
   // ------------------------------------------------------------- 3D mode (a second renderer over the same simulation; see js/3d/)
   const want3d = () => ISO.Profile.data.settings.camera === '3d';
-  const use3d = () => want3d() && ISO.R3D && ISO.R3D.ready && !App.demo && !(App.G.drill && App.G.drill.so);      // the penalty shootout (you play the keeper) stays 2D
+  const use3d = () => want3d() && ISO.R3D && ISO.R3D.ready && !App.demo;      // every mode has a 3D view (the shootout included); only the menu's background demo stays 2D
+  // Which view this frame is on. Decided once per frame, so the inputs it samples, the renderer its events go to and the
+  // picture it draws always belong to the same view, whatever happens in between (a toggle, Three.js arriving, a 3D error).
+  // The view only ever changes what is sampled as input and what is drawn: nothing on either path writes to the sim.
+  let cur3d = false, noTape = null;
+  function pickView() {
+    const u3 = !!use3d();
+    if (u3 === cur3d) return;
+    cur3d = u3;
+    // the renderer coming back missed every event while the other one was showing: it starts clean (no stale effect texts,
+    // event latches, camera state or half a replay tape from before the switch)
+    if (u3) ISO.R3D.onView(); else R.reset();
+    // back on 2D in the middle of a goal pause: Classic has no footage of that goal, so it shows the pause without a replay
+    noTape = !u3 && App.G.phase === 'goal' ? App.G : null;
+  }
   let viewLabel = '';
   function syncView() {
     const t = 'VIEW: ' + (want3d() ? '3D BEHIND PLAYER' : 'CLASSIC 2D');
@@ -336,7 +350,9 @@
     const sel = $('setCamera'); if (sel && sel.value !== ISO.Profile.data.settings.camera) sel.value = ISO.Profile.data.settings.camera;
   }
   function ensure3d() {      // load Three.js the first time 3D is wanted; fall back to Classic if WebGL is not available
-    if (!want3d() || !ISO.R3D || ISO.R3D.ready || App.r3dLoading) return;
+    if (!want3d() || (ISO.R3D && ISO.R3D.ready) || App.r3dLoading) return;
+    // the 3D scripts are not on this host (a server that only serves js/*.js): say so instead of showing Classic under a 3D label
+    if (!ISO.R3D || !ISO.R3D.ensure) { ISO.Profile.setSetting('camera', 'classic'); toast('3D UNAVAILABLE', 'This server does not carry the 3D view: using Classic', '#ffb23d'); return; }
     App.r3dLoading = true;
     ISO.R3D.ensure((ok) => { App.r3dLoading = false; if (!ok && want3d()) { ISO.Profile.setSetting('camera', 'classic'); toast('3D UNAVAILABLE', 'WebGL could not start: using Classic', '#ffb23d'); } });
   }
@@ -414,7 +430,7 @@
   function mouseSim() {
     if (!ISO.Profile.data.settings.mouseAim) return null;
     const m = mouseCanvas();
-    if (use3d()) return m && ISO.R3D.unproject(m.x, m.y);
+    if (cur3d) return m && ISO.R3D.unproject(m.x, m.y);
     if (m && App.G.drill && App.G.drill.so) return { x: C.FW, y: R.unprojectGoal(m.x, m.y).X };      // shootout view: the cursor picks a spot in the goal
     const lv = m && R.unprojectLive(m.x, m.y);
     if (lv) return lv;
@@ -432,8 +448,9 @@
   }
   function humanInput(i) {
     const k = ISO.Input.get('solo', i), aim = mouseSim();
-    const o = use3d() ? ISO.R3D.mapInput(k) : { ...k, mx: -k.my, my: k.mx };       // screen: up = towards the goal (+x in the sim); 3D: up = where the camera looks
-    if (aim) { o.ax = aim.x; o.ay = aim.y; }
+    const o = cur3d ? ISO.R3D.mapInput(k) : { ...k, mx: -k.my, my: k.mx };       // screen: up = towards the goal (+x in the sim); 3D: up = where the camera looks
+    // whole units, and never -0 (JSON would send it as 0): the aim simulated here is exactly the one that travels (net.js packInput)
+    if (aim) { o.ax = Math.round(aim.x) + 0; o.ay = Math.round(aim.y) + 0; }
     return o;
   }
   App.humanInput = () => humanInput(0);
@@ -467,12 +484,15 @@
     App.last = now;
     const online = App.mode === 'online' && !App.demo;           // the server runs the match: no local stepping, and no pausing
     const G = App.G, running = online || !(App.screen === 'match' && App.paused);
+    pickView();
     if (running) {
       if (online) ISO.Online.frame(G, dt);
       else {
         App.acc += dt * C.SPEED;          // the whole game runs at C.SPEED of real time; nothing else scales the pace
-        // a replay can be skipped (offline): the goal pause simply ends early
-        if (!App.demo && App.screen === 'match' && G.phase === 'goal' && (use3d() ? ISO.R3D.inReplay() : R.inReplay(G, App.V)) && ISO.Input.get('solo', 0).shoot) G.phaseT = Math.min(G.phaseT, 0.06);
+        // a replay can be skipped: the goal pause simply ends early. Offline only (this branch, and V.canSkip): online the
+        // pause belongs to the server, and a client that shortened its own copy would be predicting a different match.
+        // Both views open the same window for it (the 3D view has no replay to show, but the pause is the same length).
+        if (!App.demo && App.screen === 'match' && App.V.canSkip && G.phase === 'goal' && (cur3d ? ISO.R3D.inReplay(G) : !noTape && R.inReplay(G, App.V)) && ISO.Input.get('solo', 0).shoot) G.phaseT = Math.min(G.phaseT, 0.06);
         let stepped = false;
         while (App.acc >= C.STEP) {
           ISO.Smooth.capture(G);
@@ -482,7 +502,7 @@
         if (stepped) ISO.Input.consume();
       }
       for (const e of G.events) {
-        if (use3d()) ISO.R3D.onEvent(G, e); else R.onEvent(G, e);
+        if (cur3d) ISO.R3D.onEvent(G, e); else R.onEvent(G, e);
         if (!App.demo) ISO.Audio.play(e.type, e);
         if (!App.demo && App.mode === 'drill' && App.drill === 'arena' && e.type === 'goal') achToasts(ISO.Profile.recordArenaGoal());
       }
@@ -498,16 +518,23 @@
     ctx.setTransform(App.ratio, 0, 0, App.ratio, 0, 0);
     // drawn part-way between the last two simulation steps, so motion is even on any display rate (see smooth.js)
     ensure3d(); syncView();
-    const u3 = use3d();
-    $('cv3d').classList.toggle('hidden', !u3);
+    if (App.G !== G) pickView();           // a match that ended this frame was replaced (the menu demo): the view follows the new one
     ISO.Smooth.begin(App.G, !running ? 1 : online ? ISO.Online.alpha : App.acc / C.STEP, running ? dt : 0);
-    if (u3) {
-      try {
+    try {
+      if (cur3d) {
         ctx.clearRect(0, 0, R.VW, R.VH);
         ISO.R3D.render(App.G, App.V, running ? dt : 0, ctx);      // the 3D scene, plus its 2D texts and reticle drawn onto the overlay canvas
-        R.overlays(ctx, App.G, App.V, null, false);
-      } finally { ISO.Smooth.end(App.G); }
-    } else { R.draw(ctx, App.G, App.V, running ? dt : 0); ISO.Smooth.end(App.G); }
+        if (ISO.R3D.ready) {
+          const pen = !!(App.G.drill && App.G.drill.so);      // the shootout's scoreline and banners are the 2D view's own (render.js penaltyOverlay / overlays(.., pen))
+          if (pen && R.penaltyOverlay) R.penaltyOverlay(ctx, App.G, App.V);
+          R.overlays(ctx, App.G, App.V, null, pen);
+        }
+        else { cur3d = false; R.reset(); noTape = App.G.phase === 'goal' ? App.G : null; }      // 3D gave up (an error, a lost context): this very frame is drawn by Classic
+      }
+      $('cv3d').classList.toggle('hidden', !cur3d);
+      if (noTape) { if (noTape === App.G && App.G.phase === 'goal' && !cur3d) R.reset(); else noTape = null; }
+      if (!cur3d) R.draw(ctx, App.G, App.V, running ? dt : 0);
+    } finally { ISO.Smooth.end(App.G); }
     if (App.screen === 'match') {
       updateHud();
       if (App.hintT > 0 && !App.paused) { App.hintT -= dt; if (App.hintT <= 0) $('hint').classList.add('hidden'); }

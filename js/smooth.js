@@ -17,7 +17,8 @@
   let prev = null, saved = null, errs = null;
   const ents = (G) => G.players.concat(G.keeper, G.ball);
   const shot = (e) => ({ x: e.x, y: e.y, z: e.z || 0, face: e.face || 0, runPh: e.runPh || 0, animDist: e.animDist || 0, rot: e.rot || 0,
-    stT: e.stT || 0, state: e.state, skT: e.skill ? e.skill.t : -1, skId: e.skill ? e.skill.id : null });
+    stT: e.stT || 0, state: e.state, skT: e.skill ? e.skill.t : -1, skId: e.skill ? e.skill.id : null,
+    kickT: e.kickT || 0, fakeT: e.fakeT || 0, ch: e.charge || null, chT: e.charge ? e.charge.t : 0 });
   const angLerp = (a, b, f) => { let d = (b - a) % (Math.PI * 2); if (d > Math.PI) d -= Math.PI * 2; if (d < -Math.PI) d += Math.PI * 2; return a + d * f; };
 
   function capture(G) { prev = ents(G).map(shot); }
@@ -49,6 +50,12 @@
         if (e.rot !== undefined) e.rot = p.rot + (c.rot - p.rot) * a;
         if (e.stT !== undefined && p.state === c.state && c.stT >= p.stT) e.stT = p.stT + (c.stT - p.stT) * a;
         if (e.skill && p.skId === c.skId && c.skT >= p.skT && p.skT >= 0) e.skill.t = p.skT + (c.skT - p.skT) * a;
+        // kickT / fakeT count down (a new kick or fake resets them upward: not blended); charge.t counts up while the same charge lives
+        if (e.fakeT !== undefined) {
+          if (c.kickT <= p.kickT) e.kickT = p.kickT + (c.kickT - p.kickT) * a;
+          if (c.fakeT <= p.fakeT) e.fakeT = p.fakeT + (c.fakeT - p.fakeT) * a;
+          if (c.ch && c.ch === p.ch && c.chT >= p.chT) c.ch.t = p.chT + (c.chT - p.chT) * a;
+        }
       }
       if (errs && errs[i]) {
         const r = errs[i];
@@ -69,6 +76,7 @@
       if (e.rot !== undefined) e.rot = c.rot;
       if (e.stT !== undefined) e.stT = c.stT;
       if (e.skill && c.skT >= 0) e.skill.t = c.skT;
+      if (e.fakeT !== undefined) { e.kickT = c.kickT; e.fakeT = c.fakeT; if (c.ch) c.ch.t = c.chT; }
     });
     saved = null;
   }

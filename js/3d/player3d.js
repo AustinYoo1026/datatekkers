@@ -25,6 +25,7 @@
     spine: 0.08, abd: 0.14, chest: 0.30, neck: 0.08, headR: 0.125, shX: 0.215, shY: 0.26, uarm: 0.29, farm: 0.26,
   };
   const FACE = { long: [0.92, 1.12, 1.0], narrow: [0.88, 1.04, 0.97], oval: [0.95, 1.05, 1.0], round: [1.05, 0.98, 1.03], square: [1.0, 1.0, 1.0], wide: [1.1, 0.96, 1.03] };
+  const KEEPER_SCALE = 1.25;
   const DEF_SKIN = '#e8bd95', DEF_HAIR = '#2a1e16', DEF_BOOT = '#17171b', GLOVE = '#f2f4f6';
 
   // ------------------------------------------------------------------ caches (one THREE per page)
@@ -291,7 +292,9 @@
       const def = sp.def || {}, L = def.look || {}, keeper = !!sp.keeper;
       const kit = sp.kit || def.kit || { a: '#cccccc', b: '#333333', pat: 'solid', shorts: '#333333', socks: '#cccccc' };
       const k = { a: hexOk(kit.a, '#cccccc'), b: hexOk(kit.b, '#333333'), pat: kit.pat || 'solid', shorts: hexOk(kit.shorts, hexOk(kit.b, '#333333')), socks: hexOk(kit.socks, hexOk(kit.a, '#cccccc')) };
-      const h = Math.min(1.16, Math.max(0.85, L.h || 1)), w = Math.min(1.18, Math.max(0.85, L.w || 1));
+      // the goal is 7.5 x 3 m (the sim's size), so the keeper is built larger than an outfield player to fill it believably
+      const sc = sp.scale || (keeper ? KEEPER_SCALE : 1);
+      const h = Math.min(1.16, Math.max(0.85, L.h || 1)) * sc, w = Math.min(1.18, Math.max(0.85, L.w || 1)) * sc;
       const skin = hexOk(L.skin, DEF_SKIN), boot = hexOk(L.boot, DEF_BOOT);
       actor.spec = sp; actor.keeper = keeper;
       actor.foot = def.foot === 'L' || def.foot === 'left' ? -1 : 1;
@@ -371,5 +374,5 @@
     GEO.clear(); MAT.clear(); TEX.clear();
   }
 
-  R3D.Player = { create, clearCache, BONES, PROPORTIONS: B, stats: () => ({ geometries: GEO.size, materials: MAT.size, textures: TEX.size }) };
+  R3D.Player = { create, clearCache, KEEPER_SCALE, BONES, PROPORTIONS: B, stats: () => ({ geometries: GEO.size, materials: MAT.size, textures: TEX.size }) };
 })();
