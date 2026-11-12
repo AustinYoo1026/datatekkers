@@ -1,12 +1,21 @@
 # ISO Football
 
-**Beta 2.63** — new artwork on every drill card; attacker and defender roles, a real defensive toolkit, tougher keepers
+**Beta 2.81** — rain weather, a 3D mode with moving kits and hair, MyCareer names and numbers
 
 A 2D, top-down, 1v1 football game for the browser (online 2v2 too). Every rep is a rebound drill with the goal at the top of the screen: the attacker starts 10 yards outside the 18-yard box, in the centre, with the defender in front. Score, win the rebound, clear it outside the box, repeat. First to three wins a match (five in the rebound drill). No build step and no dependencies: open `index.html`.
 
 - [What's new](#whats-new-in-beta-24) · [Playing](#playing) · [Attacking and defending](#attacking-and-defending) · [Menus](#menus) · [Gameplay notes](#gameplay-notes) · [Online](#online-1v1-and-2v2) · [Credits](#credits) · [Development](#development)
 
-## What's new in Beta 2.63
+## What's new in Beta 2.81
+
+- **Weather.** Pick CLEAR or RAIN on the player-select screen. In the rain every player, attackers and defenders on both teams, can slip, and ground shots and passes skid faster and skip along the pitch. Rain is drawn in both the Classic and 3D views. Drills, online matches and MyCareer stay clear.
+- **3D kits.** Shirts are looser, shorts are real flared shorts on each leg, and sleeves are baggier. The shirt hem, shorts and sleeves move with cloth physics, and long hair, braids and buns swing.
+- **3D players.** Socks are shorter, torsos and hips are slimmer, and Vinícius Júnior has a sharper, longer chin.
+- **MyCareer.** You can change your player's name and shirt number.
+- **One on One.** You can now dribble before you shoot.
+- **Camera.** The Cinematic option is gone from the Match camera setting; drills that default to it still use it.
+
+## Beta 2.63
 
 - Every drill card now has its own illustrated player; MyCareer and Long Shots swapped artwork, and the Quick Match shirt reads MESSI.
 
