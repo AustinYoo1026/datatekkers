@@ -575,7 +575,8 @@
         if (ok) { PF.adminGrant(); App.toast('ADMIN UNLOCKED', 'Developer switches are available', '#f1735f'); }
         renderSettings();
       };
-      if (ISO.Online) ISO.Online.adminLogin(code, done); else done(false);
+      if (location.protocol === 'file:') done(code === 'datatekkers');      // index.html opened straight from disk: no server to ask, so check locally
+      else if (ISO.Online) ISO.Online.adminLogin(code, done); else done(false);
     }
     else if (t.dataset.meta === 'keys-preset') { const pr = ISO.Input.PRESETS[t.dataset.preset]; if (pr) { const B = JSON.parse(JSON.stringify(pr)); saveKeys(B); renderKeys(); App.toast(ISO.I18n.t('toast.preset'), t.textContent.trim(), '#35e08a'); } }
     else if (t.dataset.meta === 'debug-toggle') { if (ISO.Access && !ISO.Access.debugToggle()) App.toast('DEBUG', 'Admin is locked', '#f1735f'); }
