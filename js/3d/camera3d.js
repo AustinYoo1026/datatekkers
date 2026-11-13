@@ -365,7 +365,12 @@
       }
       return { ...k, mx: lastKeys.mx, my: lastKeys.my };
     }
-    return { cam, st, reset, update, onEvent, setPreset, setOptions, setLimits, project, unproject, mapInput, get mode() { return st.mode; } };
+    // a pose from outside the rig (the goal replay's own camera): position, look point and fov, no blend, no shake
+    function applyPose(p) {
+      cam.position.set(p.px, p.py, p.pz); cam.up.set(0, 1, 0); cam.lookAt(p.lx, p.ly, p.lz);
+      if (Math.abs(cam.fov - p.fov) > 0.01) { cam.fov = p.fov; cam.updateProjectionMatrix(); }
+    }
+    return { cam, st, reset, update, applyPose, onEvent, setPreset, setOptions, setLimits, project, unproject, mapInput, get mode() { return st.mode; } };
   }
   R3D.Camera = { create };
 })();

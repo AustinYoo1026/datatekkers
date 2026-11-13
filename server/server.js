@@ -17,7 +17,7 @@ const { WebSocketServer } = require('ws');
 const ROOT = path.resolve(__dirname, '..');
 for (const f of ['data', 'game', 'net']) require(path.join(ROOT, 'js', f + '.js'));
 const ISO = globalThis.ISO, C = ISO.C, Net = ISO.Net;
-const { cleanName, validatePick, sanitizeMoves } = require('./validate');
+const { cleanName, validatePick, sanitizeMoves, sanitizeSettings, settingsOpts } = require('./validate');
 
 const PORT = +process.env.PORT || 8080, HOST = process.env.HOST || '0.0.0.0';
 const SEND_EVERY = Math.max(1, +process.env.SEND_EVERY || 2);      // sim steps per snapshot: the sim advances 120 x C.SPEED steps a second, so 36 snapshots per second
@@ -70,7 +70,8 @@ const sizeOf = (mode) => (mode === '2v2' ? 4 : 2);
 
 // Seat i is player i of the simulation and plays for team i % 2 (2v2: seats 0 and 2 against seats 1 and 3).
 class Room {
-  constructor(code, size) {
+  constructor(code, size, settings) {
+    this.settings = sanitizeSettings(settings);      // chosen by the creator (create only; quick match uses the defaults)
     this.code = code; this.size = size; this.seats = new Array(size).fill(null); this.G = null; this.state = 'lobby';     // lobby | match | over
     this.kickoff = 0; this.rematch = new Array(size).fill(false); this.touched = Date.now();
     this.net = []; this.events = []; this.steps = 0; this.base = null; this.baseK = 0; this.flushes = 0;
@@ -78,7 +79,7 @@ class Room {
   get count() { return this.seats.filter(Boolean).length; }
   get full() { return this.count === this.size; }
   info(forSeat) {
-    return { t: 'room', code: this.code, you: forSeat, state: this.state, size: this.size,
+    return { t: 'room', code: this.code, you: forSeat, state: this.state, size: this.size, settings: this.settings,
       players: this.seats.map((s) => s && { name: s.name, pick: s.pick }) };
   }
   broadcast(m) { for (const s of this.seats) if (s) send(s.ws, m); }
@@ -111,7 +112,7 @@ class Room {
   start() {
     this.state = 'match'; this.rematch.fill(false);
     const defs = this.seats.map((s) => defOf(s.pick));
-    this.G = ISO.Game.create({ roster: defs, kickoff: this.kickoff, moves: this.seats.map((s) => s.moves), replay: true, turf: 'grass' });      // the server picks the pitch; a client message never does      // the goal pause is long enough for the clients' replay
+    this.G = ISO.Game.create({ roster: defs, kickoff: this.kickoff, moves: this.seats.map((s) => s.moves), replay: true, ...settingsOpts(this.settings) });      // pitch, weather, rule set and win target come from the validated room settings (default: grass, as always)      // the goal pause is long enough for the clients' replay
     // per seat: q = inputs waiting ({ n, i }), seen = newest seq received, ack = seq of the last one consumed, last = the input applied in the latest step
     this.net = this.seats.map(() => ({ q: [], seen: 0, ack: 0, last: null, dry: false }));
     this.base = null; this.baseK = 0; this.flushes = 0; this.lastInp = null;
@@ -119,7 +120,7 @@ class Room {
     this.events = []; this.steps = 0; this.acc = 0; this.last = performance.now();
     // moves: the clients re-simulate everybody, so they need to know which skill moves each seat may use
     this.broadcast({ t: 'start', size: this.size, picks: this.seats.map((s) => s.pick), names: this.seats.map((s) => s.name), kickoff: this.kickoff,
-      moves: this.seats.map((s) => Array.from(s.moves)), rev: ISO.SIM_REV });      // rev: the clients warn on a sim revision mismatch
+      moves: this.seats.map((s) => Array.from(s.moves)), rev: ISO.SIM_REV, settings: this.settings });      // rev: the clients warn on a sim revision mismatch
     this.sync();
   }
   // One input per client step, numbered: { t:'in', n, i }. They queue up and are consumed one per simulation step.
@@ -269,7 +270,7 @@ wss.on('connection', (ws) => {
       const mode = m.mode === '2v2' ? '2v2' : '1v1';
       if (m.t === 'create') {
         if (rooms.size >= MAX_ROOMS) { send(ws, { t: 'error', msg: 'Server is full, try again in a minute.' }); return; }
-        const r = new Room(newCode(), sizeOf(mode)); rooms.set(r.code, r); r.join(seat);
+        const r = new Room(newCode(), sizeOf(mode), m.settings); rooms.set(r.code, r); r.join(seat);
       } else if (m.t === 'join') {
         const r = rooms.get(String(m.code || '').toUpperCase().trim());
         if (!r) send(ws, { t: 'error', msg: 'No room with that code.' });

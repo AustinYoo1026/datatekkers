@@ -113,5 +113,54 @@
     out.lx = a.lx + (b.lx - a.lx) * k; out.ly = a.ly + (b.ly - a.ly) * k; out.lz = a.lz + (b.lz - a.lz) * k;
     out.fov = a.fov + (b.fov - a.fov) * k; return out;
   }
-  R3D.CamRig = { PRESETS, ORDER, SIT, inputPsi, sideFrame, fixedFrame, ndc, guard, limits, shakeOf, blend, smooth, wrap };
+
+  // ------------------------------------------------------------------ goal replay (3D)
+  // Timeline of the goal pause in real seconds since the ball went in (as the 2D view's): the live celebration -> a quick fade to black ->
+  // the replay (build-up at full speed, then the finish in slow motion) -> fade to black -> the match. All pure.
+  const RT = { celeb: 1.25, pre: 0.25, fadeIn: 0.3, fadeOut: 0.35, slowFrom: 0.9, tail: 0.85, slow: 0.52, endGap: 0.1 };
+  // e: real seconds since the goal, total: the pause's length, goalAt / tMin: tape time of the goal and of the oldest frame,
+  // slow: slow motion allowed. null outside the replay window; else { t (tape time), rate (tape seconds per real second), black (0..1), u, slowmo }
+  function replayState(e, total, goalAt, tMin, slow) {
+    const end = total - RT.endGap;
+    if (!(goalAt >= 0) || e < RT.celeb || e > end) return null;
+    const u = e - RT.celeb, r = slow ? RT.slow : 1, W = end - RT.celeb, S = RT.slowFrom + RT.tail;
+    const tSlow = goalAt - RT.slowFrom, t0 = Math.max(tMin, tSlow - Math.max(0, W - S / r)), full = Math.max(0, tSlow - t0);
+    const fin = goalAt + RT.tail;
+    let t, rate;
+    if (u < full) { t = t0 + u; rate = 1; } else { t = Math.min(tSlow + (u - full) * r, fin); rate = t < fin ? r : 0; }
+    const black = Math.max(1 - smooth(u / RT.fadeIn), smooth((e - (end - RT.fadeOut)) / RT.fadeOut));
+    return { t, rate, black, u, slowmo: slow && u >= full };
+  }
+  // black over the live celebration just before the cut (0 outside)
+  const replayPre = (e) => (e > RT.celeb - RT.pre && e < RT.celeb ? smooth((e - (RT.celeb - RT.pre)) / RT.pre) : 0);
+
+  // The replay camera: low, side-on, across the pitch from the ball, following it through critically damped springs (no overshoot, frame-rate
+  // independent), so position and look point are continuous in velocity; a slow push-in (lower, tighter) as the finish goes into slow motion.
+  // No THREE, no allocation. update(ball {x,y,z,vx,vz}, dt, o {slow, rm, half, walls, depthAll, sideX}, out pose) -> out
+  function replayCam() {
+    const st = { init: false, side: 1, fx: 0, fz: 0, fvx: 0, fvz: 0, cz: 0, cvz: 0, zoom: 0, zv: 0 };
+    const W_LOOK = 6, W_POS = 1.2, W_ZOOM = 2.2;      // the look point chases the ball closely (a pan); the stand point drifts after it slowly (a tripod that is walked along), so a fast shot never needs a fast camera
+    function sd(x, v, target, w, dt) {      // one critically damped step; returns the new position in st._x and the velocity in st._v
+      const o = w * dt, e = 1 / (1 + o + 0.48 * o * o + 0.235 * o * o * o), ch = x - target, tmp = (v + w * ch) * dt;
+      st._v = (v - w * tmp) * e; st._x = target + (ch + tmp) * e;
+    }
+    function reset() { st.init = false; st.zoom = 0; st.zv = 0; }
+    function update(b, dt, o, out) {
+      const lead = 0.12, tx = b.x + (b.vx || 0) * lead, tz = Math.max(0, Math.min(o.depthAll || 20, b.z + (b.vz || 0) * lead));
+      if (!st.init) { st.init = true; st.side = b.x >= 0 ? -1 : 1; st.fx = tx; st.fz = tz; st.cz = tz; st.fvx = st.fvz = st.cvz = 0; st.zoom = 0; st.zv = 0; }
+      else if (dt > 0) {
+        sd(st.fx, st.fvx, tx, W_LOOK, dt); st.fx = st._x; st.fvx = st._v;
+        sd(st.fz, st.fvz, tz, W_LOOK, dt); st.fz = st._x; st.fvz = st._v;
+        sd(st.cz, st.cvz, st.fz, W_POS, dt); st.cz = st._x; st.cvz = st._v;
+        sd(st.zoom, st.zv, o.slow && !o.rm ? 1 : 0, W_ZOOM, dt); st.zoom = st._x; st.zv = st._v;
+      }
+      const z = st.zoom, wall = o.walls ? o.half - 0.5 : o.half + 1.6, sx = Math.min(wall, o.sideX || wall);
+      out.px = st.side * sx; out.py = 2.3 + (1.45 - 2.3) * z; const m = st.cz - 1.5 * z - 1.5; out.pz = 1.5 + (m + Math.sqrt(m * m + 1.2)) / 2;      // a smooth maximum: never nearer than ~1.5 m to the goal line, with no kink where it bites
+      out.lx = st.fx * 0.85; out.ly = 0.9; out.lz = st.fz - 1.2 * z;
+      out.fov = 50 + (40 - 50) * z;
+      return out;
+    }
+    return { st, reset, update };
+  }
+  R3D.CamRig = { replayState, replayPre, replayCam, RT, PRESETS, ORDER, SIT, inputPsi, sideFrame, fixedFrame, ndc, guard, limits, shakeOf, blend, smooth, wrap };
 })();

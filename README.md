@@ -8,7 +8,7 @@ A 2D, top-down, 1v1 football game for the browser (online 2v2 too). Every rep is
 
 ## What's new
 
-See [CHANGELOG.md](CHANGELOG.md) for every release, including Beta 3.01 (3D maps fixed: stadiums and backgrounds were missing), Beta 3.0 (new menus with a MyCareer hub, two-step Quick Match, Info page, player comparison, smoother 3D camera, arena weather and 3D drills; English only) and Beta 2.81 (rain weather, looser 3D kits, MyCareer names and numbers) and the Phase 0 foundation work in progress. Match presentation (intro card, goal card, player of the match) can be switched off in Settings.
+See [CHANGELOG.md](CHANGELOG.md) for every release, including Beta 3.02 (3D goal replay, online match settings, CPU playstyle choice, scrollable career menus), Beta 3.01 (3D maps fixed: stadiums and backgrounds were missing), Beta 3.0 (new menus with a MyCareer hub, two-step Quick Match, Info page, player comparison, smoother 3D camera, arena weather and 3D drills; English only) and Beta 2.81 (rain weather, looser 3D kits, MyCareer names and numbers) and the Phase 0 foundation work in progress. Match presentation (intro card, goal card, player of the match) can be switched off in Settings.
 
 ## Playing
 

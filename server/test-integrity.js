@@ -55,13 +55,39 @@ setTimeout(() => { console.error('FAIL timeout'); for (const s of servers) s.kil
   }
   {
     const src = require('fs').readFileSync(path.join(__dirname, 'server.js'), 'utf8');
-    check(!/rules/.test(src) && (src.match(/Game\.create\(\{[^}]*\}\)/g) || []).every((c) => !/rules|walls|limit|win\b/.test(c)), 'server.js never passes rules, walls, limit or win to Game.create');
+    check((src.match(/Game\.create\(\{[^}]*\}\)/g) || []).every((c) => !/rules|walls|limit|win\b/.test(c)), 'server.js never passes rules, walls, limit or win to Game.create directly (only validated room settings)');
     check(!('rules' in V.validatePick({ id: 'messi', rules: 'street' }).pick) && !('rules' in ISO.Net.sanitizeInput({ mx: 1, rules: 'street', limit: 1 })), 'a pick and an input cannot carry rules');
     const g = ISO.Game.create({ roster: [ISO.playerById('messi'), ISO.playerById('ronaldo')], seed: 3, turf: 'grass', replay: true });
     check(!('rules' in g) && !('limit' in g) && !('sudden' in g) && !g.walls, 'the server-shaped Game.create has no rule fields');
     check(!/sand|drillDef|drillspec|\bcustom\b/i.test(src) && (src.match(/Game\.create\(\{[^}]*\}\)/g) || []).every((c) => !/sand|drillDef|drill\b/.test(c)), 'server.js never passes sand or drillDef (Phase 4.3 / 4.4) to Game.create');
     check(!('sand' in V.validatePick({ id: 'messi', sand: { defenders: 3 }, drillDef: {} }).pick) && !('sand' in ISO.Net.sanitizeInput({ mx: 1, sand: { infStam: true }, drillDef: {} })) && !('drillDef' in ISO.Net.sanitizeInput({ mx: 1, drillDef: {} })), 'a pick and an input cannot carry sand or a drill');
     check(!('sand' in g) && !('cust' in g) && !('sandT' in g), 'the server-shaped Game.create has no sand or custom-drill fields');
+  }
+  // online room settings: allow-lists, clamping, defaults, identical options for server and clients
+  {
+    const D = { map: '', turf: 'grass', rain: false, rules: '', win: 0 }, J = JSON.stringify, S = V.sanitizeSettings;
+    check(J(S(undefined)) === J(D) && J(S(null)) === J(D) && J(S('x')) === J(D) && J(S([])) === J(D) && J(S({})) === J(D), 'missing / junk settings -> defaults');
+    check(J(V.settingsOpts(undefined)) === J({ turf: 'grass' }), 'default settings add nothing beyond turf grass');
+    const ok = S({ map: 'fs_blue', turf: 'astro', rain: true, rules: '', win: 5 });
+    check(ok.map === 'fs_blue' && ok.turf === 'astro' && ok.rain === true && ok.win === 5, 'valid settings kept');
+    check(J(V.settingsOpts(ok)) === J({ turf: 'astro', rain: true, win: 5, walls: true }), 'opts: turf, rain, win, walls from a walled map');
+    const bad = S({ map: 'nope', turf: '__proto__', rain: 'yes', rules: 'hack', win: 999 });
+    check(J(bad) === J(D), 'invalid values fall back to defaults: ' + J(bad));
+    check(S({ turf: { toString: 1 }, map: ['stadium'], win: '5', rules: ['street'] }).turf === 'grass' && S({ map: 'constructor' }).map === '' && S({ rules: 'toString' }).rules === '', 'object / prototype names rejected');
+    check(S({ win: -1 }).win === 0 && S({ win: 4 }).win === 0 && S({ win: NaN }).win === 0 && S({ win: 10 }).win === 10, 'win is clamped to the allow-list');
+    const st = S({ rules: 'street', win: 7 });
+    check(st.rules === 'street' && st.win === 0 && V.settingsOpts(st).walls === true && V.settingsOpts(st).rules === 'street' && V.settingsOpts(st).win === undefined, 'street rules: own win target, walls forced');
+    check(V.settingsOpts({ map: 'neon' }).walls === undefined, 'a non-walled map adds no walls');
+    // default settings: byte-identical match to the old server call
+    const R = [ISO.playerById('messi'), ISO.playerById('ronaldo')];
+    const a = ISO.Game.create({ roster: R, kickoff: 0, replay: true, seed: 7, turf: 'grass' }), b = ISO.Game.create({ roster: R, kickoff: 0, replay: true, seed: 7, ...V.settingsOpts({}) });
+    const inp = [{ ...ISO.Game.ZERO, mx: 1 }, { ...ISO.Game.ZERO, my: 1 }];
+    for (let i = 0; i < 1500; i++) { ISO.Game.step(a, inp); ISO.Game.step(b, inp); }
+    check(J(ISO.Net.snapshot(a)) === J(ISO.Net.snapshot(b)), 'default settings: snapshot byte-identical to the old server game');
+    const c = ISO.Game.create({ roster: R, kickoff: 0, replay: true, ...V.settingsOpts({ rain: true, turf: 'firm', win: 5 }) });
+    check(c.weather === 'rain' && c.turf === 'firm' && c.win === 5, 'rain / turf / win reach the sim');
+    const d = ISO.Game.create({ roster: R, kickoff: 0, replay: true, ...V.settingsOpts({ rules: 'street' }) });
+    check(d.rules === 'street' && d.walls === true && d.win === ISO.RULES.street.win, 'street rules reach the sim');
   }
   const mv = V.sanitizeMoves(['nope', 7, null]);
   check(mv instanceof Set && [...V.FREE_MOVES()].every((m) => mv.has(m)) && !mv.has('nope'), 'sanitizeMoves drops junk, keeps the free moves');
@@ -134,11 +160,37 @@ const ask = async (c, msg) => { const p = c.wait((m) => m.t === 'admin'); c.send
     check(a.snaps.length > 20 && !a.snaps.some(bad) && !b.snaps.some(bad), 'ax/ay 1e308 leave no NaN or Infinity in the snapshots');
     check(a.snaps.length > 0 && a.snaps.every((m) => !m.n || (m.n.turf === undefined || m.n.turf === 'grass')) && !JSON.stringify(a.snaps).includes('astro'), 'client-sent turf and rain ignored: the pitch stays grass');
     // Phase 4.1: rule sets are offline only. A client cannot set them (not in a pick, not in the create message, not in an input), the server never passes one, and nothing of it reaches the clients.
-    check(!JSON.stringify(a.snaps).includes('street') && !JSON.stringify(b.msgs).includes('street') && !a.msgs.some((m) => m.t === 'start' && /rules|limit|street/.test(JSON.stringify(m))), 'client-sent rules / win / limit / walls ignored: no rule set in any server message');
+    check(!JSON.stringify(a.snaps).includes('street') && !JSON.stringify(b.msgs).includes('street') && !a.msgs.some((m) => m.t === 'start' && /limit|street/.test(JSON.stringify(m))), 'client-sent rules / win / limit / walls ignored: no rule set in any server message');
     check(a.snaps.every((m) => !m.n || !m.n.score || (m.n.score[0] < 2 && m.n.score[1] < 2)) && a.snaps.length > 0, 'a client-sent win=1 / limit=2 did not end or alter the match');
     const ps = a.snaps[a.snaps.length - 1].n.players;
     check(ps.every((p) => Number.isFinite(p.x) && Number.isFinite(p.y)), 'player positions finite');
     a.ws.close(); b.ws.close();
+  }
+  // room settings over the wire: create carries them, the joiner sees them, junk is clamped, legacy creates get defaults, quick match gets defaults
+  {
+    const J = JSON.stringify, DEF = J({ map: '', turf: 'grass', rain: false, rules: '', win: 0 });
+    const a = client(port), b = client(port); await a.open; await b.open;
+    const ra = a.wait((m) => m.t === 'room');
+    a.send({ t: 'create', v: 3, name: 'A', pick: { id: 'messi' }, settings: { map: 'fs_wood', turf: 'lush', rain: true, rules: '', win: 7 } });
+    const room = await ra; const code = room.code;
+    check(J(room.settings) === J({ map: 'fs_wood', turf: 'lush', rain: true, rules: '', win: 7 }), 'create: room shows the creator settings');
+    const rb = b.wait((m) => m.t === 'room'); b.send({ t: 'join', v: 3, code, name: 'B', pick: { id: 'ronaldo' } });
+    check(J((await rb).settings) === J(room.settings), 'joiner sees the same settings (read-only summary data)');
+    const sa = await a.wait((m) => m.t === 'start'), sb = await b.wait((m) => m.t === 'start').catch(() => b.msgs.find((m) => m.t === 'start'));
+    check(J(sa.settings) === J(room.settings) && sb && J(sb.settings) === J(room.settings), 'start carries the settings to both seats');
+    a.ws.close(); b.ws.close();
+    // junk settings are clamped to defaults, not rejected; legacy create (none) -> defaults; a tampering joiner cannot change a room
+    const c = client(port), d = client(port); await c.open; await d.open;
+    const rc = c.wait((m) => m.t === 'room'); c.send({ t: 'create', name: 'C', pick: { id: 'messi' }, settings: { map: 'zzz', turf: 'ice', rain: 1, rules: 'x', win: 99 } });
+    check(J((await rc).settings) === DEF, 'junk settings -> defaults');
+    const rd = d.wait((m) => m.t === 'room'); d.send({ t: 'create', name: 'D', pick: { id: 'messi' } });
+    check(J((await rd).settings) === DEF, 'create without settings -> defaults (old clients)');
+    const e = client(port); await e.open; const re = e.wait((m) => m.t === 'room'); e.send({ t: 'join', code: (await rc).code, name: 'E', pick: { id: 'ronaldo' }, settings: { turf: 'astro', rain: true } });
+    check(J((await re).settings) === DEF, 'a joiner cannot change the room settings');
+    const f = client(port); await f.open; const rf = f.wait((m) => m.t === 'queued'); f.send({ t: 'quick', name: 'F', pick: { id: 'messi' }, settings: { turf: 'astro', rain: true } }); await rf;
+    const g = client(port); await g.open; const rg = g.wait((m) => m.t === 'room'); g.send({ t: 'quick', name: 'G', pick: { id: 'ronaldo' }, settings: { turf: 'astro' } });
+    check(J((await rg).settings) === DEF, 'quick match: defaults, client settings ignored');
+    for (const x of [c, d, e, f, g]) x.ws.close();
   }
   // oversize payload: the socket is closed
   {

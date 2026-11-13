@@ -2,6 +2,13 @@
 
 Release notes for DataTekkers: ISO Football. The newest work is first. The README links here instead of repeating them.
 
+## Beta 3.02
+
+- **3D goal replay.** Goals in 3D now replay: the build-up at full speed, then the finish in slow motion from a low side-on camera, with a REPLAY badge (skippable like the 2D replay; follows Match presentation, Slow-motion goals, reduce motion and reduce flash).
+- **Online match settings.** The room creator picks the map, pitch, weather, rules and first-to; the joiner sees them in the lobby. The server validates every value and old clients get the defaults.
+- **CPU playstyle.** Quick Match and Street can choose the opponent's playstyle (or AUTO).
+- **MyCareer menus scroll.** Career pages and settings no longer run off the page. The simulation is unchanged.
+
 ## Beta 3.01
 
 - **3D maps fixed.** Stadiums, stands, crowds and backgrounds were missing in 3D because the stadium build failed on an undefined variable and fell back to a plain pitch. The simulation is unchanged.

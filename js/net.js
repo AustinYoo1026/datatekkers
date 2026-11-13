@@ -317,5 +317,29 @@
     return P;
   }
 
-  ISO.Net = { PROTO: 3, diff, patch, follower, snapshot, apply, events, sanitizeInput, packInput, Predictor, MAXPRED };
+  // Online match settings (room creator's choice). One allow-listed canonical form shared by server and clients:
+  // { map: '' | map id, turf, rain, rules: '' | 'street', win: 0 | 3 | 5 | 7 | 10 }. Missing or invalid fields fall back to today's
+  // defaults ('' map = every client keeps its own equipped map; win 0 = C.WIN). Street rules fix their own win target, so win is 0 then.
+  const WINS = [0, 3, 5, 7, 10];
+  function sanitizeSettings(s) {
+    s = s && typeof s === 'object' ? s : {};
+    const own = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
+    const rules = s.rules === 'street' && ISO.RULES && own(ISO.RULES, 'street') ? 'street' : '';
+    const turf = typeof s.turf === 'string' && ISO.Game.turfs.includes(s.turf) ? s.turf : 'grass';
+    const map = typeof s.map === 'string' && ISO.MAPS.some((m) => m.id === s.map) ? s.map : '';
+    const w = typeof s.win === 'number' && WINS.includes(s.win) ? s.win : 0;
+    return { map, turf, rain: s.rain === true, rules, win: rules ? 0 : w };
+  }
+  // the Game.create options a canonical settings object adds; for the defaults it adds nothing beyond turf 'grass' (default snapshots stay identical)
+  function settingsOpts(s) {
+    s = sanitizeSettings(s);
+    const o = { turf: s.turf };
+    if (s.rain) o.rain = true;
+    if (s.rules) o.rules = s.rules;
+    if (s.win) o.win = s.win;
+    if ((s.map && ISO.mapById(s.map).walls) || s.rules) o.walls = true;
+    return o;
+  }
+
+  ISO.Net = { PROTO: 3, diff, patch, follower, snapshot, apply, events, sanitizeInput, packInput, sanitizeSettings, settingsOpts, WINS, Predictor, MAXPRED };
 })();

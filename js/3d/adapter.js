@@ -13,7 +13,9 @@
     ball: { x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, spin: 0, owner: -1, held: false, inNet: false, shot: null, rot: 0 } };
 
   // latched presentation state, resolved to indices immediately (events carry entity objects that must not be kept)
-  const latch = { lastOwner: -1, kick: [], save: null, throwAt: -9, holdPrev: false, lastGoalBy: -1 };
+  const liveLatch = { lastOwner: -1, kick: [], save: null, throwAt: -9, holdPrev: false, lastGoalBy: -1 };
+  const repLatch = { lastOwner: -1, kick: [], save: null, throwAt: -9, holdPrev: false, lastGoalBy: -1 };      // the goal replay's own copy: tape frames carry the live latches, the replay never touches liveLatch
+  let latch = liveLatch;
   function reset(G) {
     vf.players.length = 0;
     for (let i = 0; i < G.players.length; i++) { vf.players.push(mkPlayer()); latch.kick[i] = null; }
@@ -89,5 +91,87 @@
     return vf;
   }
 
-  R3D.Adapter = { snapshot, onEvent, reset, clear, vf };
+  // ------------------------------------------------------------------ goal replay tape (3D)
+  // A ring of the last few seconds of what was drawn: every field snapshot() reads from the sim (players, keeper, ball) plus the latched
+  // kick / save events. Fixed storage, nothing allocated per frame once warm. seek() interpolates two frames into a FAKE game object
+  // (it inherits from the live G, so any field not recorded reads the live one) that snapshotTape() turns into a ViewFrame through the
+  // very same code the live match uses: the animators, ball and rings need no replay mode. The live G and the live latches are never written.
+  const TAPE_S = 8.5, TN = 1400;      // seconds kept, ring size (enough for 144 Hz)
+  const PN = ['x', 'y', 'vx', 'vy', 'face', 'stT', 'stDur', 'kickT', 'runPh', 'animDist', 'jog', 'top', 'fakeT', 'fakeDrag', 'fallDir', 'stopT', 'noCtrl', 'ballSd'];
+  const PO = ['state', 'sprinting', 'jock', 'shield', 'close', 'focus', 'exhausted'];
+  const KN = ['x', 'y', 'vx', 'vy', 'face', 'stT', 'stDur', 'diveT', 'animDist', 'diveDir'];
+  const KO = ['state', 'high', 'slid', 'chip', 'jump', 'human'];
+  const BN = ['x', 'y', 'z', 'vx', 'vy', 'vz', 'spin', 'tsp', 'rot', 'kickT'];
+  const ANG = { face: 1 }, TAU = Math.PI * 2;
+  const tp = { fr: [], n: 0, head: 0, clock: 0, goalAt: -1, fg: null, fgFor: null };
+  const mkSlot = () => ({ _c: null, _s: null, charge: null, skill: null });
+  const mkFrame = (np) => ({ t: 0, gt: 0, ph: 'play', pl: Array.from({ length: np }, mkSlot), k: {}, b: { holder: false, inNet: false, shot: null, wet: false, own: -1 }, kick: [], save: null, throwAt: -9 });
+  const frameAt = (i) => tp.fr[(tp.head - tp.n + i + TN * 2) % TN];
+  function put(G, f) {
+    f.t = tp.clock; f.gt = G.t; f.ph = G.phase;
+    for (let i = 0; i < G.players.length; i++) {
+      const p = G.players[i], s = f.pl[i];
+      for (let j = 0; j < PN.length; j++) s[PN[j]] = p[PN[j]];
+      for (let j = 0; j < PO.length; j++) s[PO[j]] = p[PO[j]];
+      if (p.charge) { const c = s._c || (s._c = {}); c.t = p.charge.t; c.type = p.charge.type; c.ft = p.charge.ft; s.charge = c; } else s.charge = null;
+      if (p.skill) { const c = s._s || (s._s = {}); if (c.id !== p.skill.id) for (const k in c) delete c[k]; Object.assign(c, p.skill); s.skill = c; } else s.skill = null;
+      f.kick[i] = liveLatch.kick[i] || null;
+    }
+    const k = G.keeper, kk = f.k;
+    for (let j = 0; j < KN.length; j++) kk[KN[j]] = k[KN[j]];
+    for (let j = 0; j < KO.length; j++) kk[KO[j]] = k[KO[j]];
+    const b = G.ball, bb = f.b;
+    for (let j = 0; j < BN.length; j++) bb[BN[j]] = b[BN[j]];
+    bb.holder = !!b.holder; bb.inNet = b.inNet !== null && b.inNet !== undefined; bb.shot = b.shot ? b.shot.type || 'normal' : null; bb.wet = !!b.wet; bb.own = b.owner ? G.players.indexOf(b.owner) : -1;
+    f.save = liveLatch.save; f.throwAt = liveLatch.throwAt;
+  }
+  const Tape = {
+    record(G, dt) {
+      tp.clock += dt;
+      const f = tp.fr[tp.head] || (tp.fr[tp.head] = mkFrame(G.players.length));
+      if (f.pl.length !== G.players.length) { tp.fr.length = 0; tp.n = 0; tp.head = 0; return; }
+      put(G, f); tp.head = (tp.head + 1) % TN; if (tp.n < TN) tp.n++;
+      while (tp.n > 2 && frameAt(0).t < tp.clock - TAPE_S) tp.n--;
+    },
+    mark() { tp.goalAt = tp.clock; }, unmark() { tp.goalAt = -1; }, goalAt: () => tp.goalAt,
+    clear() { tp.n = 0; tp.head = 0; tp.goalAt = -1; tp.fg = tp.fgFor = null; },
+    count: () => tp.n, clock: () => tp.clock,
+    t0: () => (tp.n ? frameAt(0).t : 0), t1: () => (tp.n ? frameAt(tp.n - 1).t : 0),
+    // tape time -> the fake game (shared object: valid until the next seek); null when the tape is empty
+    seek(G, t) {
+      if (!tp.n) return null;
+      let i = 0;
+      while (i + 1 < tp.n && frameAt(i + 1).t <= t) i++;
+      const a = frameAt(i), b = i + 1 < tp.n ? frameAt(i + 1) : null, f = b ? Math.max(0, Math.min(1, (t - a.t) / (b.t - a.t || 1))) : 0;
+      if (tp.fgFor !== G) {
+        const fg = Object.create(G);
+        fg.players = G.players.map((p) => Object.create(p)); fg.keeper = Object.create(G.keeper); fg.ball = Object.create(G.ball); fg.events = [];
+        tp.fg = fg; tp.fgFor = G;
+        repLatch.kick.length = G.players.length;
+      }
+      const fg = tp.fg, mix = (dst, x, y, nums, others) => {
+        const same = !y || x.state === y.state;
+        for (let j = 0; j < nums.length; j++) {
+          const k = nums[j], u = x[k], v = y && y[k];
+          if (same && f > 0 && typeof u === 'number' && typeof v === 'number') {
+            if (ANG[k]) { let d = v - u; while (d > Math.PI) d -= TAU; while (d < -Math.PI) d += TAU; dst[k] = u + d * f; } else dst[k] = u + (v - u) * f;
+          } else dst[k] = u;
+        }
+        for (let j = 0; j < others.length; j++) dst[others[j]] = x[others[j]];
+      };
+      fg.t = a.gt + (b ? (b.gt - a.gt) * f : 0); fg.phase = a.ph;
+      for (let j = 0; j < fg.players.length; j++) { const d = fg.players[j]; mix(d, a.pl[j], b && b.pl[j], PN, PO); d.charge = a.pl[j].charge; d.skill = a.pl[j].skill; repLatch.kick[j] = a.kick[j]; }
+      mix(fg.keeper, a.k, b && b.k, KN, KO);
+      const bl = fg.ball; mix(bl, a.b, b && b.b, BN, ['holder', 'shot', 'wet']);
+      bl.inNet = a.b.inNet ? 1 : null; bl.holder = a.b.holder; bl.owner = a.b.own >= 0 ? fg.players[a.b.own] : null;
+      repLatch.save = a.save; repLatch.throwAt = a.throwAt;
+      return fg;
+    },
+    // a replay starts clean: the latches it evolves (owner before a kick, the keeper's hold) belong to the tape, not to the match
+    begin() { repLatch.lastGoalBy = liveLatch.lastGoalBy; repLatch.lastOwner = -1; repLatch.holdPrev = false; repLatch.save = null; repLatch.throwAt = -9; for (let i = 0; i < repLatch.kick.length; i++) repLatch.kick[i] = null; },
+  };
+  // the ViewFrame of a fake game from Tape.seek (the shared vf: the live frame overwrites it again next frame)
+  function snapshotTape(fg, V) { const sv = latch; latch = repLatch; try { return snapshot(fg, V); } finally { latch = sv; } }
+
+  R3D.Adapter = { snapshot, snapshotTape, onEvent, reset, clear, vf, Tape };
 })();

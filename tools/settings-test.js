@@ -8,26 +8,31 @@ globalThis.window = globalThis; globalThis.addEventListener = noop; globalThis.n
 require('../js/input.js'); require('../js/access.js');
 const PATH = require.resolve('../js/profile.js');
 const load = () => { delete require.cache[PATH]; delete ISO.Profile; require('../js/profile.js'); return ISO.Profile; };
-const NEW = ['uiScale', 'palette', 'hcHud', 'motion', 'flash', 'hudLabels', 'hudFxText', 'hudStam', 'lang', 'quality', 'padLayout', 'padDz', 'mRain', 'mTurf'];
+const NEW = ['uiScale', 'palette', 'hcHud', 'motion', 'flash', 'hudLabels', 'hudFxText', 'hudStam', 'lang', 'quality', 'padLayout', 'padDz', 'mRain', 'mTurf', 'mCpu'];
 
 // a schema-5 profile that predates the new keys
 let P = load(); const old = JSON.parse(JSON.stringify(P.data));
 for (const k of NEW) delete old.settings[k]; delete old.chal; delete old.stats.chDone;
 store[KEY] = JSON.stringify(old); P = load();
 ok(P.data.schema === 5, 'schema stays 5');
-const D = { uiScale: 1, palette: 'default', hcHud: false, motion: null, flash: true, hudLabels: true, hudFxText: true, hudStam: true, lang: 'en', quality: 'auto', padLayout: 'classic', padDz: 0.22, mRain: false, mTurf: 'grass' };
+const D = { uiScale: 1, palette: 'default', hcHud: false, motion: null, flash: true, hudLabels: true, hudFxText: true, hudStam: true, lang: 'en', quality: 'auto', padLayout: 'classic', padDz: 0.22, mRain: false, mTurf: 'grass', mCpu: 'auto' };
 for (const k of NEW) ok(JSON.stringify(P.data.settings[k]) === JSON.stringify(D[k]), 'default for ' + k + ' is ' + JSON.stringify(P.data.settings[k]));
 ok(P.data.chal && P.data.chal.v === 1, 'chal back-filled'); ok(P.data.stats.chDone === 0, 'stats.chDone back-filled');
 ok(P.data.settings.speed === 0.75 && P.data.settings.weather === true, 'the dead speed and weather settings are left in place');
 // a profile saved by a newer build keeps its number
 const fut = JSON.parse(JSON.stringify(P.data)); fut.schema = 99; store[KEY] = JSON.stringify(fut); P = load(); ok(P.data.schema === 99, 'schema 99 is kept');
 // clamping
-const S = { uiScale: 9, palette: 'neon', hcHud: 'yes', motion: 'x', flash: 0, hudLabels: null, lang: 'EN-us!', quality: 5, padLayout: 'z', padDz: -1, mRain: 1, mTurf: 'ice' };
+const S = { uiScale: 9, palette: 'neon', hcHud: 'yes', motion: 'x', flash: 0, hudLabels: null, lang: 'EN-us!', quality: 5, padLayout: 'z', padDz: -1, mRain: 1, mTurf: 'ice', mCpu: 'nope' };
 ISO.Access.clean(S);
-ok(S.uiScale === 1.3 && S.palette === 'default' && S.hcHud === false && S.motion === null && S.flash === true && S.hudLabels === true && S.lang === 'en' && S.quality === 'auto' && S.padLayout === 'classic' && S.padDz === 0.05 && S.mRain === false && S.mTurf === 'grass', 'clean() clamps and enum-checks: ' + JSON.stringify(S));
+ok(S.uiScale === 1.3 && S.palette === 'default' && S.hcHud === false && S.motion === null && S.flash === true && S.hudLabels === true && S.lang === 'en' && S.quality === 'auto' && S.padLayout === 'classic' && S.padDz === 0.05 && S.mRain === false && S.mTurf === 'grass' && S.mCpu === 'auto', 'clean() clamps and enum-checks: ' + JSON.stringify(S));
 ok(ISO.Access.clean({ uiScale: 0.1, padDz: 9 }).uiScale === 0.85, 'uiScale floor'); ok(ISO.Access.clean({ padDz: 9 }).padDz === 0.5, 'padDz ceiling');
 ok(ISO.Access.reduced({ motion: true }, false) && !ISO.Access.reduced({ motion: false }, true) && ISO.Access.reduced({ motion: null }, true) && !ISO.Access.reduced({ motion: null }, false), 'reduced() follows the OS only on null');
 ok(ISO.Access.PALETTES.default === null && ISO.Access.PALETTES.cb.length === 2 && ISO.Access.PALETTES.hc.length === 2, 'palettes');
+// CPU playstyle: the saved list matches the AI archetypes; a chosen one is kept, junk is not, and the profile it builds is the archetype table
+ok(JSON.stringify(ISO.Access.CPU_STYLES) === JSON.stringify(ISO.AI.ARCH_ORDER), 'CPU_STYLES matches ISO.AI.ARCH_ORDER');
+ok(ISO.Access.clean({ mCpu: 'counter' }).mCpu === 'counter' && ISO.Access.clean({ mCpu: 'auto' }).mCpu === 'auto' && ISO.Access.clean({ mCpu: 5 }).mCpu === 'auto' && ISO.Access.clean({ mCpu: 'neutral' }).mCpu === 'auto', 'mCpu: archetype kept, junk -> auto');
+for (const k of ISO.AI.ARCH_ORDER) { const pr = ISO.AI.archProfile(k); ok(pr.id === k && pr.name === ISO.AI.ARCH[k].name && pr.z === ISO.AI.archProfile(k).z, 'archProfile applies ' + k); }
+ok(ISO.AI.archProfile('counter').z !== ISO.AI.profileOf(ISO.PLAYERS[0]).z, 'auto stays the derived profile, distinct from a chosen archetype');
 // reset keeps settings
 P = load(); P.setSetting('uiScale', 1.2); P.setSetting('lang', 'es'); P.reset(); ok(P.data.settings.uiScale === 1.2 && P.data.settings.lang === 'es', 'reset() keeps settings');
 // presets: no clash between any two actions that may not share a key

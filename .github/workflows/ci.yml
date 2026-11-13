@@ -53,6 +53,8 @@ jobs:
         run: node tools/anim-gate.js
       - name: Camera rig tests (blocking)
         run: node tools/cam-test.js
+      - name: 3D goal replay tests (blocking)
+        run: node tools/replay3d-test.js
       - name: Stadium environment tests (blocking)
         run: node tools/stadium-test.js
       - name: GPU dispose test (blocking)

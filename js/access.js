@@ -6,7 +6,7 @@
   const ISO = (globalThis.ISO = globalThis.ISO || {});
   // null keeps the renderers' own defaults (2D green / amber, 3D blue / red: the mismatch is old and is kept on purpose)
   const PALETTES = { default: null, cb: ['#4da3ff', '#ff9d2e'], hc: ['#ffffff', '#ffe600'] };
-  const QUALITY = ['auto', 'low', 'med', 'high'], LAYOUTS = ['classic', 'chords'], TURFS = ['grass', 'firm', 'lush', 'astro'];
+  const QUALITY = ['auto', 'low', 'med', 'high'], LAYOUTS = ['classic', 'chords'], TURFS = ['grass', 'firm', 'lush', 'astro'], CPU_STYLES = ['aggressive', 'technical', 'defensive', 'clinical', 'unpredictable', 'counter', 'possession'];      // = ISO.AI.ARCH_ORDER (settings-test checks)
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
   const num = (v, d, a, b) => (typeof v === 'number' && Number.isFinite(v) ? clamp(v, a, b) : d);
   // sanitise the 9.1 settings in place (a hand-edited or corrupt profile never reaches the renderers); returns the settings object
@@ -24,6 +24,7 @@
     S.lastTier = S.lastTier === 0 || S.lastTier === 1 || S.lastTier === 2 ? S.lastTier : null;
     S.stFlags = S.stFlags !== false; if (['full', 'med', 'low'].indexOf(S.stCrowd) < 0) S.stCrowd = 'full';
     S.mRain = S.mRain === true;
+    if (typeof S.mCpu !== 'string' || (S.mCpu !== 'auto' && CPU_STYLES.indexOf(S.mCpu) < 0)) S.mCpu = 'auto';      // Quick Match CPU playstyle: auto (the CPU's own derived style) or an ISO.AI.ARCH id
     if (typeof S.mTurf !== 'string' || TURFS.indexOf(S.mTurf) < 0) S.mTurf = 'grass';
     return S;
   }
@@ -67,6 +68,6 @@
     window.addEventListener('keydown', (e) => { if (e.code === 'F2' && !e.repeat && !e.defaultPrevented) { if (debugToggle()) e.preventDefault(); } });      // a key rebind in Settings swallows F2 first (capture phase)
     if (typeof location !== 'undefined' && /[?&]debug=1\b/.test(location.search)) window.addEventListener('load', debugToggle);
   }
-  ISO.Access = { debugAllowed, debugToggle, PALETTES, QUALITY, LAYOUTS, TURFS, clean, reduced, apply, live,
+  ISO.Access = { debugAllowed, debugToggle, PALETTES, QUALITY, LAYOUTS, TURFS, CPU_STYLES, clean, reduced, apply, live,
     get scale() { return live.scale; }, get hc() { return live.hc; }, get rm() { return live.rm; }, get noFlash() { return live.noFlash; }, get labels() { return live.labels; }, get fxText() { return live.fxText; } };
 })();

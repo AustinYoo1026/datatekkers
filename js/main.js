@@ -52,9 +52,10 @@
       keepers: kst ? [ISO.KEEPERS[0], { ...ISO.KEEPERS[1], gk: App.matchGk }] : undefined,      // Phase 3.4: a styled CPU keeper (offline CPU and MyCareer only: the def is never serialised, so never online)
       sand: ISO.ArenaUI ? ISO.ArenaUI.simOpts(App, quiet) : undefined, drillDef: !quiet && App.mode === 'drill' && App.drill === 'custom' ? App.drillDef : undefined,      // Phase 4.3 / 4.4: the training sandbox and a custom drill (offline only: the server never passes either)
       keeperNerf: quiet ? 0 : (kst && App.matchLvl != null ? ISO.AI.Adapt.keeperNerf(App.matchLvl) : ({ easy: 16, normal: 0, hard: -6 }[App.matchDiff] || 0)),
+      ...(!quiet && App.mode === 'online' && App.onOpts ? App.onOpts : {}),      // online: the room's validated pitch / weather / rules / walls / win target (the server builds its game from the same settings)
       moves: ctrl.map((c) => (c === 'human' ? ISO.Profile.moveSet() : null)) });      // you can only use the skill moves you have unlocked
     App.ctrl = ctrl;
-    App.ai = ctrl.map((c, i) => { const pers = !quiet && App.mode === 'career' && App.matchPers && i === 1 ? App.matchPers : ISO.AI.profileOf(defs[i]); return c === 'cpu' ? ISO.AI.create(quiet ? 'normal' : App.matchDiff, kst && App.matchLvl != null ? { pers, lvl: App.matchLvl, adapt: App.matchAdapt } : { pers }) : null; });      // App.matchPers: a rival's forced archetype (5.5), career finale only
+    App.ai = ctrl.map((c, i) => { const pers = !quiet && App.mode === 'career' && App.matchPers && i === 1 ? App.matchPers : !quiet && App.mode === 'cpu' && !takers && !roster && i === 1 && App.cpuStyle && App.cpuStyle !== 'auto' && ISO.AI.ARCH[App.cpuStyle] ? ISO.AI.archProfile(App.cpuStyle) : ISO.AI.profileOf(defs[i]); return c === 'cpu' ? ISO.AI.create(quiet ? 'normal' : App.matchDiff, kst && App.matchLvl != null ? { pers, lvl: App.matchLvl, adapt: App.matchAdapt } : { pers }) : null; });      // App.matchPers: a rival's forced archetype (5.5), career finale only
     App.matchDefs = defs; App.hudIdx = [0, 1]; App.me = 0;
     App.V = {
       sheets: defs.map((d, i) => ISO.Sprites.forPlayer(d, kits[i % 2], i)), me: 0,
@@ -137,7 +138,8 @@
   // Online 1v1 / 2v2: the server runs the match; this builds the local mirror the renderer and HUD read from.
   // Player i is seat i and plays for team i % 2.
   const teamName = (t) => App.names.filter((_, i) => i % 2 === t).map((n) => String(n || 'Player').toUpperCase().slice(0, 9)).join(' + ');
-  App.startOnline = (picks, names, kickoff, me) => {
+  App.startOnline = (picks, names, kickoff, me, settings) => {
+    App.onSettings = ISO.Net.sanitizeSettings(settings); App.onOpts = ISO.Net.settingsOpts(App.onSettings);      // a server without settings: the defaults
     const defs = picks.map((p) => ISO.outfit(ISO.playerById(p.id), p.prime, p.skin, p.celeb));
     App.mode = 'online'; App.demo = false; App.paused = false; App.names = names;
     App.matchDiff = 'normal'; App.matchWin = 0; App.kickoffFlip = kickoff;
@@ -146,6 +148,8 @@
     App.V.names = names.map((n, i) => String(n || 'P' + (i + 1)).toUpperCase());
     App.V.teams = [teamName(0), teamName(1)];
     $('pRestart').classList.add('hidden'); $('pQuit').textContent = T('btn.leave_match'); $('pQuitMenu').classList.add('hidden');
+    { const st = App.onSettings, own = ISO.Profile.data.map, want = st.map ? (st.rules && !ISO.mapById(st.map).walls ? 'fs_roof' : st.map) : (st.rules && !ISO.mapById(own).walls ? 'fs_roof' : own);      // a look only, like streetLook: nothing is bought
+      R.setMap(want); App.mapTmp = want !== own; }
     beginMatch(false);
   };
 
@@ -185,7 +189,7 @@
   function show(screen) {
     if (screen === 'select' && App.screen !== 'select') {
       App.selStep = 'players'; App.hov = null;
-      const ST = ISO.Profile.data.settings; App.rain = !!ST.mRain; App.turf = ISO.Game.turfs.includes(ST.mTurf) ? ST.mTurf : 'grass';      // the arena panel also writes the shared prematch weather / pitch
+      const ST = ISO.Profile.data.settings; App.cpuStyle = ST.mCpu || 'auto'; App.rain = !!ST.mRain; App.turf = ISO.Game.turfs.includes(ST.mTurf) ? ST.mTurf : 'grass';      // the arena panel also writes the shared prematch weather / pitch
     }      // Quick Match: players first, then the match-settings page
     App.screen = screen;
     for (const id of MENU_SCREENS) $(id).classList.toggle('hidden', screen !== id);
@@ -299,11 +303,14 @@
     $('selSettings').classList.toggle('hidden', online || (vs && !set)); $('selSettings').classList.toggle('page', set);
     $('selBackStep').classList.toggle('hidden', !set); $('sideSeg').classList.toggle('hidden', arena || set); document.querySelector('[data-act="random"]').classList.toggle('hidden', set);
     $('selMatchup').classList.toggle('hidden', !set);
-    if (set) $('selMatchup').innerHTML = '<div class="mu"><span class="mu-k">YOU</span><b>' + me.short + '</b><i>' + me.ovr + '</i></div><span class="mu-vs">VS</span><div class="mu away"><span class="mu-k">CPU</span><b>' + App.pick[1].short + '</b><i>' + App.pick[1].ovr + '</i></div>';
+    if (set) $('selMatchup').innerHTML = '<div class="mu"><span class="mu-k">YOU</span><b>' + me.short + '</b><i>' + me.ovr + '</i></div><span class="mu-vs">VS</span><div class="mu away"><span class="mu-k">CPU</span><b>' + App.pick[1].short + '</b><i>' + App.pick[1].ovr + '</i><span class="mu-k">' + (App.cpuStyle && App.cpuStyle !== 'auto' && ISO.AI.ARCH[App.cpuStyle] ? ISO.AI.ARCH[App.cpuStyle].name.toUpperCase() : 'AUTO STYLE') + '</span></div>';
     $('diffSeg').classList.toggle('hidden', online);
     $('weatherSeg').classList.toggle('hidden', online || (arena && App.drill !== 'arena'));      // the training arena has the prematch's weather and pitch too
     $('rulesSeg').classList.toggle('hidden', online || arena);
     $('segRules-std').classList.toggle('on', !App.rules); $('segRules-street').classList.toggle('on', App.rules === 'street');
+    { const cs = $('cpuStyleSeg'), sel = $('selCpuStyle'); cs.classList.toggle('hidden', online || arena);
+      if (!sel.options.length) { sel.innerHTML = '<option value="auto">AUTO</option>' + ISO.AI.ARCH_ORDER.map((k) => '<option value="' + k + '">' + ISO.AI.ARCH[k].name.toUpperCase() + '</option>').join(''); sel.addEventListener('change', () => { App.cpuStyle = sel.value; ISO.Profile.setSetting('mCpu', sel.value); renderSelect(); }); }
+      if (!App.cpuStyle) App.cpuStyle = 'auto'; sel.value = App.cpuStyle; $('selCpuDesc').textContent = App.cpuStyle !== 'auto' && ISO.AI.ARCH[App.cpuStyle] ? ISO.AI.ARCH[App.cpuStyle].desc : 'The CPU plays to its own player style.'; }
     $('turfSeg').classList.toggle('hidden', online || (arena && App.drill !== 'arena'));
     for (const t of ISO.Game.turfs) { const e = $('segTurf-' + t); if (e) e.classList.toggle('on', App.turf === t); }
     $('segWx-clear').classList.toggle('on', !App.rain); $('segWx-rain').classList.toggle('on', !!App.rain);
@@ -668,7 +675,7 @@
         if (ISO.R3D.ready) {
           const pen = !!(App.G.drill && App.G.drill.so);      // the shootout's scoreline and banners are the 2D view's own (render.js penaltyOverlay / overlays(.., pen))
           if (pen && R.penaltyOverlay) R.penaltyOverlay(ctx, App.G, App.V);
-          R.overlays(ctx, App.G, App.V, null, pen);
+          R.overlays(ctx, App.G, App.V, ISO.R3D.replayView ? ISO.R3D.replayView() : null, pen);      // (the goal replay's state: the GOAL banner steps aside)
         }
         else { cur3d = false; R.reset(); noTape = App.G.phase === 'goal' ? App.G : null; }      // 3D gave up (an error, a lost context): this very frame is drawn by Classic
       }
@@ -696,7 +703,7 @@
     R.setMap(ISO.Profile.data.map); R.setBall(ISO.Profile.data.ball);
     ISO.Input.setBindings(ST.keys);
     if (ISO.Access) { ISO.Access.clean(ST); ISO.Access.apply(ST); }      // Phase 9.1: UI scale, palette, high contrast, reduce motion / flashes, pad layout
-    App.rain = !!ST.mRain; App.turf = ISO.Game.turfs.includes(ST.mTurf) ? ST.mTurf : 'grass';      // the saved prematch weather and pitch
+    App.cpuStyle = ST.mCpu || 'auto'; App.rain = !!ST.mRain; App.turf = ISO.Game.turfs.includes(ST.mTurf) ? ST.mTurf : 'grass';      // the saved prematch weather and pitch
     App.setMouse(ST.mouseAim);
     if (ISO.Meta) ISO.Meta.keyLabels();
   }

@@ -61,7 +61,7 @@
     else if (m.t === 'start') {
       rematching = false;
       const me = lobby ? lobby.you : 0;
-      App.startOnline(m.picks, m.names, m.kickoff, me);
+      App.startOnline(m.picks, m.names, m.kickoff, me, m.settings);
       // the sim revision: a server on another sim would make this client predict wrongly, so say so instead of silently drifting
       if (m.rev !== undefined && m.rev !== ISO.SIM_REV) App.toast('VERSION MISMATCH', 'This game (' + ISO.SIM_REV + ') and the server (' + m.rev + ') run different match code. Refresh the page; until then the match may look jumpy.', '#f1735f');
       // everybody is re-simulated here, so every player needs the skill moves the server lets that seat use
@@ -98,11 +98,37 @@
     const d = App.pick[0];
     return { id: d.id, prime: P.isPrime(d.id), skin: P.skinOf(d.id), celeb: P.celebOf() };
   }
+  // room settings the creator picks in the online menu (sent with `create`; quick match and join never send any: defaults / the room's)
+  const cfg = { map: '', turf: 'grass', rain: false, rules: '', win: 0 };
   const myName = () => ($('onName').value || '').trim() || 'Player';
   const payload = (t, extra) => Object.assign({ t, v: ISO.Net.PROTO, mode, name: myName(), pick: myPick(), moves: Array.from(P.moveSet()) }, extra);
 
+  const summary = (s) => {
+    const mp = s.map ? ISO.mapById(s.map).name : 'YOUR OWN MAP';
+    return [['MAP', mp], ['PITCH', s.turf.toUpperCase()], ['WEATHER', s.rain ? 'RAIN' : 'CLEAR'], ['RULES', s.rules === 'street' ? 'STREET' : 'STANDARD'], ['FIRST TO', s.rules ? 'STREET RULES' : s.win || ISO.C.WIN]]
+      .map(([k, v]) => '<span class="on-set"><i>' + k + '</i><b>' + esc(v) + '</b></span>').join('');
+  };
+  // the creator's option rows (segmented buttons); every change re-renders
+  const OPTS = () => [
+    ['onSetTurf', 'turf', ISO.Game.turfs.map((t) => [t, t.toUpperCase()])],
+    ['onSetWx', 'rain', [[false, 'CLEAR'], [true, 'RAIN']]],
+    ['onSetRules', 'rules', [['', 'STANDARD'], ['street', 'STREET']]],
+    ['onSetWin', 'win', ISO.Net.WINS.map((w) => [w, w ? String(w) : 'DEFAULT'])],
+  ];
+  function renderOpts() {
+    for (const [id, key, list] of OPTS()) {
+      const el = $(id); if (!el) continue;
+      el.innerHTML = list.map(([v, label]) => '<button class="segb' + (cfg[key] === v ? ' on' : '') + '" data-v="' + esc(JSON.stringify(v)) + '">' + esc(label) + '</button>').join('');
+      el.querySelectorAll('button').forEach((b) => b.addEventListener('click', () => { cfg[key] = JSON.parse(b.dataset.v); Object.assign(cfg, ISO.Net.sanitizeSettings(cfg)); renderOpts(); }));
+    }
+    const sel = $('onSetMap');
+    if (sel) { if (!sel.options.length) { sel.innerHTML = '<option value="">MY OWN MAP</option>' + ISO.MAPS.map((m) => '<option value="' + m.id + '">' + esc(m.name) + '</option>').join(''); sel.addEventListener('change', () => { cfg.map = sel.value; Object.assign(cfg, ISO.Net.sanitizeSettings(cfg)); }); } sel.value = cfg.map; }
+    $('onSetWinRow').classList.toggle('hidden', cfg.rules === 'street');
+  }
+
   function render() {
     if (!$('onMenu')) return;
+    renderOpts();
     const d = P.owns(App.pick[0].id) ? P.outfit(App.pick[0]) : App.pick[0];
     const c = $('onFace').getContext('2d'); c.clearRect(0, 0, 184, 184); c.drawImage(ISO.Sprites.portrait(d, 92), 0, 0);
     $('onNm').textContent = d.name; $('onOvr').textContent = d.ovr;
@@ -129,6 +155,7 @@
     };
     const mine = lobby ? lobby.you % 2 : 0;
     $('onRoster').innerHTML = lobby ? '<div class="on-team"><i>YOUR TEAM</i>' + roster(mine) + '</div><div class="on-team opp"><i>' + (mode === '2v2' ? 'OPPONENTS' : 'OPPONENT') + '</i>' + roster(1 - mine) + '</div>' : '';
+    $('onSummary').innerHTML = lobby ? summary(ISO.Net.sanitizeSettings(lobby.settings)) : '';      // read-only for everybody in the room
     $('onTeam').classList.toggle('hidden', !(lobby && mode === '2v2'));
     $('onLeave').textContent = lobby && lobby.players.filter(Boolean).length > 1 ? 'LEAVE' : 'CANCEL';
   }
@@ -136,7 +163,7 @@
   function start() {
     $('onName').value = (P.data.settings.onlineName || '');
     $('onName').addEventListener('change', () => P.setSetting('onlineName', myName() === 'Player' ? '' : myName()));
-    $('onCreate').addEventListener('click', () => connect(() => send(payload('create'))));
+    $('onCreate').addEventListener('click', () => connect(() => send(payload('create', { settings: ISO.Net.sanitizeSettings(cfg) }))));
     $('onQuick').addEventListener('click', () => connect(() => send(payload('quick'))));
     const join = () => { const code = $('onCode').value.trim().toUpperCase(); if (code.length < 4) { App.toast('ONLINE', 'Enter the 4-letter room code', '#f1735f'); return; } connect(() => send(payload('join', { code }))); };
     $('onJoin').addEventListener('click', join);

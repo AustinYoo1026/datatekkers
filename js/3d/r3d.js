@@ -331,22 +331,24 @@
     if (!built) { if (!pending) return; build(); }
     const t0 = typeof performance === 'object' ? performance.now() : 0;
     time += dt;
-    const vf = R3D.Adapter.snapshot(G, V);
+    const rs = replayStep(G, V, dt);      // non-null while the goal replay is on screen
+    const vf = rs ? R3D.Adapter.snapshotTape(rs.fg, V) : R3D.Adapter.snapshot(G, V);
+    const dtA = rs ? dt * rs.rate : dt;      // the figures and the ball move at the replay's speed (slow motion), the camera and the stadium in real time
     // a sudden ball jump (kick-off / new rep) resets the ball's visual state
     if (lastBall && (Math.abs(vf.ball.x - lastBall.x) + Math.abs(vf.ball.z - lastBall.z)) > 3 && ball && ball.reset) guard('ball', () => ball.reset());
     lastBall = lastBall || {}; lastBall.x = vf.ball.x; lastBall.z = vf.ball.z;
     // the ball first: the animator reaches the feet and hands to the ball as it is DRAWN (bv), not to the raw sim position
-    if (ball) guard('ball', () => ball.update(vf, dt));
+    if (ball) guard('ball', () => ball.update(vf, dtA));
     const bv = drawnBall(vf);
     for (let i = 0; i < actors.length; i++) {
       const a = actors[i], pv = vf.players[i];
-      if (a.anim) guard('anim', () => a.anim.update(pv, dt, bv)); else if (a.group) { a.group.visible = !pv.hidden; a.group.position.set(pv.x, 0, pv.z); a.group.rotation.y = pv.yaw; }
+      if (a.anim) guard('anim', () => a.anim.update(pv, dtA, bv)); else if (a.group) { a.group.visible = !pv.hidden; a.group.position.set(pv.x, 0, pv.z); a.group.rotation.y = pv.yaw; }
     }
     {
       // in the shootout the keeper on the pitch is you (your kit) while they shoot, theirs while you shoot
       const ka = keeperMine && vf.keeper.human ? keeperMine : keeperActor, kb = ka === keeperMine ? keeperActor : keeperMine;
       if (kb) kb.group.visible = false;
-      if (ka) { if (ka.anim) guard('anim', () => ka.anim.update(vf.keeper, dt, bv)); else { ka.group.position.set(vf.keeper.x, 0, vf.keeper.z); ka.group.rotation.y = vf.keeper.yaw; } }
+      if (ka) { if (ka.anim) guard('anim', () => ka.anim.update(vf.keeper, dtA, bv)); else { ka.group.position.set(vf.keeper.x, 0, vf.keeper.z); ka.group.rotation.y = vf.keeper.yaw; } }
     }
     for (let i = 0; i < rings.length; i++) {
       const r = rings[i], pv = vf.players[i];
@@ -355,17 +357,89 @@
       const tc = TEAM_COL[G.players[i].team % 2]; if (r.userData.tc !== tc) { r.userData.tc = tc; r.material.color.set(tc); }      // the palette can change mid-match
     }
     if (ring) { const me = vf.players[vf.me]; ring.visible = !!me && !me.hidden && G.phase !== 'end'; if (me) { ring.position.set(me.x, 0.03, me.z); ring.material.color.set(TEAM_COL[me.team % 2]); } }
-    applyCamSettings();
-    camera.update(vf, dt, time, bv);
-    // the clear cue belongs to the team of the screen: the box outline glows while that team has to clear
-    fxOn = G.phase === 'play' && vf.mustClear >= 0 && vf.mustClear === vf.myTeam; fx.setClear(fxOn, vf.myTeam);
+    if (rs) {
+      REP.rig.update(bv, dt, { slow: rs.slowmo, rm: AX().rm, half: K.half, walls: !!G.walls, depthAll: K.depthAll || K.depth, sideX: camera.st.lim && camera.st.lim.sideX }, REP.pose);
+      camera.applyPose(REP.pose);
+      fxOn = false; fx.setClear(false, vf.myTeam);
+    } else {
+      applyCamSettings();
+      camera.update(vf, dt, time, bv);
+      // the clear cue belongs to the team of the screen: the box outline glows while that team has to clear
+      fxOn = G.phase === 'play' && vf.mustClear >= 0 && vf.mustClear === vf.myTeam; fx.setClear(fxOn, vf.myTeam);
+    }
     if (stadium && stadium.setTargets) guard('stadium', () => (G.drill && G.drill.kind === 'target' ? stadium.setTargets(ISO.TARGETS, G.drill.target) : stadium.setTargets(null)));
     if (stadium) guard('stadium', () => { stadium.update(dt, time); if (stadium.setView) stadium.setView(camera.cam.position.z, camera.cam.position.y); });
     fx.update(dt);
     if (rain) guard('rain', () => updateRain(dt));
     renderer.render(scene, camera.cam);
     adaptTier(dt, typeof performance === 'object' ? performance.now() - t0 : 0);
-    if (c2d) fx.draw2d(c2d, camera, G, V);
+    if (c2d) { if (!rs) fx.draw2d(c2d, camera, G, V); replayOverlay(c2d, G, V, rs); }
+  }
+
+  // ------------------------------------------------------------------ goal replay
+  // The tape (R3D.Adapter.Tape) records what is drawn while a match is live; a goal plays it back through the same actors, ball and stadium
+  // (driven from tape frames, nothing new built, the live game never written) with its own low side-on camera (CamRig.replayCam).
+  // Same window, skip key and conditions as the 2D view's replay (G.replay, not the menu demo, drills or the shootout); also off with
+  // Match presentation switched off. Slow motion follows Slow-motion goals and reduce motion; the fades are to black, never white.
+  const REP = { on: false, e: -1, rig: null, pose: { px: 0, py: 2, pz: 8, lx: 0, ly: 1, lz: 8, fov: 50 }, outT: 0, black: 0, rs: null, view: null };
+  const smooth01 = (v) => { v = v < 0 ? 0 : v > 1 ? 1 : v; return v * v * (3 - 2 * v); };
+  function replayWanted(G, V) {
+    if (!G || !G.replay || (V && V.quiet) || G.drill || !R3D.Adapter || !R3D.Adapter.Tape || !R3D.CamRig || !R3D.CamRig.replayState) return false;
+    const st = PS(); return !(st && st.pres === false);
+  }
+  function replayStep(G, V, dt) {
+    const Tp = R3D.Adapter.Tape, CR = R3D.CamRig, ok = replayWanted(G, V);
+    REP.rs = null; REP.black = 0;
+    if (REP.outT > 0) REP.outT = Math.max(0, REP.outT - dt);
+    if ((!ok || G.phase === 'end' || (G.phase === 'countdown' && Tp.goalAt() < 0)) && Tp.count()) Tp.clear();      // a new rep / match starts a new tape
+    let rs = null;
+    if (ok) {
+      if (G.phase !== 'goal') { if (Tp.goalAt() >= 0) Tp.unmark(); REP.e = -1; } else if (Tp.goalAt() < 0) Tp.mark();
+      if (G.phase === 'goal' && Tp.goalAt() >= 0 && Tp.count() > 8) {
+        const eRaw = (G.goalDur - G.phaseT) / ISO.C.SPEED;
+        if (REP.e < 0 || Math.abs(REP.e - eRaw) > 0.12) REP.e = eRaw; else if (dt > 0) { REP.e += dt; REP.e += (eRaw - REP.e) * Math.min(1, dt * 3); }
+        const st = PS() || {}, slow = st.slowmo !== false && !AX().rm;
+        rs = CR.replayState(REP.e, G.goalDur / ISO.C.SPEED, Tp.goalAt(), Tp.t0(), slow);
+        if (!rs) REP.black = CR.replayPre(REP.e);
+      }
+      if (!rs && dt > 0 && (G.phase === 'play' || G.phase === 'goal')) Tp.record(G, dt);      // the tape pauses while it is being watched; costs one ring write a frame
+    }
+    if (rs) {
+      if (!REP.on) {      // cut in: the actors, the ball and the lens start from the tape, the live latches stay out of it
+        REP.on = true; if (!REP.rig) REP.rig = CR.replayCam(); REP.rig.reset(); Tp.begin();
+        if (ball && ball.reset) guard('ball', () => ball.reset()); fx.reset(); lastBall = null;
+      }
+      rs.fg = Tp.seek(G, rs.t);
+      if (!rs.fg) rs = null;
+    }
+    if (!rs && REP.on) {      // cut out: forget what the replay left in the latches, springs and ball, and fade up from black
+      REP.on = false; camera.reset(); R3D.Adapter.clear(); fx.reset(); lastBall = null; REP.outT = 0.3; REP.e = G.phase === 'goal' ? REP.e : -1;
+      if (ball && ball.reset) guard('ball', () => ball.reset());
+    }
+    REP.rs = rs;
+    if (rs) REP.black = rs.black; else if (REP.outT > 0) REP.black = Math.max(REP.black, smooth01(REP.outT / 0.3));
+    return rs;
+  }
+  function replayOverlay(c, G, V, rs) {
+    const VW = 1280, VH = 720, FONT = '"Avenir Next Condensed","Arial Narrow",Arial,sans-serif';
+    c.save();
+    if (rs) {
+      const bar = 46; c.fillStyle = '#05070a'; c.fillRect(0, 0, VW, bar); c.fillRect(0, VH - bar, VW, bar);
+    }
+    if (REP.black > 0.001) { c.globalAlpha = Math.min(1, REP.black); c.fillStyle = '#05070a'; c.fillRect(0, 0, VW, VH); }
+    if (rs) {
+      c.globalAlpha = 1 - Math.min(1, REP.black);
+      const lg = G.goals[G.goals.length - 1], i = lg && lg.by != null ? lg.by : 1 - G.concede, who = ((V && V.names && V.names[i] ? V.names[i] + ' (' + G.players[i].def.short + ')' : (G.players[i] || G.players[0]).def.short) || '').toUpperCase();
+      const col = TEAM_COL[i % 2], bx = 86, by = VH - 46 - 34;
+      c.font = '900 italic 30px ' + FONT; c.textAlign = 'left'; c.textBaseline = 'middle';
+      c.fillStyle = 'rgba(6,10,14,.82)'; c.fillRect(bx - 16, by - 22, 190 + c.measureText(who).width, 44);
+      c.fillStyle = col; c.fillRect(bx - 16, by - 22, 6, 44);
+      if (AX().noFlash || Math.sin(time * 6) > -0.3) { c.fillStyle = '#ff4d4d'; c.beginPath(); c.arc(bx + 6, by, 6, 0, 6.2832); c.fill(); }      // the dot does not blink with reduce flash
+      c.fillStyle = '#fff'; c.fillText('REPLAY', bx + 22, by + 1); c.fillStyle = col; c.fillText(who, bx + 140, by + 1);
+      c.textAlign = 'right'; c.font = '800 20px ' + FONT; c.fillStyle = 'rgba(255,255,255,.8)';
+      c.fillText(G.score[0] + ' \u2013 ' + G.score[1] + (rs.slowmo ? '   \u00b7   SLOW MOTION' : '') + (V && V.canSkip && ISO.Input ? '   \u00b7   ' + ISO.Input.keyLabel('shoot').toUpperCase() + ' TO SKIP' : ''), VW - 86, by + 1);
+    }
+    c.restore();
   }
 
   R3D.ensure = ensure; R3D.resize = resize; R3D.onMatch = onMatch; R3D.onEvent = onEvent; R3D.render = render;
@@ -387,5 +461,7 @@
     const sp = ISO.C.SPEED, e = (G.goalDur - G.phaseT) / sp;
     return e >= 1.25 && e <= G.goalDur / sp - 0.1;
   };
+  // the 2D overlays' view of the replay (render.js overlays: the GOAL banner steps aside while it is on screen): { mix } or null
+  R3D.replayView = () => { if (!REP.rs) return null; REP.view = REP.view || { mix: 1 }; REP.view.mix = 1 - Math.min(1, REP.black); return REP.view; };
   R3D.ready = false;
 })();

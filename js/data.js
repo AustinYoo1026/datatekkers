@@ -2,7 +2,7 @@
 (function () {
   'use strict';
   const ISO = (globalThis.ISO = globalThis.ISO || {});
-  ISO.VERSION = '3.01';      // the release shown on the menu; README.md and index.html must say the same (CI checks)
+  ISO.VERSION = '3.02';      // the release shown on the menu; README.md and index.html must say the same (CI checks)
 
   // Attribute order used by the compact roster table below.
   const KEYS = ['pac', 'acc', 'dri', 'agi', 'bal', 'bct', 'fin', 'sho', 'lng', 'cur', 'wf', 'skl', 'str', 'tck', 'sta'];

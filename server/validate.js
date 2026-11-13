@@ -26,4 +26,5 @@ function sanitizeMoves(list) {          // a client that sends nothing valid get
   if (!Array.isArray(list)) return new Set(FREE_MOVES());
   return new Set(list.filter((id) => typeof id === 'string' && ISO.Game.SKILLS[id]).concat(FREE_MOVES()));
 }
-module.exports = { cleanName, validatePick, sanitizePick, sanitizeMoves, FREE_MOVES, BAD_PLAYER };
+const sanitizeSettings = ISO.Net.sanitizeSettings, settingsOpts = ISO.Net.settingsOpts;      // room settings: allow-lists live in js/net.js so the clients apply exactly the same
+module.exports = { sanitizeSettings, settingsOpts, cleanName, validatePick, sanitizePick, sanitizeMoves, FREE_MOVES, BAD_PLAYER };
