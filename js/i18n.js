@@ -8,7 +8,7 @@
   const ISO = (globalThis.ISO = globalThis.ISO || {});
   const tables = {}, metas = {}, missing = new Set(), listeners = [];
   // the languages the build ships (a language file registers itself with add(); until it is loaded the list shows this name)
-  const SHIPPED = { en: { name: 'English', review: false }, es: { name: 'Español', review: true }, xx: { name: 'Pseudo (overflow test)', review: false } };
+  const SHIPPED = { en: { name: 'English', review: false }, es: { name: 'Español', review: true }, ko: { name: '한국어', review: true }, xx: { name: 'Pseudo (overflow test)', review: false } };
   let lang = 'en';
   const RTL = /^(ar|he|fa|ur)(-|$)/;
 

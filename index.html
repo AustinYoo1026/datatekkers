@@ -405,7 +405,12 @@
         <p class="note" data-i18n="set.lang_note">Translations marked (beta) are machine quality. The match controls guide stays in English.</p>
         <h3 data-i18n="set.graphics">GRAPHICS</h3>
         <label class="set-row"><span data-i18n="set.quality">Quality</span><select id="setQuality"><option value="auto" data-i18n="set.q_auto">Auto</option><option value="low" data-i18n="set.q_low">Low</option><option value="med" data-i18n="set.q_med">Medium</option><option value="high" data-i18n="set.q_high">High</option></select></label>
-        <p class="note" data-i18n="set.quality_note">Saved now; the renderer honours it in a later update.</p>
+        <p class="note" data-i18n="set.quality_note">Auto adapts to your device. Low, Medium and High fix the 3D quality.</p>
+        <label class="set-row"><span data-i18n="set.st_flags">Stadium flags</span><input type="checkbox" id="setStFlags" checked></label>
+        <label class="set-row"><span data-i18n="set.st_crowd">Crowd density</span><select id="setStCrowd"><option value="full" data-i18n="set.c_full">Full</option><option value="med" data-i18n="set.c_med">Medium</option><option value="low" data-i18n="set.c_low">Light</option></select></label>
+        <p class="note" data-i18n="set.st_note">Applies from the next 3D match. Camera flashes follow Reduce flashes.</p>
+        <div class="set-row"><span data-i18n="set.backup">Settings backup (JSON)</span><span><button class="btn small ghost" data-meta="set-export" data-i18n="btn.export">EXPORT</button> <button class="btn small ghost" data-meta="set-import" data-i18n="btn.import">IMPORT</button></span></div>
+        <textarea id="setJson" rows="3" spellcheck="false" style="width:100%;display:none" aria-label="Settings JSON"></textarea>
         <h3 data-i18n="settings.keyboard">KEYBOARD</h3>
         <p data-i18n-html="settings.click_a_slot_then_press" class="note">Click a slot, then press a key <b data-i18n="settings.or_a_mouse_button">or a mouse button</b>. For a <b data-i18n="settings.combination">combination</b>, hold the first key(s) and press the last, e.g. <kbd data-i18n="settings.shift">Shift</kbd>+<kbd data-i18n="settings.q">Q</kbd> (up to three). Release a lone modifier to bind it by itself. <kbd data-i18n="settings.esc">Esc</kbd> cancels, <kbd data-i18n="settings.backspace">Backspace</kbd> clears the slot. A binding already in use swaps places.</p>
         <div class="keybinds" id="keyBinds"></div>

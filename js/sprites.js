@@ -377,10 +377,11 @@
     const cv = document.createElement('canvas'); cv.width = w; cv.height = h; return cv;
   }
 
-  const cache = new Map();
+  const cache = new Map(), CACHE_MAX = 24, PORTRAIT_MAX = 160;
   function entryFor(key, look, kit, keeper) {
     let e = cache.get(key);
-    if (!e) { e = { look, kit, keeper, img: null }; cache.set(key, e); }
+    if (!e) { e = { look, kit, keeper, img: null }; cache.set(key, e); if (cache.size > CACHE_MAX) cache.delete(cache.keys().next().value); }      // LRU: the oldest sheet goes (a match uses about 14)
+    else { cache.delete(key); cache.set(key, e); }
     return e;
   }
   // The character for a footballer; optionally a professional PNG sheet (ISO.SPRITE_OVERRIDES) replaces the live drawing.
@@ -632,7 +633,7 @@
     const c = cv.getContext('2d'), D = size * 2, k = (D / 100) * 1.1;
     c.setTransform(k, 0, 0, k, D / 2, D * 0.37 - 43 * k);      // head and shoulders, the face a little above the middle
     bust(c, look, kit);
-    portraits.set(key, cv);
+    portraits.set(key, cv); if (portraits.size > PORTRAIT_MAX) portraits.delete(portraits.keys().next().value);
     return cv;
   }
 

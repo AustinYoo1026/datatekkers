@@ -92,7 +92,7 @@
     const dn = ISO.Input.lastDownT; if (dn !== lastDown) { lastDown = dn; lat = t - dn; }
     const G = App.G; if (!G || !G.ball || App.screen !== 'match' && !App.demo) return;
     const C = ISO.C, R = ISO.Render;
-    const proj = cur3d && ISO.R3D.ready && ISO.R3D.project ? (x, y, z) => { const K = ISO.R3D.K, w = K.toWorld ? K.toWorld(x, y, z || 0, {}) : null; return w ? ISO.R3D.project(w.x, w.y != null && z ? w.y : (z || 0) * (K.S || 1), w.z) : null; } : (x, y) => R.debugProj(x, y);
+    const K = ISO.R3D && ISO.R3D.K, w3 = {}, proj = cur3d && ISO.R3D.ready && ISO.R3D.project ? (x, y, z) => { K.toWorld(x, y, z || 0, w3); return ISO.R3D.project(w3.x, w3.y, w3.z, {}); } : (x, y) => R.debugProj(x, y);
     const P = (x, y, z) => { try { return proj(x, y, z); } catch (e) { return null; } };
     ctx.save(); ctx.lineWidth = 1.5;
     if (vis.circles) {

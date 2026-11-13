@@ -73,8 +73,8 @@
     const name = theme && theme.ads && theme.ads[0] && theme.ads[0][0], m = ISO.MAPS && ISO.MAPS.find((x) => x.name === name);
     return m ? m.id : null;
   }
-  function flavour(id, th) {
-    const f = Object.assign({}, FLAV[id] || {});
+  function flavour(id, th, over) {
+    const f = Object.assign({}, FLAV[id] || {}, over || {});      // 9.1 remainder: opts.flav overrides single fields (flags, crowd) per build
     const bg = parse(th.bg);
     if (!has(f, 'night')) f.night = lum(bg) < 0.12 ? 1 : 0;
     if (!f.sky) f.sky = f.night ? [css(scl(bg, 0.35), 1), css(mixc(bg, th.crowd[0], 0.5), 1)] : ['#3d7fc4', '#cfe3ee'];
@@ -370,7 +370,7 @@
   function build(THREE, theme, dims, opts) {
     opts = opts || {};
     const D = dims || R3D.K, q = clamp(opts.quality | 0, 0, 2);
-    const th = normTheme(theme), id = resolveId(theme || {}, opts), fl = flavour(id, th);
+    const th = normTheme(theme), id = resolveId(theme || {}, opts), fl = flavour(id, th, opts.flav);
     const futsal = !!(th.cage || opts.walls), around = th.around;
     if (!futsal && around !== 'crowd' && around !== 'bricks' && around !== 'beach' && !build.warned) { build.warned = 1; console.warn('[stadium] unmapped around "' + around + '": using stands'); }
     const kind = futsal ? (around === 'bricks' || fl.rooftop ? 'rooftop' : 'hall') : around === 'bricks' ? 'bricks' : around === 'beach' ? 'beach' : 'crowd';

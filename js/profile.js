@@ -102,7 +102,7 @@
       schema: SCHEMA, credits: 300, owned: STARTERS.slice(), claimed: {}, pity: 0, career: null,
       skins: {}, equip: {}, prime: {}, moves: [], maps: ['stadium'], map: 'stadium', balls: [], ball: 'classic', celebs: [], celeb: 'signature',      // store purchases (celeb: global, like the ball)
       settings: { volume: 0.8, muted: false, crowd: true, speed: 0.75, mouseAim: false, reticle: true, camera: 'classic', cam3d: 'chase', camZoom: 1, camSens: 1, camShake: 1, camGoal: 'celeb', pres: true, slowmo: true, hint: true, adaptive: true, weather: true, diff: 'normal', keys: null,
-        uiScale: 1, palette: 'default', hcHud: false, motion: null, flash: true, hudLabels: true, hudFxText: true, hudStam: true, lang: 'en', quality: 'auto', padLayout: 'classic', padDz: 0.22, mRain: false, mTurf: 'grass',      // Phase 9.1 (flat keys, back-filled by load(); sanitised by ISO.Access.clean). speed and weather above are dead settings: never read
+        uiScale: 1, palette: 'default', hcHud: false, motion: null, flash: true, hudLabels: true, hudFxText: true, hudStam: true, lang: 'en', quality: 'auto', lastTier: null, stFlags: true, stCrowd: 'full', padLayout: 'classic', padDz: 0.22, mRain: false, mTurf: 'grass',      // Phase 9.1 (flat keys, back-filled by load(); sanitised by ISO.Access.clean). speed and weather above are dead settings: never read
         admin: { unlocked: false, allChars: false, allAch: false, infCredits: false } },
       stats: { matches: 0, wins: 0, goals: 0, powerGoals: 0, skills: 0, clears: 0, cleanSheets: 0, hardWins: 0,
         boxes: 0, careerWins: 0, careerDone: 0, seasonsWon: 0, promotions: 0, arenaGoals: 0, iconPulls: 0, drillRuns: 0, cupWins: 0, streetWins: 0, objDone: 0, chDone: 0 },
@@ -185,7 +185,8 @@
     P.settings.admin.unlocked = false;      // admin is per session: it has to be entered again after every reload
     return P;
   }
-  function save() { try { localStorage.setItem(KEY, JSON.stringify(P)); } catch (e) { /* storage unavailable: progress lasts this session */ } }
+  let saveFailCb = null, saveFailed = false;
+  function save() { try { localStorage.setItem(KEY, JSON.stringify(P)); } catch (e) { /* storage unavailable: progress lasts this session */ if (!saveFailed) { saveFailed = true; try { saveFailCb && saveFailCb(e); } catch (e2) { /* ignore */ } } } }
 
   // admin switches (Settings → Admin) override progress without touching the saved values
   const AD = () => P.settings.admin;
@@ -620,6 +621,8 @@
     ownsSkin, skinOf, maxAll, buySkin, equipSkin, isPrime, buyPrime, outfit, hasMove, buyMove, moveSet, ownsMap, buyMap, setMap, ownsBall, buyBall, equipBall, ownsCeleb, celebOf, buyCeleb, equipCeleb, toggleFoot, migrate, SCHEMA,
     takeAch() { const l = lastAch; lastAch = []; return l; },      // achievements completed by the last purchase
     setSetting(k, v) { P.settings[k] = v; save(); },
+    onSaveFail(cb) { saveFailCb = cb; },      // 9.4: called once if localStorage refuses a write
+    bytes: () => JSON.stringify(P).length,
     // Phase 9.2: the challenge state stepped to `now` (ms), the view for the overlay; recording pays credits straight away (no claim step) and counts stats.chDone
     challenges(now) { const S = ISO.Challenges.norm(P), ch = ISO.Challenges.roll(S, now), v = ISO.Challenges.view(S, now); if (ch) save(); return v; },
     challengeMatch(m, ctx, now) { return chPay(ISO.Challenges.onMatch(ISO.Challenges.norm(P), m, ctx, now)); },

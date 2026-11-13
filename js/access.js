@@ -21,6 +21,8 @@
     if (QUALITY.indexOf(S.quality) < 0) S.quality = 'auto';
     if (LAYOUTS.indexOf(S.padLayout) < 0) S.padLayout = 'classic';
     S.padDz = Math.round(num(S.padDz, 0.22, 0.05, 0.5) * 100) / 100;
+    S.lastTier = S.lastTier === 0 || S.lastTier === 1 || S.lastTier === 2 ? S.lastTier : null;
+    S.stFlags = S.stFlags !== false; if (['full', 'med', 'low'].indexOf(S.stCrowd) < 0) S.stCrowd = 'full';
     S.mRain = S.mRain === true;
     if (typeof S.mTurf !== 'string' || TURFS.indexOf(S.mTurf) < 0) S.mTurf = 'grass';
     return S;
@@ -54,6 +56,17 @@
     if (ISO.Input && ISO.Input.setPad) ISO.Input.setPad({ layout: S.padLayout, dz: S.padDz });
     return live;
   }
-  ISO.Access = { PALETTES, QUALITY, LAYOUTS, TURFS, clean, reduced, apply, live,
+  // Phase 9.5: the debug HUD is injected only on first enable (never listed in index.html). Gate: ?debug=1, or admin unlocked. F2 toggles.
+  function debugAllowed() { return (typeof location !== 'undefined' && /[?&]debug=1\b/.test(location.search)) || !!(ISO.Profile && ISO.Profile.data.settings.admin.unlocked); }
+  function debugToggle() {
+    if (!debugAllowed() || typeof document === 'undefined') return false;
+    if (ISO.DbgToggle) { ISO.DbgToggle(); return true; }
+    const s = document.createElement('script'); s.src = 'js/debug-hud.js'; document.head.appendChild(s); return true;      // the file shows itself when it loads
+  }
+  if (typeof window !== 'undefined') {
+    window.addEventListener('keydown', (e) => { if (e.code === 'F2' && !e.repeat && !e.defaultPrevented) { if (debugToggle()) e.preventDefault(); } });      // a key rebind in Settings swallows F2 first (capture phase)
+    if (typeof location !== 'undefined' && /[?&]debug=1\b/.test(location.search)) window.addEventListener('load', debugToggle);
+  }
+  ISO.Access = { debugAllowed, debugToggle, PALETTES, QUALITY, LAYOUTS, TURFS, clean, reduced, apply, live,
     get scale() { return live.scale; }, get hc() { return live.hc; }, get rm() { return live.rm; }, get noFlash() { return live.noFlash; }, get labels() { return live.labels; }, get fxText() { return live.fxText; } };
 })();

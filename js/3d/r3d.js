@@ -13,7 +13,7 @@
   let hemi = null, fxOn = false;
   // rain: one LineSegments draw call, drops recycled in a box around the camera
   let rain = null;
-  const RAIN_N = 1800, RAIN_W = 70, RAIN_H = 28, RAIN_D = 90;
+  const RAIN_N = 1800, RAIN_N2 = 900, RAIN_W = 70, RAIN_H = 28, RAIN_D = 90;
   function clearRain() { if (!rain) return; try { if (scene) scene.remove(rain.mesh); rain.mesh.geometry.dispose(); rain.mesh.material.dispose(); } catch (e) { /* ignore */ } rain = null; }
   function makeRain() {
     const d = new Float32Array(RAIN_N * 3), pos = new Float32Array(RAIN_N * 6);
@@ -21,13 +21,14 @@
     const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
     const mesh = new THREE.LineSegments(geo, new THREE.LineBasicMaterial({ color: 0xbfd4ea, transparent: true, opacity: 0.38, depthWrite: false, fog: false }));
     mesh.frustumCulled = false; mesh.renderOrder = 5; scene.add(mesh);
-    rain = { mesh, d, pos };
+    rain = { mesh, d, pos, n: tier >= 2 ? RAIN_N2 : RAIN_N };
+    if (rain.n < RAIN_N) geo.setDrawRange(0, rain.n * 2);
   }
   function updateRain(dt) {
     if (!rain || !camera || !camera.cam) return;
     const cp = camera.cam.position, d = rain.d, p = rain.pos, fall = 26 * Math.min(dt, 0.05);
     const ox = cp.x - RAIN_W / 2, oz = cp.z - RAIN_D / 2;
-    for (let i = 0; i < RAIN_N; i++) {
+    for (let i = 0, n = rain.n; i < n; i++) {
       let y = d[i * 3 + 1] - fall * (0.85 + (i % 5) * 0.08); if (y < 0) y += RAIN_H;
       d[i * 3 + 1] = y;
       // x / z are stored relative to the box and wrapped around the camera so the drops follow it
@@ -46,6 +47,8 @@
     stadium.group.traverse((o) => { if (o.name === 'pitch' && o.material && o.material.roughness !== undefined) o.material.roughness = Math.min(o.material.roughness, 0.55); });
   }
   let pixelRatio = 1, tier = 0, tAvg = 16, tLow = 0, tHigh = 0, time = 0;
+  // 9.4 adaptive quality: downgrades on frame INTERVAL (> 19 ms for 2 s), upgrades on measured WORK time (< 7 ms for upWait seconds; the wait doubles after every bounce)
+  let workAvg = 8, okT = 0, upWait = 10, upAt = -999, tierFixed = null, lastQ = 'auto';
 
   function guard(name, fn, fallback) {
     if (bad[name]) return fallback;
@@ -76,9 +79,12 @@
         if (!canvas.r3dLost) canvas.addEventListener('webglcontextlost', (e) => { e.preventDefault(); R3D.ready = false; built = false; ISO.Profile.setSetting('camera', 'classic'); if (ISO.App && ISO.App.toast) ISO.App.toast('3D LOST', 'Back to Classic view', '#ffb23d'); });
         canvas.r3dLost = true;
         if (scene) clearScene();
+        if (fx && fx.dispose) { try { fx.dispose(); } catch (e) { /* ignore */ } }
+        if (camera && camera.dispose) { try { camera.dispose(); } catch (e) { /* ignore */ } }
         scene = new THREE.Scene();
         camera = R3D.Camera.create(THREE);
         fx = R3D.Fx.create(THREE, scene);
+        initTier();
         castSig = null;                // the model caches belong to the previous renderer: rebuild them
         R3D.ready = true;
       } catch (err) {
@@ -152,7 +158,7 @@
     built = false;
     const R = ISO.Render, theme = R.theme(), mapId = R.mapId();
     const quality = tier;
-    stadium = (R3D.Stadium && guard('stadium', () => R3D.Stadium.build(THREE, theme, K, { walls: !!G.walls, quality, mapId, turf: G.turf, kitCols: homeCols(G, info), noFlash: AX().noFlash }))) || fallbackStadium(theme);
+    stadium = (R3D.Stadium && guard('stadium', () => R3D.Stadium.build(THREE, theme, K, { walls: !!G.walls, quality, mapId, turf: G.turf, kitCols: homeCols(G, info), noFlash: AX().noFlash, flav: stadiumFlav(id) }))) || fallbackStadium(theme);
     scene.add(stadium.group);
     if (stadium.applyTo) guard('stadium', () => stadium.applyTo(scene));
     if (!stadium.sun) {
@@ -238,10 +244,48 @@
   }
 
   // ------------------------------------------------------------------ frame
-  function adaptTier(dt) {
-    tAvg += (dt * 1000 - tAvg) * 0.05;
-    if (tAvg > 19) { tLow += dt; tHigh = 0; } else if (tAvg < 14) { tHigh += dt; tLow = 0; } else { tLow = tHigh = 0; }
-    if (tLow > 2 && tier < 2) { tier++; applyTier(); tLow = 0; } else if (tHigh > 10 && tier > 0) { tier--; applyTier(); tHigh = 0; }
+  // 9.1: the player's stadium options as a Stadium.build flavour override (flags on/off, crowd density), never above the map's own value
+  function stadiumFlav(id) {
+    const s = PS(), o = {}; if (!s) return o;
+    if (s.stFlags === false) o.flags = 0;
+    const m = s.stCrowd === 'med' ? 0.6 : s.stCrowd === 'low' ? 0.35 : 1;
+    if (m < 1) { const F = R3D.Stadium && R3D.Stadium.FLAV && R3D.Stadium.FLAV[id]; o.crowd = Math.max(0.25, Math.min(F && F.crowd != null ? F.crowd : 1, m)); }
+    return o;
+  }
+  const Q2T = { low: 2, med: 1, high: 0 };
+  const PS = () => { try { return ISO.Profile.data.settings; } catch (e) { return null; } };
+  function deviceHint() {
+    let t = 0;
+    try {
+      const n = typeof navigator === 'object' && navigator || {};
+      if ((n.hardwareConcurrency && n.hardwareConcurrency <= 4) || (n.deviceMemory && n.deviceMemory <= 4)) t = 1;
+      const gl = renderer.getContext(), ext = gl.getExtension('WEBGL_debug_renderer_info');
+      if (ext && /swiftshader|llvmpipe|software|basic render/i.test(String(gl.getParameter(ext.UNMASKED_RENDERER_WEBGL)))) t = 2;
+    } catch (e) { /* ignore */ }
+    return t;
+  }
+  function initTier() {
+    const s = PS(), q = s && s.quality;
+    tierFixed = q in Q2T ? Q2T[q] : null; lastQ = q || 'auto';
+    tier = tierFixed != null ? tierFixed : (s && (s.lastTier === 0 || s.lastTier === 1 || s.lastTier === 2) ? s.lastTier : deviceHint());
+    tAvg = 16; workAvg = 8; tLow = tHigh = okT = 0; upWait = 10; upAt = -999;
+    renderer.setPixelRatio(Math.min(pixelRatio, tier === 0 ? 1.5 : tier === 1 ? 1.25 : 1));
+  }
+  function setTier(n) {
+    tier = n; applyTier();
+    if (rain) { rain.n = tier >= 2 ? RAIN_N2 : RAIN_N; rain.mesh.geometry.setDrawRange(0, rain.n * 2); }
+    if (tierFixed == null) { const s = PS(); if (s && s.lastTier !== tier) ISO.Profile.setSetting('lastTier', tier); }
+  }
+  function adaptTier(dt, work) {
+    const s = PS(), q = s ? s.quality : 'auto';
+    if (q !== lastQ) { lastQ = q; tierFixed = q in Q2T ? Q2T[q] : null; if (tierFixed != null && tierFixed !== tier) setTier(tierFixed); tLow = tHigh = okT = 0; }
+    if (tierFixed != null) return;
+    tAvg += (dt * 1000 - tAvg) * 0.05; workAvg += (work - workAvg) * 0.05;
+    if (tAvg > 19) { tLow += dt; okT = 0; } else { tLow = 0; if (workAvg < 7) okT += dt; else okT = 0; }
+    if (tLow > 2 && tier < 2) {
+      if (time - upAt < 40) upWait = Math.min(upWait * 2, 160);      // a bounce (we went back up and fell again): wait twice as long next time
+      setTier(tier + 1); tLow = 0; okT = 0; tAvg = 16;
+    } else if (okT > upWait && tier > 0) { upAt = time; setTier(tier - 1); okT = 0; workAvg = 8; }
   }
   function applyTier() {
     renderer.setPixelRatio(Math.min(pixelRatio, tier === 0 ? 1.5 : tier === 1 ? 1.25 : 1));
@@ -266,6 +310,7 @@
   function renderInner(G, V, dt, c2d) {
     if (pending && pending.G !== G) return;       // not the match this scene belongs to
     if (!built) { if (!pending) return; build(); }
+    const t0 = typeof performance === 'object' ? performance.now() : 0;
     time += dt;
     const vf = R3D.Adapter.snapshot(G, V);
     // a sudden ball jump (kick-off / new rep) resets the ball's visual state
@@ -300,7 +345,7 @@
     fx.update(dt);
     if (rain) guard('rain', () => updateRain(dt));
     renderer.render(scene, camera.cam);
-    adaptTier(dt);
+    adaptTier(dt, typeof performance === 'object' ? performance.now() - t0 : 0);
     if (c2d) fx.draw2d(c2d, camera, G, V);
   }
 
@@ -312,7 +357,7 @@
   R3D.camPresets = () => R3D.CamRig.ORDER;
   R3D.camState = () => (camera ? camera.st : null);
   // read-only numbers for the debug HUD (js/debug-hud.js); never touches the scene
-  R3D.debug = () => ({ tier, tAvg, info: renderer ? renderer.info : null, cam: camera ? camera.st : null, players: R3D.Player && R3D.Player.stats ? R3D.Player.stats() : null });
+  R3D.debug = () => ({ tier, tAvg, workAvg, upWait, fixed: tierFixed, info: renderer ? renderer.info : null, cam: camera ? camera.st : null, players: R3D.Player && R3D.Player.stats ? R3D.Player.stats() : null });
   R3D.scene = () => scene;
   R3D.drawnBall = () => (ball && ball.drawn) || null;
   // The goal pause of a match is long enough for a replay. The 3D view shows the celebration instead, but the pause can be

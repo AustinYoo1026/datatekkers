@@ -100,8 +100,8 @@ Phase 2 session 2 (2.5 celebrations, save schema 2, sim revision handshake) is i
 
 | ID | Item | Status | Depends on | Priority / complexity | Completion criteria and notes |
 | --- | --- | --- | --- | --- | --- |
-| 9.1 | Customization | NOT STARTED | none | P11 / M | Custom kits and stadiums, favorites, comparisons, camera and physics presets, saved settings. |
-| 9.2 | Daily and weekly challenges | NOT STARTED | persistence | P11 / M | Challenges rotate and pay credits. |
-| 9.3 | Localization | NOT STARTED | UI text extraction | P11 / L | UI strings externalized; languages selectable. |
-| 9.4 | Performance optimization | NOT STARTED | 0.1 audit | P11 / M | Frame-time budget measured on a low-end device. |
-| 9.5 | Developer debug HUD | NOT STARTED | none | P11 / S | Debug overlay for sim, net and animation. |
+| 9.1 | Customization | TESTING | none | P11 / M | Custom kits and stadiums, favorites, comparisons, camera and physics presets, saved settings. Session 1: accessibility, HUD toggles, binding presets, pad layouts (PHASE9_NOTES.md); mobile BLOCKED (no touch input). |
+| 9.2 | Daily and weekly challenges | TESTING | persistence | P11 / M | Challenges rotate and pay credits. |
+| 9.3 | Localization | TESTING (wave 2 part: ko partial, checker whitelist, es keys; screens and catalogue text still English) | UI text extraction | P11 / L | UI strings externalized; languages selectable. |
+| 9.4 | Performance optimization | TESTING (mobile / touch BLOCKED: no touch input) | 0.1 audit | P11 / M | Frame-time budget measured on a low-end device. |
+| 9.5 | Developer debug HUD | TESTING | none | P11 / S | Debug overlay for sim, net and animation. |

@@ -1,0 +1,178 @@
+{
+ "note": "timings are from the machine that ran --update (informational); the rest is blocking",
+ "timings": {
+  "simStepUs": 6.3,
+  "aiUpdateUs": 0.6,
+  "predictorResimUs": 131,
+  "anim3dUsPerActor": 106.4,
+  "stadiumBuildMsPerMap": 5.5
+ },
+ "deterministic": {
+  "profileBytesMaxAll": 15212,
+  "profileBudget": 65536,
+  "challengeBytes": 572,
+  "challengeBudget": 4096,
+  "maps": {
+   "stadium|q0": {
+    "calls": 19,
+    "tris": 6230
+   },
+   "stadium|q2": {
+    "calls": 17,
+    "tris": 5252
+   },
+   "street|q0": {
+    "calls": 20,
+    "tris": 7722
+   },
+   "street|q2": {
+    "calls": 19,
+    "tris": 7644
+   },
+   "beach|q0": {
+    "calls": 19,
+    "tris": 6384
+   },
+   "beach|q2": {
+    "calls": 18,
+    "tris": 6074
+   },
+   "snow|q0": {
+    "calls": 20,
+    "tris": 5946
+   },
+   "snow|q2": {
+    "calls": 18,
+    "tris": 5188
+   },
+   "neon|q0": {
+    "calls": 19,
+    "tris": 6200
+   },
+   "neon|q2": {
+    "calls": 18,
+    "tris": 5528
+   },
+   "sunset|q0": {
+    "calls": 17,
+    "tris": 7958
+   },
+   "sunset|q2": {
+    "calls": 16,
+    "tris": 7314
+   },
+   "monsoon|q0": {
+    "calls": 19,
+    "tris": 8114
+   },
+   "monsoon|q2": {
+    "calls": 18,
+    "tris": 7666
+   },
+   "jungle|q0": {
+    "calls": 19,
+    "tris": 6240
+   },
+   "jungle|q2": {
+    "calls": 18,
+    "tris": 6036
+   },
+   "moon|q0": {
+    "calls": 17,
+    "tris": 5678
+   },
+   "moon|q2": {
+    "calls": 17,
+    "tris": 5490
+   },
+   "desert|q0": {
+    "calls": 16,
+    "tris": 7960
+   },
+   "desert|q2": {
+    "calls": 15,
+    "tris": 7782
+   },
+   "retro|q0": {
+    "calls": 18,
+    "tris": 5464
+   },
+   "retro|q2": {
+    "calls": 17,
+    "tris": 5090
+   },
+   "sakura|q0": {
+    "calls": 18,
+    "tris": 7958
+   },
+   "sakura|q2": {
+    "calls": 17,
+    "tris": 7314
+   },
+   "dock|q0": {
+    "calls": 18,
+    "tris": 4052
+   },
+   "dock|q2": {
+    "calls": 17,
+    "tris": 4002
+   },
+   "gold|q0": {
+    "calls": 19,
+    "tris": 6230
+   },
+   "gold|q2": {
+    "calls": 17,
+    "tris": 5252
+   },
+   "mud|q0": {
+    "calls": 17,
+    "tris": 7524
+   },
+   "mud|q2": {
+    "calls": 16,
+    "tris": 7202
+   },
+   "fs_wood|q0": {
+    "calls": 12,
+    "tris": 2838
+   },
+   "fs_wood|q2": {
+    "calls": 11,
+    "tris": 2454
+   },
+   "fs_blue|q0": {
+    "calls": 11,
+    "tris": 2756
+   },
+   "fs_blue|q2": {
+    "calls": 11,
+    "tris": 2454
+   },
+   "fs_red|q0": {
+    "calls": 12,
+    "tris": 3002
+   },
+   "fs_red|q2": {
+    "calls": 11,
+    "tris": 2492
+   },
+   "fs_roof|q0": {
+    "calls": 17,
+    "tris": 4216
+   },
+   "fs_roof|q2": {
+    "calls": 16,
+    "tris": 4180
+   },
+   "fs_glass|q0": {
+    "calls": 13,
+    "tris": 2622
+   },
+   "fs_glass|q2": {
+    "calls": 13,
+    "tris": 2364
+   }
+  }
+ }
+}

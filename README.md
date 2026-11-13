@@ -79,6 +79,9 @@ The main menu has four buttons: **Play**, **Store**, **Settings** and **Controls
 
 ### Settings
 
+Settings also hold accessibility (team colour palettes, high-contrast HUD, HUD scale, reduce motion and flashes), HUD toggles, language (English, Spanish beta), graphics quality (stored), control presets (default, left-handed IJKL, arrows) and the gamepad layout and deadzone. CHALLENGES on the main menu lists the daily and weekly challenges. F2 toggles the developer debug HUD when the page is opened with `?debug=1` or admin is unlocked.
+
+
 - Audio and default CPU difficulty. Game speed is fixed (see Gameplay notes).
 - **3D camera** — Player chase (default), Close action, Dynamic, Broadcast (side), Low sideline or Tactical (end-on), plus camera distance, follow speed, camera shake and goal camera (Celebration / Wide / Off). The pause menu has a CAMERA button that cycles the preset in 3D. Movement is relative to the camera; sideline cameras turn the controls a quarter turn.
 - **3D stadiums** — every map has its own sun and shadows (long at dusk), crowd, flags in your colours, camera flashes at night and, with the Pitch type setting, a firm, lush or astro-turf look.
@@ -167,6 +170,8 @@ node tools/check.js 60           # invariant checks (NaNs, players inside goals,
 node tools/anim-check.js         # 3D animation quality limits (currently FAILS; see HANDOFF.md)
 node tools/stadium-test.js       # 3D stadium budgets (draw calls, triangles, lights) against tools/stadium-baseline.json
 node tools/anim-gate.js          # the ratchet: fails only if the animation numbers get worse than tools/anim-baseline.json
+node tools/bench.js              # performance: timings (informational) and blocking budgets (profile size, draw calls, triangles)
+node tools/dispose-test.js       # GPU leak test: every geometry, material and texture built is disposed
 cd server && npm ci && for t in test*.js; do node $t; done   # includes test-crossplay.js (2D and 3D clients, same match)
 ```
 

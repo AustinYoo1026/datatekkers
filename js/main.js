@@ -22,6 +22,7 @@
     demo: true, kickoffFlip: 0, acc: 0, last: 0, endTimer: 0, hintT: 0,
   };
   ISO.App = App;
+  if (ISO.Profile && ISO.Profile.onSaveFail) ISO.Profile.onSaveFail(() => toast(T('toast.save_fail'), T('toast.save_fail_sub'), '#ffb23d'));      // 9.4: once per session
   App.show = (s) => show(s); App.toast = (a, b, c) => toast(a, b, c); App.achToasts = (l) => achToasts(l); App.updateCredits = () => updateCredits();
 
   // ------------------------------------------------------------- layout
@@ -650,7 +651,11 @@
       }
       $('cv3d').classList.toggle('hidden', !cur3d);
       if (noTape) { if (noTape === App.G && App.G.phase === 'goal' && !cur3d) R.reset(); else noTape = null; }
-      if (!cur3d) R.draw(ctx, App.G, App.V, running ? dt : 0);
+      if (!cur3d) {
+        // 9.4: the menu demo sits behind #dim, so it is drawn every other frame (30 fps on a 60 Hz display) with the skipped time carried over
+        if (App.demo) { App.demoT = (App.demoT || 0) + dt; App.demoFlip = !App.demoFlip; }
+        if (!App.demo || App.demoFlip) { R.draw(ctx, App.G, App.V, running ? (App.demo ? App.demoT : dt) : 0); App.demoT = 0; }
+      }
     } finally { ISO.Smooth.end(App.G); }
     if (D) t2 = performance.now();
     if (ISO.ArenaUI) ISO.ArenaUI.frame(App, dt);      // Phase 4.3: the arena side panel (match screen) and the tally flush (any screen)
@@ -671,6 +676,11 @@
     App.rain = !!ST.mRain; App.turf = ISO.Game.turfs.includes(ST.mTurf) ? ST.mTurf : 'grass';      // the saved prematch weather and pitch
     App.setMouse(ST.mouseAim);
     if (ISO.Meta) ISO.Meta.keyLabels();
+    if (ST.lang && ST.lang !== 'en') ISO.I18n.set(ST.lang, (ok) => { if (ok) { if (ISO.Meta) { ISO.Meta.keyLabels(); ISO.Meta.onShow(App.screen); } App.setMouse(ST.mouseAim); } });      // Phase 9.3: the saved language (its file loads on demand)
+    else try {      // a browser in a language we ship: one toast, once
+      const nl = String(navigator.language || '').slice(0, 2), seen = localStorage.getItem('iso.langHint');
+      if (!seen && ISO.I18n.SHIPPED[nl] && nl !== 'en' && nl !== 'xx') { localStorage.setItem('iso.langHint', '1'); setTimeout(() => toast(ISO.I18n.SHIPPED[nl].name, 'Settings › Language', '#4fa3ff'), 1500); }
+    } catch (e) { /* storage blocked: no hint */ }
   }
   buildGrid();
   fit();

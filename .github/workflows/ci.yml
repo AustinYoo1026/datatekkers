@@ -33,6 +33,9 @@ jobs:
           node tools/ai-test.js --smoke
           node tools/season-test.js 200 --sim
           node tools/pres-test.js
+          node tools/i18n-check.js
+          node tools/challenge-test.js
+          node tools/settings-test.js
           node tools/drill-test.js
       - name: Server tests
         run: |
@@ -52,6 +55,10 @@ jobs:
         run: node tools/cam-test.js
       - name: Stadium environment tests (blocking)
         run: node tools/stadium-test.js
+      - name: GPU dispose test (blocking)
+        run: node tools/dispose-test.js
+      - name: Benchmark (deterministic metrics blocking, timings informational)
+        run: node tools/bench.js
       - name: Animation check (strict limits, informational)
         run: node tools/anim-check.js
         continue-on-error: true

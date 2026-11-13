@@ -488,8 +488,9 @@
   }
 
   // --------------------------------------------------------------- effects
+  const PART_MAX = 400;      // 2D particle cap (9.4)
   function burst(x, y, n, cols, sp, life, grav) {
-    for (let i = 0; i < n; i++) {
+    for (let i = 0; i < n && fx.parts.length < PART_MAX; i++) {
       const a = Math.random() * TAU, v = sp * (0.3 + Math.random() * 0.7);
       fx.parts.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - (grav ? sp * 0.4 : 0), life: life * (0.5 + Math.random() * 0.5), max: life, col: cols[(Math.random() * cols.length) | 0], g: grav || 0, s: 1.5 + Math.random() * 2.5 });
     }
@@ -511,7 +512,7 @@
       case 'board': fx.shake = Math.max(fx.shake, 1.5 * (e.power || 0.5)); burst(b.x, Math.min(b.y, L - 2), 4, ['#cfd6dd'], 60, 0.25); break;      // the soft back board: a thud, no text
       case 'goal': fx.shake = 12; if (!AX().noFlash) fx.flash = 1; if (e.pts > 1) text(b.x, b.y - 34, '+' + e.pts, '#ffcf4d');      // street rules: a bonus goal
         burst(b.x, b.y, 30, ['#ffffff', '#35e08a'], 240, 0.6);
-        for (let i = 0, nc = AX().rm ? 24 : 90; i < nc; i++) fx.parts.push({ x: Math.random() * FH, y: -40 - Math.random() * 160, vx: (Math.random() - 0.5) * 60, vy: 120 + Math.random() * 140, life: 2.6, max: 2.6, col: [TEAM_COL[e.team], '#ffffff', '#ffe066'][i % 3], g: 0, s: 3 + Math.random() * 3, conf: Math.random() * TAU });
+        for (let i = 0, nc = AX().rm ? 24 : 90; i < nc && fx.parts.length < PART_MAX; i++) fx.parts.push({ x: Math.random() * FH, y: -40 - Math.random() * 160, vx: (Math.random() - 0.5) * 60, vy: 120 + Math.random() * 140, life: 2.6, max: 2.6, col: [TEAM_COL[e.team], '#ffffff', '#ffe066'][i % 3], g: 0, s: 3 + Math.random() * 3, conf: Math.random() * TAU });
         break;
       case 'save': fx.shake = Math.max(fx.shake, 3); burst(b.x, b.y, 8, ['#ffffff', '#ffe066'], 130, 0.35); text(K.x, K.y + 46, e.slide ? 'SLID IN' : e.smother ? 'SMOTHERED' : e.weak ? 'SPILLED!' : e.catch ? 'CAUGHT!' : 'SAVE!', '#ffe066'); break;
       case 'tackle': burst(b.x, b.y, 7, TH.turf, 110, 0.35); if (e.on) text(P.x, P.y - 52, 'TACKLE', TEAM_COL[e.p.team]); break;

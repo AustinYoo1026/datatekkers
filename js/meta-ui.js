@@ -519,11 +519,14 @@
     $('setPalette').value = ST.palette; $('setHc').checked = !!ST.hcHud; $('setMotion').value = ST.motion === true ? 'on' : ST.motion === false ? 'off' : 'auto'; $('setFlash').checked = ST.flash !== false;
     $('setHudLabels').checked = ST.hudLabels !== false; $('setHudFx').checked = ST.hudFxText !== false; $('setHudStam').checked = ST.hudStam !== false;
     $('setLang').innerHTML = ISO.I18n.LANGS().map((l) => '<option value="' + l.code + '">' + esc(l.name) + (l.review ? ' (beta)' : '') + '</option>').join(''); $('setLang').value = ST.lang || 'en';
-    $('setQuality').value = ST.quality; $('setPadLayout').value = ST.padLayout; $('setPadDz').value = Math.round(ST.padDz * 100); $('setPadDzVal').textContent = Math.round(ST.padDz * 100) + '%';
+    $('setQuality').value = ST.quality; $('setStFlags').checked = ST.stFlags !== false; $('setStCrowd').value = ST.stCrowd || 'full'; $('setPadLayout').value = ST.padLayout; $('setPadDz').value = Math.round(ST.padDz * 100); $('setPadDzVal').textContent = Math.round(ST.padDz * 100) + '%';
     rebind = null; renderKeys();
   }
   // Phase 9.1 / 9.3: write a setting, then let ISO.Access push it to the renderers and CSS
   function setAcc(k, v) { PF.setSetting(k, v); if (ISO.Access) ISO.Access.apply(PF.data.settings); }
+  // 9.4: slider drags apply at once but save once, 300 ms after the last move (and on release)
+  let sliderT = 0;
+  function setAccSlide(k, v) { PF.data.settings[k] = v; if (ISO.Access) ISO.Access.apply(PF.data.settings); clearTimeout(sliderT); sliderT = setTimeout(PF.save, 300); }
   function setLanguage(code) {
     ISO.I18n.set(code, (ok) => {
       if (!ok) { App.toast(ISO.I18n.t('toast.lang_fail'), '', '#f1735f'); renderSettings(); return; }
@@ -550,7 +553,7 @@
     else if (t.id === 'setPres') PF.setSetting('pres', t.checked);
     else if (t.id === 'setSlowmo') PF.setSetting('slowmo', t.checked);
     else if (t.id === 'setAdaptive') PF.setSetting('adaptive', t.checked);
-    else if (t.id === 'setUiScale') { setAcc('uiScale', t.value / 100); $('setUiScaleVal').textContent = t.value + '%'; }
+    else if (t.id === 'setUiScale') { setAccSlide('uiScale', t.value / 100); $('setUiScaleVal').textContent = t.value + '%'; }
     else if (t.id === 'setPalette') setAcc('palette', t.value);
     else if (t.id === 'setHc') setAcc('hcHud', t.checked);
     else if (t.id === 'setMotion') setAcc('motion', t.value === 'on' ? true : t.value === 'off' ? false : null);
@@ -559,8 +562,10 @@
     else if (t.id === 'setHudFx') setAcc('hudFxText', t.checked);
     else if (t.id === 'setHudStam') setAcc('hudStam', t.checked);
     else if (t.id === 'setQuality') setAcc('quality', t.value);
+    else if (t.id === 'setStFlags') setAcc('stFlags', t.checked);
+    else if (t.id === 'setStCrowd') setAcc('stCrowd', t.value);
     else if (t.id === 'setPadLayout') setAcc('padLayout', t.value);
-    else if (t.id === 'setPadDz') { setAcc('padDz', t.value / 100); $('setPadDzVal').textContent = t.value + '%'; }
+    else if (t.id === 'setPadDz') { setAccSlide('padDz', t.value / 100); $('setPadDzVal').textContent = t.value + '%'; }
     else if (t.id === 'setLang') setLanguage(t.value);
     else if (t.dataset.admin) { PF.setAdmin(t.dataset.admin, t.checked); App.updateCredits(); App.toast('ADMIN', t.closest('.set-row').textContent.trim() + (t.checked ? ' — ON' : ' — OFF'), '#f1735f'); }
     void ST;
@@ -585,7 +590,19 @@
     else if (t.dataset.meta === 'kit-prev') { PF.cycleKit(-1); renderCareer(); }
     else if (t.dataset.meta === 'kit-next') { PF.cycleKit(1); renderCareer(); }
     else if (t.dataset.meta === 'career-reset') { if (window.confirm('Start a new career? Your stats and seasons reset (credits and players are kept).')) { PF.resetCareer(Date.now() % 2147483647 + 1); renderCareer(); } }
-    else if (t.dataset.meta === 'admin-login') {
+    else if (t.dataset.meta === 'set-export') {
+      const ta = $('setJson'), S = Object.assign({}, PF.data.settings); delete S.admin;
+      try { ta.value = JSON.stringify(S, null, 1); ta.style.display = 'block'; ta.select(); App.toast(ISO.I18n.t('btn.export'), ISO.I18n.t('toast.exp_sub'), '#35e08a'); } catch (e2) { /* ignore */ }
+    } else if (t.dataset.meta === 'set-import') {
+      const ta = $('setJson');
+      if (ta.style.display === 'none') { ta.value = ''; ta.style.display = 'block'; ta.focus(); return; }
+      try {
+        const o = JSON.parse(ta.value); if (!o || typeof o !== 'object' || Array.isArray(o)) throw new Error('shape');
+        const ST2 = PF.data.settings, base = Object.assign({}, ST2);
+        for (const k of Object.keys(base)) if (k !== 'admin' && Object.prototype.hasOwnProperty.call(o, k) && typeof o[k] === typeof base[k] || (base[k] === null && k in o)) ST2[k] = o[k];      // known keys of the same type only
+        ISO.Access.clean(ST2); PF.save(); ISO.Access.apply(ST2); renderSettings(); App.toast(ISO.I18n.t('toast.imp_ok'), '', '#35e08a'); ta.style.display = 'none';
+      } catch (e2) { App.toast(ISO.I18n.t('toast.imp_bad'), ISO.I18n.t('toast.imp_bad_sub'), '#f1735f'); }
+    } else if (t.dataset.meta === 'admin-login') {
       const code = $('adminPw').value; $('adminPw').value = '';
       const done = (ok) => {
         $('adminErr').textContent = 'Wrong code or server unreachable';
@@ -596,7 +613,7 @@
       if (ISO.Online) ISO.Online.adminLogin(code, done); else done(false);
     }
     else if (t.dataset.meta === 'keys-preset') { const pr = ISO.Input.PRESETS[t.dataset.preset]; if (pr) { const B = JSON.parse(JSON.stringify(pr)); saveKeys(B); renderKeys(); App.toast(ISO.I18n.t('toast.preset'), t.textContent.trim(), '#35e08a'); } }
-    else if (t.dataset.meta === 'debug-toggle') { if (ISO.Dbg_toggle) ISO.Dbg_toggle(); }
+    else if (t.dataset.meta === 'debug-toggle') { if (ISO.Access && !ISO.Access.debugToggle()) App.toast('DEBUG', 'Admin is locked', '#f1735f'); }
     else if (t.dataset.meta === 'keys-reset') { saveKeys(null); PF.setSetting('keys', null); renderKeys(); App.toast('CONTROLS RESET', 'Default keys restored', '#35e08a'); }
     else if (t.dataset.meta === 'admin-max') { PF.maxAll(); ISO.Audio.play('reveal', { rank: 4 }); App.updateCredits(); App.toast('MAXED OUT', 'Every character, Prime, skin and ball skin unlocked', '#ffcf4d'); }
     else if (t.dataset.meta === 'admin-logout') { PF.adminLogout(); App.updateCredits(); renderSettings(); }

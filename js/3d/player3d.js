@@ -163,6 +163,7 @@
   const _col = { r: 0, g: 0, b: 0 };
   function part(list, geo, hex) {
     const g = geo.index ? geo.toNonIndexed() : geo.clone();
+    geo.dispose();      // the source is only a template for the clone (9.4: it leaked one geometry per head part)
     if (!g.attributes.normal) g.computeVertexNormals();
     const c = new T3.Color(hex);
     list.push({ g, c });
@@ -573,7 +574,7 @@
   }
 
   function clearCache() {
-    for (const g of GEO.values()) g.dispose();
+    for (const g of GEO.values()) { g.dispose(); if (g.userData && g.userData.locks) for (const l of g.userData.locks) l.geo.dispose(); }      // hair-lock geometries hang off the head's userData
     for (const m of MAT.values()) m.dispose();
     for (const t of TEX.values()) t.dispose();
     GEO.clear(); MAT.clear(); TEX.clear();
