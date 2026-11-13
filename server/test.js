@@ -65,7 +65,17 @@ srv.stdout.once('data', async () => {
   await Promise.all(four.map((q) => new Promise((r) => q.ws.on('open', r))));
   const starts = four.map((q) => new Promise((r) => { q.on = (m) => { if (m.t === 'start') r(m); }; }));
   const rooms = four.map((q, i) => new Promise((r) => { const prev = q.on; q.on = (m) => { prev(m); if (m.t === 'room') r(m); }; }));
-  four.forEach((q, i) => q.send({ t: 'quick', mode: '2v2', name: 'Q' + i, pick: { id: ['messi', 'ronaldo', 'neymar', 'mbappe'][i] } }));
+  four.forEach((q) => { q.qHave = []; const prev = q.on; q.on = (m) => { prev(m); if (m.t === 'queued') q.qHave.push(m.have); }; });
+  for (let i = 0; i < 3; i++) {
+    four[i].send({ t: 'quick', mode: '2v2', name: 'Q' + i, pick: { id: ['messi', 'ronaldo', 'neymar', 'mbappe'][i] } });
+    await new Promise((r) => setTimeout(r, 20));
+  }
+  if (JSON.stringify(four[0].qHave) !== '[1,2,3]' || JSON.stringify(four[1].qHave) !== '[2,3]' || JSON.stringify(four[2].qHave) !== '[3]') fail('queue count not synced: ' + JSON.stringify(four.map((q) => q.qHave)));
+  four[2].send({ t: 'leave' });
+  await new Promise((r) => setTimeout(r, 20));
+  if (four[0].qHave[four[0].qHave.length - 1] !== 2 || four[1].qHave[four[1].qHave.length - 1] !== 2) fail('queue leave not synced: ' + JSON.stringify(four.map((q) => q.qHave)));
+  four[2].send({ t: 'quick', mode: '2v2', name: 'Q2', pick: { id: 'neymar' } });
+  four[3].send({ t: 'quick', mode: '2v2', name: 'Q3', pick: { id: 'mbappe' } });
   const st = await Promise.all(starts);
   if (st[0].size !== 4 || st[0].picks.length !== 4) fail('2v2 start: ' + JSON.stringify(st[0]));
   four[0].G && 0;
