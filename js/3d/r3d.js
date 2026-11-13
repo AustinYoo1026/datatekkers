@@ -176,7 +176,7 @@
     built = false;
     const R = ISO.Render, theme = R.theme(), mapId = R.mapId();
     const quality = tier;
-    stadium = (R3D.Stadium && guard('stadium', () => R3D.Stadium.build(THREE, theme, K, { walls: !!G.walls, quality, mapId, turf: G.turf, kitCols: homeCols(G, info), noFlash: AX().noFlash, flav: stadiumFlav(id) }))) || fallbackStadium(theme);
+    stadium = (R3D.Stadium && guard('stadium', () => R3D.Stadium.build(THREE, theme, K, { walls: !!G.walls, quality, mapId, turf: G.turf, kitCols: homeCols(G, info), noFlash: AX().noFlash, flav: stadiumFlav(mapId) }))) || fallbackStadium(theme);
     scene.add(stadium.group);
     if (stadium.applyTo) guard('stadium', () => stadium.applyTo(scene));
     if (!stadium.sun) {
