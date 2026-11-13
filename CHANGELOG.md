@@ -2,6 +2,10 @@
 
 Release notes for DataTekkers: ISO Football. The newest work is first. The README links here instead of repeating them.
 
+## Beta 3.0
+
+- **Menus and polish.** MyCareer is a hub of pages (overview, skills and upgrades with every stat, season table, fixtures, seasons, objectives, training, rivals, kit, collection). Quick Match and Street pick players first, then a separate match-settings page with an always-visible Play button. The Play menu is a horizontal strip. New Info page (traits, playstyles, skill moves, celebrations, keeper styles, CPU personalities, rules and modes). Player comparison deltas on the select screen and in the store. Skill Moves removed from the store (all moves are free). Weather and pitch options and a 2D/3D view toggle in the Testing Arena; the Drill Creator and custom drills support 3D. The 3D camera no longer jerks when the ball is kicked. Translations (Spanish, Korean) were removed: the game is English only. The simulation is unchanged.
+
 ## Unreleased / Phase 0 (foundation work, no new version number yet)
 
 - **Performance, stadium options, settings backup, Korean (Phase 9.4 / 9.1 / 9.3 part).** The 3D quality now adapts both ways (a dropped tier recovers on a 60 Hz screen, upgrades wait longer after every bounce), Settings > Quality can pin Low / Medium / High, and the last automatic tier is remembered. Fixes two small GPU memory leaks in player models, caps 2D particles, rain and sprite caches, draws the menu demo at 30 fps, and saves slider drags once. New Stadium flags and Crowd density options, a settings export / import (JSON) and a one-time warning if the browser cannot save. Korean (beta, partial: menus and buttons) joins Spanish. New `tools/bench.js` and `tools/dispose-test.js` in CI. The simulation is unchanged.

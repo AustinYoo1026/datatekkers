@@ -8,7 +8,7 @@
   const ISO = (globalThis.ISO = globalThis.ISO || {});
   const tables = {}, metas = {}, missing = new Set(), listeners = [];
   // the languages the build ships (a language file registers itself with add(); until it is loaded the list shows this name)
-  const SHIPPED = { en: { name: 'English', review: false }, es: { name: 'Español', review: true }, ko: { name: '한국어', review: true }, xx: { name: 'Pseudo (overflow test)', review: false } };
+  const SHIPPED = { en: { name: 'English', review: false } };      // English only: set() ignores every other code
   let lang = 'en';
   const RTL = /^(ar|he|fa|ur)(-|$)/;
 
@@ -71,7 +71,8 @@
       }
       if (cb) cb(ok);
     };
-    if (have(code)) done(true); else inject(code, done);
+    if (code !== 'en') { if (cb) cb(false); return; }      // English only (a stored language from an old save is ignored)
+    done(true);
   }
   const LANGS = () => Object.keys(SHIPPED).map((c) => ({ code: c, name: (metas[c] && metas[c].name) || SHIPPED[c].name, review: metas[c] && metas[c].review !== undefined ? !!metas[c].review : SHIPPED[c].review }));
   ISO.I18n = { add, t, n, opt, num, up, set, apply, dir, have, pseudoOf, LANGS, SHIPPED, tables, missing, onChange: (f) => listeners.push(f), get lang() { return lang; } };

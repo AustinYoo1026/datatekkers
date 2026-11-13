@@ -467,7 +467,7 @@
   }
   function equipCeleb(id) { if (!ownsCeleb(id)) return false; P.celeb = id; save(); return true; }
   const hasMove = (id) => !ISO.MOVE_COST[id] || P.moves.includes(id);
-  function buyMove(id) {
+  function buyMove(id) {      // no store path any more: every move is free and unlocked; kept for old callers
     if (ISO.MOVE_COST[id] === undefined) return 'locked';
     if (hasMove(id)) return 'owned';
     return buy(ISO.MOVE_COST[id], () => { P.moves.push(id); });

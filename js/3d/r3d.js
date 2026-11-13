@@ -108,6 +108,23 @@
   function resize(ratio) { pixelRatio = ratio || 1; if (renderer) renderer.setPixelRatio(Math.min(pixelRatio, tier === 0 ? 1.5 : tier === 1 ? 1.25 : 1)); }
 
   // ------------------------------------------------------------------ scene construction
+  // custom drill (G.cust, js/drillspec.js): its cones (vertical capsules, 20 sim px high) and walls (thin panels of height h) as simple meshes
+  let custGroup = null;
+  function buildCust(G) {
+    if (!G.cust) return;
+    const grp = new THREE.Group(), cm = new THREE.MeshStandardMaterial({ color: 0xff7a1a, roughness: 0.7 }), wm = new THREE.MeshStandardMaterial({ color: 0xdfe8f2, roughness: 0.8 }), p = {};
+    for (const c of G.cust.cones) {
+      const r = c.r * K.S, m = new THREE.Mesh(new THREE.ConeGeometry(r, 20 * K.S, 16), cm); K.toWorld(c.x, c.y, 0, p);
+      m.position.set(p.x, 10 * K.S, p.z); m.castShadow = true; grp.add(m);
+    }
+    const q = {};
+    for (const w of G.cust.walls) {
+      K.toWorld(w.x0, w.y0, 0, p); K.toWorld(w.x1, w.y1, 0, q);
+      const len = Math.hypot(q.x - p.x, q.z - p.z) + 0.12, h = w.h * K.S, m = new THREE.Mesh(new THREE.BoxGeometry(len, h, 0.12), wm);
+      m.position.set((p.x + q.x) / 2, h / 2, (p.z + q.z) / 2); m.rotation.y = -Math.atan2(q.z - p.z, q.x - p.x); m.castShadow = true; m.receiveShadow = true; grp.add(m);
+    }
+    scene.add(grp); custGroup = grp;
+  }
   function clearScene() {
     if (!scene) return;
     for (const o of actors.concat(keeperActor ? [keeperActor] : [], keeperMine ? [keeperMine] : [])) { guard('player', () => o.dispose && o.dispose()); scene.remove(o.group); }
@@ -120,6 +137,7 @@
     if (sun) { scene.remove(sun, sun.target); sun = null; }
     if (hemi) { scene.remove(hemi); hemi = null; }
     clearRain();
+    if (custGroup) { scene.remove(custGroup); custGroup.traverse((o) => { if (o.geometry) o.geometry.dispose(); if (o.material) o.material.dispose(); }); custGroup = null; }
   }
 
   // simple stand-ins used when a helper module is missing or has failed
@@ -198,6 +216,7 @@
     });
     ring = new THREE.Mesh(new THREE.RingGeometry(0.62, 0.74, 40), new THREE.MeshBasicMaterial({ color: TEAM_COL[0], transparent: true, opacity: 0.9, depthWrite: false }));
     ring.rotation.x = -Math.PI / 2; ring.position.y = 0.03; scene.add(ring);
+    guard('cust', () => buildCust(G));
     if (G.weather === 'rain') guard('rain', () => { applyRainLook(); makeRain(); });
     if (R3D.CamRig && stadium) camera.setLimits(R3D.CamRig.limits(stadium.colliders, stadium.kind, K));
     camSig = ''; fx.reset(); camera.reset(); R3D.Adapter.reset(G); lastBall = null;

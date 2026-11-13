@@ -8,7 +8,7 @@ A 2D, top-down, 1v1 football game for the browser (online 2v2 too). Every rep is
 
 ## What's new
 
-See [CHANGELOG.md](CHANGELOG.md) for every release, including Beta 2.81 (rain weather, looser 3D kits, MyCareer names and numbers) and the Phase 0 foundation work in progress. Match presentation (intro card, goal card, player of the match) can be switched off in Settings.
+See [CHANGELOG.md](CHANGELOG.md) for every release, including Beta 3.0 (new menus with a MyCareer hub, two-step Quick Match, Info page, player comparison, smoother 3D camera, arena weather and 3D drills; English only) and Beta 2.81 (rain weather, looser 3D kits, MyCareer names and numbers) and the Phase 0 foundation work in progress. Match presentation (intro card, goal card, player of the match) can be switched off in Settings.
 
 ## Playing
 
@@ -79,7 +79,7 @@ The main menu has four buttons: **Play**, **Store**, **Settings** and **Controls
 
 ### Settings
 
-Settings also hold accessibility (team colour palettes, high-contrast HUD, HUD scale, reduce motion and flashes), HUD toggles, language (English, Spanish beta), graphics quality (stored), control presets (default, left-handed IJKL, arrows) and the gamepad layout and deadzone. CHALLENGES on the main menu lists the daily and weekly challenges. F2 toggles the developer debug HUD when the page is opened with `?debug=1` or admin is unlocked.
+Settings also hold accessibility (team colour palettes, high-contrast HUD, HUD scale, reduce motion and flashes), HUD toggles, graphics quality, control presets (default, left-handed IJKL, arrows) and the gamepad layout and deadzone. CHALLENGES on the main menu lists the daily and weekly challenges. F2 toggles the developer debug HUD when the page is opened with `?debug=1` or admin is unlocked.
 
 
 - Audio and default CPU difficulty. Game speed is fixed (see Gameplay notes).

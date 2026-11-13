@@ -18,7 +18,12 @@
   const isArena = (App) => !App.demo && App.mode === 'drill' && App.drill === 'arena';
 
   // ------------------------------------------------------------- hooks called from main.js
-  A.simOpts = (App, quiet) => (!quiet && isArena(App) ? { ...A.cfg, spot: { ...A.cfg.spot }, nerf: A.cfg.nerf != null ? A.cfg.nerf : NERF[App.matchDiff || App.diff] || 0 } : undefined);
+  // the weather and pitch are remembered in the profile settings (the prematch's own keys, mRain / mTurf), re-read on every arena start, so the prematch and the arena share it
+  A.sync = () => {
+    try { const st = ISO.Profile.data.settings; A.cfg.rain = st.mRain === true; A.cfg.turf = ISO.Game.turfs.includes(st.mTurf) ? st.mTurf : 'grass'; } catch (e) { /* no profile: the defaults stand */ }
+  };
+  const remember = () => { try { ISO.Profile.setSetting('mRain', !!A.cfg.rain); ISO.Profile.setSetting('mTurf', A.cfg.turf); } catch (e) { /* storage blocked */ } };
+  A.simOpts = (App, quiet) => (!quiet && isArena(App) ? (A.sync(), 0) || { ...A.cfg, spot: { ...A.cfg.spot }, nerf: A.cfg.nerf != null ? A.cfg.nerf : NERF[App.matchDiff || App.diff] || 0 } : undefined);
   // the footballers for team 1: the sandbox's defenders, or a custom drill's (always at least one, so the game has a second player)
   A.roster = (App, home) => {
     if (App.demo) return null;
@@ -86,7 +91,9 @@
       '<h4>KEEPER</h4>' + seg('keeper', [['live', 'LIVE'], ['dummy', 'DUMMY'], ['none', 'NONE']], c.keeper) + seg('lvl', [[16, 'EASY'], [0, 'NORMAL'], [-6, 'HARD']], lvl) +
       '<h4>START SPOT</h4><div class="row">' + SPOTS.map((s, i) => btn('spot', i, s[0], c.spot.x === Math.round(s[1]) && c.spot.y === Math.round(s[2]))).join('') + btn('pick', 1, A.pick ? 'CLICK PITCH…' : 'PICK ON PITCH', A.pick) + '</div>' +
       '<h4>BALL</h4>' + seg('ball', [['feet', 'FEET'], ['rolling', 'ROLLING'], ['high', 'DROP']], c.ball) +
-      '<h4>CONDITIONS</h4><div class="row">' + btn('stam', 1, 'INF STAMINA', c.infStam) + btn('rain', 1, 'RAIN', c.rain) + btn('turf', 1, 'PITCH: ' + c.turf.toUpperCase(), false) + '</div>' +
+      '<h4>CONDITIONS</h4><div class="row">' + btn('stam', 1, 'INF STAMINA', c.infStam) + '</div>' + seg('wx', [[0, 'CLEAR'], [1, 'RAIN']], c.rain ? 1 : 0) +
+      '<h4>PITCH</h4><div class="row">' + TURFS().map((t) => btn('turf', t, t === 'grass' ? 'STANDARD' : t.toUpperCase(), c.turf === t)).join('') + '</div>' +
+      '<h4>VIEW</h4><div class="row">' + btn('view', 1, ISO.Profile.data.settings.camera === '3d' ? '3D' : '2D', ISO.Profile.data.settings.camera === '3d') + '</div>' +
       '<h4>SPEED</h4>' + seg('slow', [[1, '1×'], [0.5, '½×'], [0.25, '¼×']], c.slow) +
       '<h4>ACCURACY <i>SESSION · ALL-TIME</i></h4><div class="st"><span>SHOTS</span><b>' + S.shots + '</b><i>' + T.shots + '</i><span>GOALS</span><b>' + S.goals + ' (' + A.rate(S) + ')</b><i>' + T.goals + ' (' + A.rate(T) + ')</i>' +
       '<span>ON TARGET</span><b>' + S.onTarget + '</b><i>' + T.onTarget + '</i><span>BEST STREAK</span><b>' + S.bestStreak + '</b><i>' + T.bestStreak + '</i>' + rows + '</div>' +
@@ -105,8 +112,9 @@
     else if (a === 'pick') { A.pick = !A.pick; A.rebuild = true; return; }
     else if (a === 'ball') c.ball = v;
     else if (a === 'stam') c.infStam = !c.infStam;
-    else if (a === 'rain') c.rain = !c.rain;
-    else if (a === 'turf') { const t = TURFS(), i = t.indexOf(c.turf); c.turf = t[(i + 1) % t.length]; }
+    else if (a === 'wx') { c.rain = +v === 1; remember(); }
+    else if (a === 'turf') { if (TURFS().includes(v)) c.turf = v; remember(); }
+    else if (a === 'view') { if (App.actions['toggle-3d']) App.actions['toggle-3d'](); A.rebuild = true; return; }      // 2D / 3D: the view never touches the sim, so no restart
     else if (a === 'slow') { c.slow = +v; A.rebuild = true; return; }      // app-side time scale: no restart needed
     else if (a === 'clear') { A.flush(); A.sess = fresh(); A.sent = null; A.pend = null; A.streak = 0; A.rebuild = true; return; }
     else if (a === 'go') { A.flush(); App.paused = false; if (App.actions[v]) App.actions[v](); return; }

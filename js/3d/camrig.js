@@ -102,7 +102,7 @@
       case 'tackle': case 'bump': s = 0.03; break;
       case 'ankles': s = 0.04; break;
       case 'board': s = 0.02 * p; break;
-      case 'kick': s = e.power != null && e.power > 0.85 ? 0.05 * e.power : 0; break;
+      case 'kick': s = e.power != null && e.power > 0.85 ? 0.02 * e.power : 0; break;      // (was 0.05: an 11 Hz buzz of 5 cm that read as a jolt on every hard strike)
     }
     return Math.min(0.14, s);
   }

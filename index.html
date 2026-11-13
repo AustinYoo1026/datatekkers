@@ -43,7 +43,7 @@
   <section id="menu" class="screen">
     <div class="menu-box">
       <div data-i18n="menu.1_v_1_first_to" class="kicker">1 v 1 · FIRST TO THREE</div>
-      <div class="ver">BETA 2.81</div>
+      <div class="ver">BETA 3.0</div>
       <h1 data-i18n-html="menu.iso_em_football_em">ISO <em>FOOTBALL</em></h1>
       <p data-i18n="menu.two_footballers_one_ball_one" class="tagline">Two footballers. One ball. One goal. Win the rebound.</p>
       <div class="menu-stats" id="menuStats"></div>
@@ -53,6 +53,7 @@
         <button class="btn ghost" data-act="challenges"><span data-i18n="btn.challenges">CHALLENGES</span><span id="chBadge" class="badge hidden">!</span></button>
         <button data-i18n="btn.settings" class="btn ghost" data-act="settings">SETTINGS</button>
         <button data-i18n="btn.controls" class="btn ghost" data-act="controls">CONTROLS</button>
+        <button class="btn ghost" data-act="info">INFO</button>
       </div>
     </div>
   </section>
@@ -60,6 +61,17 @@
   <!-- main menu extras: a rotating featured player and a tip ticker -->
   <aside id="menuFeature" class="menu-feature hidden" style="display:none!important"><div data-i18n="menuFeature.featured" class="mf-k">FEATURED</div><canvas id="mfFace" width="200" height="200"></canvas><div class="mf-n" id="mfName"></div><div class="mf-m" id="mfMeta"></div><div class="mf-r" id="mfRar"></div></aside>
   <div id="menuTip" class="menu-tip hidden"></div>
+
+  <!-- info: traits, playstyles, celebrations, keeper styles, rules (built from the data tables by js/info-ui.js) -->
+  <section id="info" class="screen meta hidden">
+    <header class="sel-head">
+      <button class="btn small ghost" data-act="back-menu">‹ MENU</button>
+      <h2>INFO</h2>
+      <div class="sel-mode">HOW EVERYTHING WORKS</div>
+    </header>
+    <div class="seg info-tabs" id="infoTabs"></div>
+    <div class="info-body" id="infoBody"></div>
+  </section>
 
   <!-- play hub -->
   <section id="play" class="screen meta hidden">
@@ -209,13 +221,8 @@
       <div class="grid" id="grid"></div>
       <aside class="panel away" id="panel1" data-act="side-1"></aside>
     </div>
-    <footer class="sel-foot">
-      <div class="seg" id="sideSeg">
-        <span data-i18n="sideSeg.picking_for" class="seg-label">PICKING FOR</span>
-        <button data-i18n="btn.home" class="segb" data-act="side-0" id="segSide0">HOME</button>
-        <button data-i18n="btn.away" class="segb" data-act="side-1" id="segSide1">AWAY</button>
-      </div>
-      <button data-i18n="btn.random" class="btn small ghost" data-act="random">RANDOM</button>
+    <div class="sel-settings hidden" id="selSettings">
+      <div class="sel-matchup" id="selMatchup"></div>
       <div class="seg" id="diffSeg">
         <span data-i18n="diffSeg.cpu" class="seg-label">CPU</span>
         <button data-i18n-title="hint.win_bonus_0_4" data-i18n-html="btn.easy_small_0_4_cr" class="segb" data-act="diff-easy" id="segDiff-easy" title="Win bonus ×0.4">EASY <small data-i18n="diffSeg.0_4_cr">×0.4 CR</small></button>
@@ -240,6 +247,15 @@
         <button data-i18n-title="hint.thick_and_heavy_the_ball" data-i18n="btn.lush" class="segb" data-act="turf-lush" id="segTurf-lush" title="Thick and heavy: the ball dies on the grass">LUSH</button>
         <button data-i18n-title="hint.artificial_true_bounce_spin_bites" data-i18n="btn.astro" class="segb" data-act="turf-astro" id="segTurf-astro" title="Artificial: true bounce, spin bites">ASTRO</button>
       </div>
+    </div>
+    <footer class="sel-foot">
+      <div class="seg" id="sideSeg">
+        <span data-i18n="sideSeg.picking_for" class="seg-label">PICKING FOR</span>
+        <button data-i18n="btn.home" class="segb" data-act="side-0" id="segSide0">HOME</button>
+        <button data-i18n="btn.away" class="segb" data-act="side-1" id="segSide1">AWAY</button>
+      </div>
+      <button class="btn small ghost hidden" data-act="sel-steps" id="selBackStep">‹ PLAYERS</button>
+      <button data-i18n="btn.random" class="btn small ghost" data-act="random">RANDOM</button>
       <div data-i18n-title="hint.beating_a_higher_rated_opponent" class="sel-reward" id="selReward" title="Beating a higher-rated opponent, on a harder CPU, pays a bigger win bonus"></div>
       <button class="btn primary" data-act="kickoff" id="selKick">START ›</button>
     </footer>
@@ -272,15 +288,32 @@
   </section>
 
   <!-- MyCareer -->
-  <section id="career" class="screen meta hidden">
+  <section id="career" class="screen meta hidden" data-page="hub">
     <header class="sel-head">
-      <button data-i18n="btn.play_2" class="btn small ghost" data-act="play">‹ PLAY</button>
+      <button data-i18n="btn.play_2" class="btn small ghost" data-act="play" id="careerBackPlay">‹ PLAY</button>
+      <button class="btn small ghost" data-meta="career-page" data-page="hub" id="careerBackHub">‹ CAREER HUB</button>
       <h2 data-i18n="career.mycareer">MYCAREER</h2>
       <div class="sel-mode" id="careerSub"></div>
     </header>
+    <div class="career-hub" id="careerHub">
+      <div class="seg-label ch-h">YOUR CAREER</div>
+      <div class="ch-grid">
+        <button class="ch-tile ch-play" data-act="career-play"><b>PLAY NEXT FIXTURE ›</b><span id="chNext">Kick off your next matchday</span></button>
+        <button class="ch-tile" data-meta="career-page" data-page="overview"><b>OVERVIEW</b><span>Your player, look, kit, traits and the next fixture</span></button>
+        <button class="ch-tile" data-meta="career-page" data-page="skills"><b>SKILLS &amp; UPGRADES</b><span>Every attribute: spend points to raise it</span><em id="chPts"></em></button>
+        <button class="ch-tile" data-meta="career-page" data-page="ladder" data-tab="table"><b>SEASON TABLE</b><span>League table and your position</span></button>
+        <button class="ch-tile" data-meta="career-page" data-page="ladder" data-tab="fixtures"><b>FIXTURES</b><span>Matchdays played and to come</span></button>
+        <button class="ch-tile" data-meta="career-page" data-page="ladder" data-tab="seasons"><b>SEASONS</b><span>History and the five-season ladder</span></button>
+        <button class="ch-tile" data-meta="career-page" data-page="ladder" data-tab="objectives"><b>OBJECTIVES</b><span>Match and season goals for bonus rewards</span></button>
+        <button class="ch-tile" data-meta="career-page" data-page="ladder" data-tab="training"><b>TRAINING</b><span>Drills that add progress</span></button>
+        <button class="ch-tile" data-meta="career-page" data-page="ladder" data-tab="rivals"><b>RIVALS</b><span>Head-to-head records and the finale</span></button>
+        <button class="ch-tile" data-meta="career-page" data-page="ladder" data-tab="kit"><b>KIT</b><span>Custom career colours</span></button>
+        <button class="ch-tile" data-meta="career-collection"><b>COLLECTION</b><span>Player cards, favourites and set rewards</span></button>
+      </div>
+    </div>
     <div class="career-body">
       <aside class="panel career-me">
-        <div class="cme-top">
+        <div class="cme-top cm-card">
           <canvas id="careerFace" width="184" height="184"></canvas>
           <div>
             <div data-i18n="career.your_player" class="side">YOUR PLAYER</div>
@@ -291,10 +324,10 @@
             <div class="cyc"><span data-i18n="career.foot">FOOT</span><button data-i18n-title="hint.your_stronger_foot_the_other" class="segb" id="careerFoot" data-meta="foot-toggle" title="Your stronger foot (the other is the weak foot)">RIGHT</button></div>
           </div>
         </div>
-        <div class="cpts">UPGRADE POINTS <b id="careerPts">0</b></div>
-        <div class="cattrs" id="careerAttrs"></div>
-        <div data-i18n="career.playstyle_traits" class="side">PLAYSTYLE · TRAITS</div>
-        <div class="ctraits" id="careerTraits"></div>
+        <div class="cm-skills"><div class="cpts">UPGRADE POINTS <b id="careerPts">0</b></div>
+        <div class="cattrs" id="careerAttrs"></div></div>
+        <div class="cm-traits"><div data-i18n="career.playstyle_traits" class="side">PLAYSTYLE · TRAITS</div>
+        <div class="ctraits" id="careerTraits"></div></div>
       </aside>
       <div class="career-mid"><div id="careerBanner"></div><div class="seg" id="careerTabs"><button data-i18n="btn.table" class="segb on" data-cs-tab="table">TABLE</button><button data-i18n="btn.fixtures" class="segb" data-cs-tab="fixtures">FIXTURES</button><button data-i18n="btn.seasons" class="segb" data-cs-tab="seasons">SEASONS</button><button data-i18n="btn.objectives" class="segb" data-cs-tab="objectives">OBJECTIVES</button><button data-i18n="btn.training" class="segb" data-cs-tab="training">TRAINING</button><button data-i18n="btn.rivals" class="segb" data-cs-tab="rivals">RIVALS</button><button data-i18n="btn.kit" class="segb" data-cs-tab="kit">KIT</button></div><div class="career-ladder" id="careerLadder"></div></div>
       <aside class="panel career-next">
@@ -319,7 +352,6 @@
       <div class="seg" id="storeTabs">
         <button data-i18n="btn.players" class="segb" data-st="tab" data-id="players">PLAYERS</button>
         <button data-i18n="btn.box_draw" class="segb" data-st="tab" data-id="boxes">BOX DRAW</button>
-        <button data-i18n="btn.skill_moves" class="segb" data-st="tab" data-id="moves">SKILL MOVES</button>
         <button data-i18n="btn.maps" class="segb" data-st="tab" data-id="maps">MAPS</button>
         <button data-i18n="btn.balls" class="segb" data-st="tab" data-id="balls">BALLS</button>
         <button data-i18n="btn.celebrations" class="segb" data-st="tab" data-id="celebs">CELEBRATIONS</button>
@@ -400,9 +432,6 @@
         <label class="set-row"><span data-i18n="set.hud_labels">Player name tags</span><input type="checkbox" class="tog" id="setHudLabels"></label>
         <label class="set-row"><span data-i18n="set.hud_fx">Floating event text</span><input type="checkbox" class="tog" id="setHudFx"></label>
         <label class="set-row"><span data-i18n="set.hud_stam">Stamina bars</span><input type="checkbox" class="tog" id="setHudStam"></label>
-        <h3 data-i18n="set.language">LANGUAGE</h3>
-        <label class="set-row"><span data-i18n="set.lang">Language</span><select id="setLang"></select></label>
-        <p class="note" data-i18n="set.lang_note">Translations marked (beta) are machine quality. The match controls guide stays in English.</p>
         <h3 data-i18n="set.graphics">GRAPHICS</h3>
         <label class="set-row"><span data-i18n="set.quality">Quality</span><select id="setQuality"><option value="auto" data-i18n="set.q_auto">Auto</option><option value="low" data-i18n="set.q_low">Low</option><option value="med" data-i18n="set.q_med">Medium</option><option value="high" data-i18n="set.q_high">High</option></select></label>
         <p class="note" data-i18n="set.quality_note">Auto adapts to your device. Low, Medium and High fix the 3D quality.</p>
@@ -615,6 +644,7 @@
 <script src="js/cup-ui.js"></script>
 <script src="js/career-ui.js"></script>
 <script src="js/collection-ui.js"></script>
+<script src="js/info-ui.js"></script>
 <script src="js/meta-ui.js"></script>
 <script src="js/challenges-ui.js"></script>
 <script src="js/arena-ui.js"></script>

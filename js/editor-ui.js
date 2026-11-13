@@ -260,10 +260,11 @@
     Rr.innerHTML = '<h4>SAVED DRILLS ' + E.slots.length + '/' + lim('slots') + '</h4>' + (E.slots.length ? E.slots.map((x, i) => '<div class="slot' + (x.id === d.id ? ' cur' : '') + '"><span data-ea="slot" data-v="' + i + '" title="LOAD">' + esc(x.name) + '</span>' + b('slotplay', i, '▶') + b('slotdel', i, '✕') + '</div>').join('') : '<small>NONE YET: SAVE ONE</small>') +
       '<h4>SHARE</h4><textarea id="edCode" spellcheck="false" placeholder="PASTE A DRILL CODE HERE">' + esc(E.code) + '</textarea><div class="row">' + b('export', 1, 'EXPORT') + b('import', 1, 'IMPORT') + '</div>';
     bar.innerHTML = b('undo', 1, '↶ UNDO', false, E.hi <= 0) + b('redo', 1, '↷ REDO', false, E.hi >= E.hist.length - 1) + b('rotL', 1, '⟲', false, !s || (s.k !== 'def' && s.k !== 'wall')) + b('rotR', 1, '⟳ ROTATE (R)', false, !s || (s.k !== 'def' && s.k !== 'wall')) + b('del', 1, 'DELETE', false, !s || !['cone', 'wall', 'def'].includes(s.k)) +
-      b('reset', 1, 'RESET TO SAVED') + b('new', 1, 'NEW') + b('save', 1, 'SAVE') + b('saveas', 1, 'SAVE AS NEW', false, E.slots.length >= lim('slots')) + '<button class="eb go" data-ea="test" data-v="1">▶ TEST</button>';
-    E.sig = JSON.stringify([E.d, E.sel, E.hi, E.slots.length, E.slots.map((x) => x.id + x.name).join()]);
+      b('reset', 1, 'RESET TO SAVED') + b('new', 1, 'NEW') + b('save', 1, 'SAVE') + b('saveas', 1, 'SAVE AS NEW', false, E.slots.length >= lim('slots')) + '<button class="eb" data-act="toggle-3d" id="viewBtnE" title="The view the test plays in">VIEW: ' + (view3() ? '3D' : '2D') + '</button><button class="eb go" data-ea="test" data-v="1">▶ TEST</button>';
+    E.sig = sigNow();
   }
-  function sigNow() { return JSON.stringify([E.d, E.sel, E.hi, E.slots.length, E.slots.map((x) => x.id + x.name).join()]); }
+  const view3 = () => { try { return ISO.Profile.data.settings.camera === '3d'; } catch (e) { return false; } };
+  function sigNow() { return JSON.stringify([E.d, E.sel, E.hi, E.slots.length, E.slots.map((x) => x.id + x.name).join(), view3()]); }
 
   // ------------------------------------------------------------- the canvas
   function draw() {

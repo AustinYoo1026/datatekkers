@@ -171,7 +171,7 @@
   }
 
   // ------------------------------------------------------------- screens
-  const MENU_SCREENS = ['menu', 'play', 'drills', 'select', 'career', 'cup', 'store', 'settings', 'online', 'editor'];
+  const MENU_SCREENS = ['menu', 'play', 'drills', 'select', 'career', 'cup', 'store', 'settings', 'online', 'editor', 'info'];
   function updateCredits() { $('creditsVal').textContent = ISO.Profile.infinite() ? '∞' : ISO.Profile.data.credits.toLocaleString(); }
   function toast(title, sub, col) {
     const el = document.createElement('div'); el.className = 'toast';
@@ -182,6 +182,10 @@
   function achToasts(list) { for (const a of list || []) toast(T('toast.ach', { name: ISO.I18n.up(a.name) }), T('toast.ach_sub', { desc: a.desc, reward: a.reward }), '#ffcf4d'); }
 
   function show(screen) {
+    if (screen === 'select' && App.screen !== 'select') {
+      App.selStep = 'players'; App.hov = null;
+      const ST = ISO.Profile.data.settings; App.rain = !!ST.mRain; App.turf = ISO.Game.turfs.includes(ST.mTurf) ? ST.mTurf : 'grass';      // the arena panel also writes the shared prematch weather / pitch
+    }      // Quick Match: players first, then the match-settings page
     App.screen = screen;
     for (const id of MENU_SCREENS) $(id).classList.toggle('hidden', screen !== id);
     $('credits').classList.toggle('hidden', !MENU_SCREENS.includes(screen));
@@ -225,6 +229,7 @@
   // ------------------------------------------------------------- selection
   const barCol = (v) => (v >= 90 ? '#35e08a' : v >= 80 ? '#8fdc5a' : v >= 70 ? '#e9c46a' : v >= 55 ? '#f4a261' : '#e76f51');
 
+  { const pg = document.querySelector('.playgrid'); if (pg) pg.addEventListener('wheel', (e) => { if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) { pg.scrollLeft += e.deltaY; e.preventDefault(); } }, { passive: false }); }      // wheel scrolls the mode strip sideways
   function buildGrid() {
     const grid = $('grid');
     ISO.PLAYERS.forEach((d) => {
@@ -237,6 +242,8 @@
       b.innerHTML = '<span class="c-ovr">' + d.ovr + '</span><span class="c-flag">' + d.flag + '</span><span class="c-pick"></span><span class="c-lock">🔒<small>BOX DRAW</small></span>';
       b.appendChild(c);
       const n = document.createElement('span'); n.className = 'c-name'; n.textContent = d.short; b.appendChild(n);
+      b.addEventListener('mouseenter', () => { App.hov = d; if (App.screen === 'select') renderPanel(App.side); });
+      b.addEventListener('mouseleave', () => { App.hov = null; if (App.screen === 'select') renderPanel(App.side); });
       b.addEventListener('click', () => {
         ISO.Audio.init();
         if (App.side === 0 && !ISO.Profile.owns(d.id)) { ISO.Audio.play('deny'); b.classList.remove('shake'); void b.offsetWidth; b.classList.add('shake'); toast('LOCKED', d.name + ' — win them from a Box Draw', '#f1735f'); return; }
@@ -249,16 +256,22 @@
     });
   }
 
+  // Player comparison: the delta of a highlighted player's stat over the current pick's (green up, red down, nothing when equal)
+  const deltaHTML = (v, ref) => (ref === undefined || v === ref ? '' : '<em class="dl ' + (v > ref ? 'up' : 'dn') + '">' + (v > ref ? '+' : '') + (v - ref) + '</em>');
+  App.deltaHTML = deltaHTML;
   function renderPanel(i) {
-    const mine = i === 0 && ISO.Profile.owns(App.pick[0].id);
-    const d = mine ? ISO.Profile.outfit(App.pick[i]) : App.pick[i], el = $('panel' + i), two = false;
+    const P0 = ISO.Profile, cur = i === 0 && P0.owns(App.pick[0].id) ? P0.outfit(App.pick[0]) : App.pick[i];
+    const hov = App.hov && App.side === i && App.hov.id !== App.pick[i].id && App.screen === 'select' ? App.hov : null;
+    const mine = i === 0 && P0.owns(App.pick[0].id);
+    const d = hov ? (i === 0 && P0.owns(hov.id) ? P0.outfit(hov) : hov) : cur, el = $('panel' + i), two = false, ref = hov ? cur : null;
     const who = i === 0 ? 'HOME · P1' : 'AWAY · ' + (two ? 'P2' : 'CPU');
     const stars = ISO.stars(d.attr.skl), sy = ISO.styleOf(d), wfs = sy.wfStars;
     const styleChips = sy.role === 'none' ? '' : '<span class="chip">STYLE <b>' + ISO.ROLES[sy.role].name.toUpperCase() + '</b></span><span class="chip">WEAK FOOT <b>' + '★'.repeat(wfs) + '☆'.repeat(5 - wfs) + '</b></span>' +
       sy.traits.map((t) => '<span class="chip trait" title="' + ISO.TRAITS[t].desc + '">' + ISO.TRAITS[t].tag + '</span>').join('');
     el.classList.toggle('active', App.side === i);
     el.innerHTML =
-      '<div class="ovr-big">' + d.ovr + '</div>' +
+      '<div class="ovr-big">' + d.ovr + (ref ? deltaHTML(d.ovr, ref.ovr) : '') + '</div>' +
+      (ref ? '<div class="cmp-note">PREVIEW · vs ' + ref.short + '</div>' : '') +
       '<div class="p-top"><canvas width="184" height="184"></canvas><div><div class="side">' + who + '</div>' +
       '<div class="nm">' + d.name + '</div><div class="meta">' + d.flag + ' ' + d.nat + '<br>' + d.club + '</div></div></div>' +
       '<div class="chips"><span class="chip">SKILLS <b>' + '★'.repeat(stars) + '</b></span><span class="chip">FOOT <b>' + (d.foot === 'L' ? 'LEFT' : 'RIGHT') +
@@ -266,7 +279,7 @@
       (i === 1 && !two && App.mode !== 'online' ? '<span class="chip trait" title="' + ISO.AI.profileOf(d).desc + '">AI <b>' + ISO.AI.profileOf(d).name.toUpperCase() + '</b></span>' : '') + '</div>' +
       '<div class="attrs">' + ISO.ATTRS.map(([k, label]) => {
         const v = d.attr[k];
-        return '<div class="attr"><span>' + label + '</span><span class="bar"><i style="width:' + v + '%;background:' + barCol(v) + '"></i></span><span class="v">' + v + '</span></div>';
+        return '<div class="attr"><span>' + label + '</span><span class="bar"><i style="width:' + v + '%;background:' + barCol(v) + '"></i></span><span class="v">' + v + (ref ? deltaHTML(v, ref.attr[k]) : '') + '</span></div>';
       }).join('') + '</div>';
     const kits = ISO.resolveKits(ISO.Profile.owns(App.pick[0].id) ? ISO.Profile.outfit(App.pick[0]) : App.pick[0], App.pick[1]);
     el.querySelector('canvas').getContext('2d').drawImage(ISO.Sprites.portrait(d, 92, kits[i]), 0, 0);
@@ -279,16 +292,21 @@
     const me = P.owns(App.pick[0].id) ? P.outfit(App.pick[0]) : App.pick[0], wm = P.winMult(App.diff, me, App.pick[1], undefined, ISO.Collection ? ISO.Collection.setBonus(P.data.owned, (me.base || me).id) : 0);
     $('selReward').className = 'sel-reward' + (arena ? ' hidden' : '') + (wm.total > 1 ? ' up' : wm.total < 1 ? ' down' : '');
     $('selReward').innerHTML = 'WIN BONUS <b>×' + wm.total + '</b><small>' + (App.pick[1].ovr - me.ovr > 0 ? '+' : '') + (App.pick[1].ovr - me.ovr) + ' OVR GAP</small>';
-    $('selKick').textContent = online ? 'CONFIRM ›' : 'START ›';
+    const vs = !online && !arena, set = vs && App.selStep === 'set';      // Quick Match / Street: two pages
+    $('select').classList.toggle('step-set', set);
+    $('selKick').textContent = online ? 'CONFIRM ›' : vs ? (set ? 'PLAY ›' : 'NEXT: MATCH SETTINGS ›') : 'START ›';
+    $('selSettings').classList.toggle('hidden', online || (vs && !set)); $('selSettings').classList.toggle('page', set);
+    $('selBackStep').classList.toggle('hidden', !set); $('sideSeg').classList.toggle('hidden', arena || set); document.querySelector('[data-act="random"]').classList.toggle('hidden', set);
+    $('selMatchup').classList.toggle('hidden', !set);
+    if (set) $('selMatchup').innerHTML = '<div class="mu"><span class="mu-k">YOU</span><b>' + me.short + '</b><i>' + me.ovr + '</i></div><span class="mu-vs">VS</span><div class="mu away"><span class="mu-k">CPU</span><b>' + App.pick[1].short + '</b><i>' + App.pick[1].ovr + '</i></div>';
     $('diffSeg').classList.toggle('hidden', online);
-    $('weatherSeg').classList.toggle('hidden', online || arena);
+    $('weatherSeg').classList.toggle('hidden', online || (arena && App.drill !== 'arena'));      // the training arena has the prematch's weather and pitch too
     $('rulesSeg').classList.toggle('hidden', online || arena);
     $('segRules-std').classList.toggle('on', !App.rules); $('segRules-street').classList.toggle('on', App.rules === 'street');
-    $('turfSeg').classList.toggle('hidden', online || arena);
+    $('turfSeg').classList.toggle('hidden', online || (arena && App.drill !== 'arena'));
     for (const t of ISO.Game.turfs) { const e = $('segTurf-' + t); if (e) e.classList.toggle('on', App.turf === t); }
     $('segWx-clear').classList.toggle('on', !App.rain); $('segWx-rain').classList.toggle('on', !!App.rain);
     $('diffSeg').querySelector('.seg-label').textContent = T(arena ? 'sel.keeper' : 'sel.cpu_label');
-    $('sideSeg').classList.toggle('hidden', arena);
     $('panel1').style.visibility = arena ? 'hidden' : '';
     renderPanel(0); renderPanel(1);
     for (const i of [0, 1]) $('segSide' + i).classList.toggle('on', App.side === i);
@@ -410,7 +428,7 @@
 
   // ------------------------------------------------------------- 3D mode (a second renderer over the same simulation; see js/3d/)
   const want3d = () => ISO.Profile.data.settings.camera === '3d';
-  const use3d = () => want3d() && ISO.R3D && ISO.R3D.ready && !App.demo && !(App.G && App.G.cust);      // a custom drill's cones and walls are drawn by the 2D view only      // every mode has a 3D view (the shootout included); only the menu's background demo stays 2D
+  const use3d = () => want3d() && ISO.R3D && ISO.R3D.ready && !App.demo;      // (a custom drill's cones and walls: r3d.js buildCust; its lit target zones are 2D only)      // every mode has a 3D view (the shootout included); only the menu's background demo stays 2D
   // Which view this frame is on. Decided once per frame, so the inputs it samples, the renderer its events go to and the
   // picture it draws always belong to the same view, whatever happens in between (a toggle, Three.js arriving, a 3D error).
   // The view only ever changes what is sampled as input and what is drawn: nothing on either path writes to the sim.
@@ -436,7 +454,7 @@
     const t = T(want3d() ? 'btn.view_3d' : 'btn.view_classic');
     syncCamBtn();
     if (t === viewLabel) return;
-    viewLabel = t; for (const id of ['viewBtn', 'viewBtnP']) { const b = $(id); if (b) b.textContent = t; }
+    viewLabel = t; for (const id of ['viewBtn', 'viewBtnP', 'viewBtnE']) { const b = $(id); if (b) b.textContent = t; }
     const sel = $('setCamera'); if (sel && sel.value !== ISO.Profile.data.settings.camera) sel.value = ISO.Profile.data.settings.camera;
   }
   function ensure3d() {      // load Three.js the first time 3D is wanted; fall back to Classic if WebGL is not available
@@ -452,7 +470,7 @@
     'mode-cpu': () => { App.mode = 'cpu'; App.rules = ''; App.side = 0; App.touched = false; show('select'); },
     'mode-drills': () => show('drills'),
     'drills-back': () => show('drills'),
-    'select-back': () => show(App.mode === 'drill' ? 'drills' : App.mode === 'online' ? 'online' : 'play'),
+    'select-back': () => App.screen === 'select' && App.selStep === 'set' ? (App.selStep = 'players', renderSelect()) : show(App.mode === 'drill' ? 'drills' : App.mode === 'online' ? 'online' : 'play'),
     'controls': () => $('controls').classList.remove('hidden'),
     'close-controls': () => $('controls').classList.add('hidden'),
     'back-menu': () => show('menu'),
@@ -471,7 +489,8 @@
     'diff-easy': () => { App.diff = 'easy'; renderSelect(); },
     'diff-normal': () => { App.diff = 'normal'; renderSelect(); },
     'diff-hard': () => { App.diff = 'hard'; renderSelect(); },
-    'kickoff': () => { if (App.mode === 'online') { show('online'); return; } if (App.mode === 'career') App.mode = 'cpu'; App.kickoffFlip = 0; startMatch(); },
+    'sel-steps': () => { App.selStep = 'players'; renderSelect(); },
+    'kickoff': () => { if (App.mode === 'cpu' && App.selStep !== 'set') { App.selStep = 'set'; renderSelect(); return; } if (App.mode === 'online') { show('online'); return; } if (App.mode === 'career') App.mode = 'cpu'; App.kickoffFlip = 0; startMatch(); },
     'mode-career': () => show('career'),
     'mode-online': () => { App.mode = 'online'; show('online'); },
     'online-pick': () => { App.mode = 'online'; App.side = 0; App.touched = true; show('select'); },
@@ -493,6 +512,7 @@
     'mouse': () => App.setMouse(!ISO.Profile.data.settings.mouseAim),
     'sound': () => { ISO.Audio.setMuted(!ISO.Audio.muted); ISO.Profile.setSetting('muted', ISO.Audio.muted); $('soundBtn').textContent = T('btn.sound', { state: T(ISO.Audio.muted ? 'common.off' : 'common.on') }); },
     'settings': () => show('settings'),
+    'info': () => show('info'),
     'challenges': () => { if (ISO.ChallengeUI) ISO.ChallengeUI.open(); },
     'chal-close': () => { if (ISO.ChallengeUI) ISO.ChallengeUI.close(); },
     'quit': () => { App.paused = false; if (App.mode === 'online') { ISO.Online.leave(); show('online'); return; } if (App.mode === 'cup') { forfeitCup(); show('cup'); return; } if (App.mode === 'career') forfeitCareer(); show(App.mode === 'career' ? 'career' : 'select'); },
@@ -526,6 +546,8 @@
     if (e.code !== 'Escape') return;
     if (!$('controls').classList.contains('hidden')) $('controls').classList.add('hidden');
     else if (App.screen === 'match') setPaused(!App.paused);
+    else if (App.screen === 'career' && $('career').dataset.page !== 'hub') $('career').dataset.page = 'hub';      // Esc: one page back
+    else if (App.screen === 'select' && App.selStep === 'set') { App.selStep = 'players'; renderSelect(); }
     else if (App.screen !== 'menu' && MENU_SCREENS.includes(App.screen) && $('opening').classList.contains('hidden')) show(App.screen === 'select' ? (App.mode === 'drill' ? 'drills' : App.mode === 'online' ? 'online' : 'play') : App.screen === 'career' || App.screen === 'cup' || App.screen === 'drills' || App.screen === 'online' ? 'play' : 'menu');
   });
   window.addEventListener('blur', () => { if (App.screen === 'match' && !App.paused && App.mode !== 'online' && App.G.phase !== 'end') setPaused(true); });
@@ -676,11 +698,6 @@
     App.rain = !!ST.mRain; App.turf = ISO.Game.turfs.includes(ST.mTurf) ? ST.mTurf : 'grass';      // the saved prematch weather and pitch
     App.setMouse(ST.mouseAim);
     if (ISO.Meta) ISO.Meta.keyLabels();
-    if (ST.lang && ST.lang !== 'en') ISO.I18n.set(ST.lang, (ok) => { if (ok) { if (ISO.Meta) { ISO.Meta.keyLabels(); ISO.Meta.onShow(App.screen); } App.setMouse(ST.mouseAim); } });      // Phase 9.3: the saved language (its file loads on demand)
-    else try {      // a browser in a language we ship: one toast, once
-      const nl = String(navigator.language || '').slice(0, 2), seen = localStorage.getItem('iso.langHint');
-      if (!seen && ISO.I18n.SHIPPED[nl] && nl !== 'en' && nl !== 'xx') { localStorage.setItem('iso.langHint', '1'); setTimeout(() => toast(ISO.I18n.SHIPPED[nl].name, 'Settings › Language', '#4fa3ff'), 1500); }
-    } catch (e) { /* storage blocked: no hint */ }
   }
   buildGrid();
   fit();

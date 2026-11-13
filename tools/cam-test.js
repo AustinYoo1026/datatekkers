@@ -196,5 +196,49 @@ if (CR) {
     console.log('T6 shake: bounded and zero at 0');
   }
 } else console.log('(camrig.js absent: T3-T6 skipped)');
+// T7 kick smoothness (a regression for the camera snapping when the ball is kicked): scripted kicks (ground shot, lofted shot, pass, cross-field pass,
+// a shot at the goal run) for every preset; max per-frame acceleration of the camera position (m/s^2) and of the view direction (rad/s^2), and
+// the largest single-frame jump of either, over the 1.5 s after the kick. Frame-rate scaled (second differences / dt^2), so the limits hold at 60 Hz only.
+if (CR) {
+  const kicks = {
+    ground: { type: 'kick', shot: 'normal', p: { idx: 0 }, power: 0.6, v: [0, -22, 0] },
+    lofted: { type: 'kick', shot: 'chip', p: { idx: 0 }, power: 0.7, v: [3, -14, 8] },
+    power: { type: 'kick', shot: 'power', p: { idx: 0 }, power: 1, v: [-6, -30, 2] },
+    pass: { type: 'kick', p: { idx: 0 }, power: 0.4, v: [10, -4, 0] },
+    cross: { type: 'kick', p: { idx: 0 }, power: 0.5, v: [-12, 2, 4] },
+  };
+  const LIMK = { pos: 50, ang: 60, jump: 0.3, turn: 2.5 };      // thresholds: m/s^2, rad/s^2, m per frame, deg per frame
+  const measure = (id, k, start) => {
+    const c = mk(); c.setLimits(LIM()); c.setPreset(id); c.setOptions({ goalMode: 'off', shakeK: 0 });
+    const vf = mkVf(), p = vf.players[0], b = vf.ball; p.x = start[0]; p.z = start[1]; p.vx = 0; p.vz = -3; p.speed = 3; p.hidden = false;
+    let time = 0; const hist = [], d = new THREE.Vector3();
+    const carry = () => { b.owner = 0; b.x = p.x; b.z = p.z - 0.6; b.y = 0; b.vx = b.vz = b.vy = 0; };
+    for (let f = 0; f < 150; f++) {
+      if (f < 60) { p.z -= 3 * DT; carry(); }
+      if (f === 60) { b.owner = -1; b.vx = k.v[0]; b.vz = k.v[1]; b.vy = k.v[2]; b.shot = k.shot ? { team: 0 } : null; c.onEvent(k, vf); }
+      if (f > 60) { b.x += b.vx * DT; b.z += b.vz * DT; b.y = Math.max(0, b.y + b.vy * DT); if (b.y > 0 || b.vy > 0) b.vy -= 9.8 * DT; b.z = Math.max(-0.3, Math.min(K.depthAll || 20, b.z)); b.x = Math.max(-K.half, Math.min(K.half, b.x)); if (b.shot && f > 100) b.shot = null; }
+      time += DT; c.update(vf, DT, time, null); c.cam.getWorldDirection(d);
+      hist.push([c.cam.position.x, c.cam.position.y, c.cam.position.z, d.x, d.y, d.z, c.cam.fov]);
+    }
+    let pa = 0, aa = 0, pj = 0, tj = 0, fa = 0;
+    for (let f = 62; f < 150; f++) {
+      const h0 = hist[f - 2], h1 = hist[f - 1], h2 = hist[f];
+      const ax = (h2[0] - 2 * h1[0] + h0[0]) / (DT * DT), ay = (h2[1] - 2 * h1[1] + h0[1]) / (DT * DT), az = (h2[2] - 2 * h1[2] + h0[2]) / (DT * DT);
+      if (Math.hypot(ax, ay, az) > pa) fa = f; pa = Math.max(pa, Math.hypot(ax, ay, az)); pj = Math.max(pj, Math.hypot(h2[0] - h1[0], h2[1] - h1[1], h2[2] - h1[2]));
+      const ang = (a, b2) => Math.acos(Math.max(-1, Math.min(1, a[3] * b2[3] + a[4] * b2[4] + a[5] * b2[5])));
+      const w1 = ang(h1, h2) / DT, w0 = ang(h0, h1) / DT; aa = Math.max(aa, Math.abs(w1 - w0) / DT); tj = Math.max(tj, ang(h1, h2) * 180 / PI);
+    }
+    if (process.env.DBGK && id + '/' + k.shot === process.env.DBGK) console.log('argmax accel frame', fa, JSON.stringify(hist[fa - 1].map(r9)), JSON.stringify(hist[fa].map(r9)));
+    return { pa, aa, pj, tj };
+  };
+  let wp = 0, wa = 0, wpj = 0, wtj = 0, wn = '';
+  for (const id of PRESETS) for (const [kn, k] of Object.entries(kicks)) for (const st0 of [[0, 12], [6, 9], [-8, 14]]) {
+    const r = measure(id, k, st0);
+    if (r.pa > LIMK.pos || r.aa > LIMK.ang || r.pj > LIMK.jump || r.tj > LIMK.turn) fail('T7', id + ' ' + kn + ' @' + st0 + ' accel ' + r.pa.toFixed(1) + ' m/s2, ' + r.aa.toFixed(2) + ' rad/s2, jump ' + r.pj.toFixed(3) + ' m, turn ' + r.tj.toFixed(2) + ' deg');
+    if (r.pa > wp) { wp = r.pa; wn = id + '/' + kn; } wa = Math.max(wa, r.aa); wpj = Math.max(wpj, r.pj); wtj = Math.max(wtj, r.tj);
+  }
+  for (const pw of [0.86, 1]) if (CR.shakeOf({ type: 'kick', power: pw }) > 0.03) fail('T7', 'a hard kick shakes the camera by ' + CR.shakeOf({ type: 'kick', power: pw }));
+  console.log('T7 kick smoothness: worst accel ' + wp.toFixed(1) + ' m/s2 (' + wn + '), view ' + wa.toFixed(2) + ' rad/s2, frame jump ' + wpj.toFixed(3) + ' m / ' + wtj.toFixed(2) + ' deg');
+}
 if (fails.length) { console.log('FAIL\n  ' + fails.join('\n  ')); process.exit(1); }
 console.log('cam-test OK');
