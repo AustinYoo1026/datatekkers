@@ -309,7 +309,7 @@
     "play.knockout_3_rounds": "KNOCKOUT · 3 ROUNDS",
     "play.mycareer": "MYCAREER",
     "play.offline_vs_cpu": "OFFLINE · VS CPU",
-    "play.online_1v1": "ONLINE 1V1",
+    "play.online_1v1": "ONLINE MULTIPLAYER",
     "play.pick_any_footballer_you_own": "Pick any footballer you own — Prime upgrades and skins included — and take on the CPU on easy, normal or hard.",
     "play.play": "PLAY",
     "play.play_five_seasons_each_an": "Play five seasons, each an eight-team league of seven matchdays against tougher rivals. Win the table to move up; finish low and you can be relegated. Wins earn upgrade points for your stats.",

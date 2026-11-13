@@ -143,6 +143,7 @@
     App.matchDiff = 'normal'; App.matchWin = 0; App.kickoffFlip = kickoff;
     buildMatch(defs[0], defs[1], defs.map(() => 'none'), defs.map((_, i) => (i === me ? 'YOU' : String(names[i] || 'P' + (i + 1)).toUpperCase().slice(0, 8))), false, defs);
     App.me = me; App.V.me = me; App.hudIdx = [0, 1].map((t) => (me % 2 === t ? me : t));
+    App.V.names = names.map((n, i) => String(n || 'P' + (i + 1)).toUpperCase());
     App.V.teams = [teamName(0), teamName(1)];
     $('pRestart').classList.add('hidden'); $('pQuit').textContent = T('btn.leave_match'); $('pQuitMenu').classList.add('hidden');
     beginMatch(false);

@@ -218,8 +218,13 @@ const wss = new WebSocketServer({
   verifyClient: ({ origin, req }) => !ORIGINS.length || !origin || ORIGINS.includes(origin) || origin === 'http://' + req.headers.host || origin === 'https://' + req.headers.host,
 });
 
+function syncQueue(mode) {
+  const q = queues[mode];
+  for (let k = q.length - 1; k >= 0; k--) if (q[k].ws.readyState !== 1) q.splice(k, 1);
+  for (const s of q) send(s.ws, { t: 'queued', mode, have: q.length, need: sizeOf(mode) });
+}
 function leave(seat) {
-  for (const q of Object.values(queues)) { const k = q.indexOf(seat); if (k >= 0) q.splice(k, 1); }
+  for (const [m, q] of Object.entries(queues)) { const k = q.indexOf(seat); if (k >= 0) { q.splice(k, 1); syncQueue(m); } }
   if (seat.room) seat.room.leave(seat);
 }
 const queued = (seat) => Object.values(queues).some((q) => q.includes(seat));
@@ -279,7 +284,8 @@ wss.on('connection', (ws) => {
           const group = q.splice(0, sizeOf(mode));
           const r = new Room(newCode(), sizeOf(mode)); rooms.set(r.code, r);
           for (const g of group) r.join(g);
-        } else send(ws, { t: 'queued', mode, have: q.length, need: sizeOf(mode) });
+          if (q.length) syncQueue(mode);
+        } else syncQueue(mode);
       }
       return;
     }
