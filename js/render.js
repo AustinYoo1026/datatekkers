@@ -808,6 +808,12 @@
     // from a high, steep look (close to the match view) down to the low broadcast angle; a slow push-in on the finish
     return mkCam({ X: RP.cam.X, D: RP.cam.Dd + lerp(640, CINE.off - 40 * z, m), H: lerp(620, CINE.H - 20 * z, m), th: lerp(0.98, CINE.th, m), f: lerp(1250, CINE.f + 80 * z, m), cy: lerp(360, CINE.cy, m) });
   }
+  function scorerName(G, V, by) {
+    const i = by != null ? by : 1 - G.concede, p = (G.players[i] || G.players[0]).def.short;
+    const u = V && V.names && V.names[i];
+    return u ? u + ' (' + p + ')' : p;
+  }
+
   function drawReplay(c, G, V, st, dt) {
     const E = seek(G, st.t), cam = replayCam(E, st, dt);
     const S = {
@@ -822,7 +828,7 @@
     const bar = 46 * st.mix;
     c.fillStyle = '#05070a'; c.fillRect(0, 0, VW, bar); c.fillRect(0, VH - bar, VW, bar);
     c.globalAlpha = st.mix;
-    const lg = G.goals[G.goals.length - 1], who = lg ? G.players[lg.by].def.short.toUpperCase() : '';
+    const lg = G.goals[G.goals.length - 1], who = lg ? scorerName(G, V, lg.by).toUpperCase() : '';
     c.font = '900 italic 30px "Avenir Next Condensed","Arial Narrow",Arial,sans-serif'; c.textAlign = 'left'; c.textBaseline = 'middle';
     const bx = 86, by = VH - bar - 34;
     c.fillStyle = 'rgba(6,10,14,.82)'; c.fillRect(bx - 16, by - 22, 190 + c.measureText(who).width, 44);
@@ -995,7 +1001,7 @@
         : G.drill ? G.drill.name + ' · ' + (G.drill.tip ? G.drill.tip + ' · ' + (G.drill.n + 1) + ' OF ' + G.drill.total : G.drill.kind === 'target' ? 'HIT ' + ISO.TARGETS[G.drill.target].name : G.drill.kind === 'chip' ? 'LOB THE KEEPER' : 'KICK ' + (G.drill.n + 1) + ' OF ' + G.drill.total) : (V.teams || V.labels)[G.attacker] + ' ATTACKS';
       if (n > 0) banner(c, String(n), sub, '#ffffff', 1 - frac, pen ? 350 : OY + 120, pen ? VW / 2 : 0);
     } else if (G.phase === 'goal') {
-      const t = (G.goalDur || C.GOAL_T) - G.phaseT, lg = G.goals[G.goals.length - 1], name = G.players[lg && lg.by != null ? lg.by : 1 - G.concede].def.short;
+      const t = (G.goalDur || C.GOAL_T) - G.phaseT, lg = G.goals[G.goals.length - 1], name = scorerName(G, V, lg && lg.by);
       if (G.drill) banner(c, G.drill.msg, G.drill.sub, pen && G.drill.so.turn !== 'shoot' ? '#f1735f' : '#35e08a', t, pen ? 350 : OY + 130, pen ? VW / 2 : 0);
       else if (!rs || rs.mix < 0.5) banner(c, 'GOAL!', (G.own ? 'OWN GOAL · ' : '') + name + '  ' + G.score[0] + ' – ' + G.score[1], TEAM_COL[1 - G.concede], t);
     } else if ((G.phase === 'ready' || G.phase === 'out') && (G.msg || G.outInfo || G.drill)) {
