@@ -12,7 +12,6 @@
   // never sent: static definitions, functions / derived objects, and the lists that are encoded separately
   const SKIP = new Set(['def', 'a', 'moves', 'rand', 'gauss', 'keepers', 'events', 'players', 'keeper', 'ball']);
   const STATIC = (k) => k === 'def' || k === 'a' || k === 'moves';
-  const LERP = ['x', 'y', 'z'];                  // legacy apply(G, s, to, f): blended between two snapshots
 
   // JSON cannot carry -0, NaN or +-Infinity, and a re-simulation has to start from exactly the server's numbers
   function num(v) {
@@ -66,25 +65,12 @@
     if (dst.skill && dst.skill.id) dst.skill.def = ISO.Game.SKILLS[dst.skill.id];
   }
   // Apply snapshot s onto G: afterwards G steps exactly like the game the snapshot was taken from.
-  // (Legacy: with `to`, the following snapshot, and f in 0..1, positions are interpolated.)
-  function apply(G, s, to, f) {
+  function apply(G, s) {
     for (const k in s) if (k !== 'players' && k !== 'keeper' && k !== 'ball' && k !== 'ev') G[k] = dec(s[k], G);
     for (const k of Object.keys(G)) if (!(k in s) && !SKIP.has(k) && typeof G[k] !== 'function') delete G[k];
     s.players.forEach((p, i) => assign(G.players[i], p, G));
     assign(G.keeper, s.keeper, G); G.keepers = [G.keeper];
     assign(G.ball, s.ball, G);
-    if (to && f > 0) {
-      const mix = (d, a, b) => { for (const k of LERP) if (typeof a[k] === 'number' && typeof b[k] === 'number') d[k] = a[k] + (b[k] - a[k]) * f; };
-      s.players.forEach((p, i) => { mix(G.players[i], p, to.players[i]); G.players[i].face = lerpAng(p.face, to.players[i].face, f); });
-      mix(G.keeper, s.keeper, to.keeper); G.keeper.face = lerpAng(s.keeper.face, to.keeper.face, f);
-      mix(G.ball, s.ball, to.ball);
-    }
-  }
-  function lerpAng(a, b, f) {
-    let d = b - a;
-    while (d > Math.PI) d -= Math.PI * 2;
-    while (d < -Math.PI) d += Math.PI * 2;
-    return a + d * f;
   }
   // events of a snapshot, with references resolved against G
   const events = (G, s) => (s.ev || []).map((e) => dec(e, G));
@@ -100,7 +86,7 @@
     const n = (v) => (typeof v === 'number' && isFinite(v) ? Math.max(-1, Math.min(1, v)) : 0);
     o.mx = n(i.mx); o.my = n(i.my);
     for (const b of bools()) o[b] = !!i[b];
-    if (typeof i.ax === 'number' && typeof i.ay === 'number' && isFinite(i.ax) && isFinite(i.ay)) { o.ax = i.ax; o.ay = i.ay; }
+    if (typeof i.ax === 'number' && typeof i.ay === 'number' && isFinite(i.ax) && isFinite(i.ay)) { o.ax = Math.max(-1e6, Math.min(1e6, i.ax)); o.ay = Math.max(-1e6, Math.min(1e6, i.ay)); }
     return o;
   }
   function packInput(i) {
@@ -108,6 +94,80 @@
     for (const b of bools()) if (i[b]) o[b] = 1;
     if (i.ax != null && i.ay != null) { o.ax = Math.round(i.ax) + 0; o.ay = Math.round(i.ay) + 0; }      // + 0: never -0, which JSON would turn into 0 on the wire only
     return o;
+  }
+
+
+  // ------------------------------------------------------------------ lossless delta codec (protocol 2)
+  /* diff(a, b) describes how to get from the encoded snapshot tree a to b (both without `ev`); patch(base, d) does it, in
+     place, and returns the new value of that slot. Nothing is rounded: patch(a, JSON round trip of diff(a, b)) deep-equals b.
+       undefined   unchanged (diff returns it when a and b are equal)
+       primitive   the new value (numbers are always finite and never -0 here: enc() wraps those as { $n })
+       { $r: v }   replace by v (a tagged value $p / $k / $n / $s, a changed type, an array whose length changed, a new key)
+       { $a: { i: d } }   same-length array: element i changed by d
+       { k: d, $x: [keys] }   plain object: key k changed by d, keys removed */
+  const isObj = (v) => v !== null && typeof v === 'object';
+  const isTag = (v) => v.$p !== undefined || v.$k !== undefined || v.$n !== undefined || v.$s !== undefined;
+  // protocol 3 (x set): a float whose JSON text is long travels as '~' + base64 of its 8 bytes (little-endian, bit-exact); a real string that
+  // starts with '~' is wrapped so it cannot be mistaken for one (always, so a protocol 2 patch is read the same way)
+  const f64 = new DataView(new ArrayBuffer(8));
+  const packF = (v) => { f64.setFloat64(0, v, true); let b = ''; for (let i = 0; i < 8; i++) b += String.fromCharCode(f64.getUint8(i)); return '~' + btoa(b).slice(0, 11); };
+  const unpackF = (s) => { const b = atob(s.slice(1) + '='); for (let i = 0; i < 8; i++) f64.setUint8(i, b.charCodeAt(i)); return f64.getFloat64(0, true); };
+  const fresh = (v, x) => (v === undefined ? { $r: null } : isObj(v) ? { $r: v } : typeof v === 'string' ? (v.charCodeAt(0) === 126 ? { $r: v } : v) : x && typeof v === 'number' && JSON.stringify(v).length > 14 ? packF(v) : v);
+  // protocol 3 timers: a number leaf that moved by the same arithmetic as 1 or 2 simulation steps is sent as its key in a list, the receiver repeats the arithmetic
+  //   $t: { d: keys that went (a - STEP) - STEP, u: (a + STEP) + STEP, z: max(0, (a - STEP) - STEP), D / U / Z: the same for one step }
+  const tick = (a, b, S) => (b === (a - S) - S ? 'd' : b === (a + S) + S ? 'u' : b === Math.max(0, (a - S) - S) && b === 0 ? 'z' : b === a - S ? 'D' : b === a + S ? 'U' : b === Math.max(0, a - S) && b === 0 ? 'Z' : null);
+  const untick = (a, m, S) => (m === 'd' ? (a - S) - S : m === 'u' ? (a + S) + S : m === 'z' ? Math.max(0, (a - S) - S) : m === 'D' ? a - S : m === 'U' ? a + S : Math.max(0, a - S));   // undefined (a field that went away inside the tree) is sent as null: JSON would drop it
+  function diff(a, b, x) {
+    if (b === undefined) return a === undefined ? undefined : { $r: null };
+    if (!isObj(b) || !isObj(a)) return a === b ? undefined : fresh(b, x);
+    const ar = Array.isArray(b);
+    if (ar !== Array.isArray(a) || (!ar && (isTag(a) || isTag(b)))) return tagEq(a, b) ? undefined : { $r: b };
+    if (ar) {
+      if (a.length !== b.length) return { $r: b };
+      let d;
+      for (let i = 0; i < b.length; i++) { const y = diff(a[i], b[i], x); if (y !== undefined) (d || (d = {}))[i] = y; }
+      return d && { $a: d };
+    }
+    let d;
+    const S = x ? ISO.C.STEP : 0;
+    for (const k in b) {
+      if (!(k in a)) (d || (d = {}))[k] = fresh(b[k], x);
+      else {
+        const m = x && typeof a[k] === 'number' && typeof b[k] === 'number' && a[k] !== b[k] ? tick(a[k], b[k], S) : null;
+        if (m) { const t = (d || (d = {})).$t || (d.$t = {}); (t[m] || (t[m] = [])).push(k); continue; }
+        const y = diff(a[k], b[k], x); if (y !== undefined) (d || (d = {}))[k] = y;
+      }
+    }
+    let gone;
+    for (const k in a) if (!(k in b)) (gone || (gone = [])).push(k);
+    if (gone) (d || (d = {})).$x = gone;
+    return d;
+  }
+  function tagEq(a, b) {          // equal when both are the same kind of tagged value / array with the same JSON
+    return JSON.stringify(a) === JSON.stringify(b);
+  }
+  function patch(base, d) {
+    if (!isObj(d)) return typeof d === 'string' && d.charCodeAt(0) === 126 ? unpackF(d) : d;
+    if ('$r' in d) return d.$r;
+    if (!isObj(base)) throw new Error('patch: nothing to patch');
+    if (d.$a) { for (const i in d.$a) base[i] = patch(base[i], d.$a[i]); return base; }
+    for (const k in d) if (k !== '$x' && k !== '$t') base[k] = patch(base[k], d[k]);
+    if (d.$t) { const S = ISO.C.STEP; for (const m in d.$t) for (const k of d.$t[m]) base[k] = untick(base[k], m, S); }
+    if (d.$x) for (const k of d.$x) delete base[k];
+    return base;
+  }
+  /* The receiving end of protocol 2. follower() returns f(m): m is a { t:'s' } message; afterwards m.n is the complete
+     snapshot (m.n = base) and f returns true. A message whose base we do not have (a lost keyframe, a server restart)
+     returns false: the caller asks for a keyframe ({ t:'key' }) and ignores the state until it arrives. */
+  function follower() {
+    let base = null, baseK = -1;
+    return (m) => {
+      if (m.n) { base = m.n; baseK = m.k; return true; }
+      if (!base || m.b !== baseK) return false;
+      try { if (m.d !== undefined) patch(base, m.d); } catch (e) { base = null; return false; }
+      base.ev = m.ev || []; baseK = m.k; m.n = base;
+      return true;
+    };
   }
 
   // ------------------------------------------------------------------ prediction
@@ -147,7 +207,7 @@
        n = P.frame(G, dt, sample)    once per display frame; sample() returns the raw input. Returns the steps taken.
        P.alpha                       fraction of a step since the last one, for ISO.Smooth.begin */
   const MAXPRED = 30;                   // steps of prediction at most (30 steps = 417 ms of round trip, queue and frame time)
-  const OWN = { kick: 1, skill: 1, lunge: 1, fake: 1 };
+  const OWN = { kick: 1, skill: 1, lunge: 1, fake: 1, stop: 1, burst: 1 };
   const OWN_TTL = 72;                   // steps a predicted own event waits for the server's copy
   // clock steering: the fewest inputs the server had waiting over the last second should be Q_TARGET. One spare input
   // costs this player nothing (their own moves are predicted) and absorbs the jitter of the network and of display frames.
@@ -155,20 +215,29 @@
 
   function Predictor(opt) {
     const C = ISO.C, Game = ISO.Game, S = opt.smooth || null, send = opt.send, me = opt.me | 0;
-    let seq = 0, acc = 0, hist = [], others = [], pend = [], mine = [], lastK = -1, qs = [];
+    let seq = 0, acc = 0, hist = [], others = [], pend = [], mine = [], lastK = -1, qs = [], waiting = false, lastInp = null;
+    const follow = follower();
     const P = {
       me, alpha: 0, rate: 1, synced: false,
-      stats: { snaps: 0, steps: 0, replayed: 0, stalls: 0, starved: 0, errN: 0, errSum: 0, errMax: 0, errBig: 0, othSum: 0, othMax: 0, lag: 0, qSum: 0, qN: 0 },
+      stats: { snaps: 0, steps: 0, replayed: 0, stalls: 0, starved: 0, errN: 0, errSum: 0, errMax: 0, errBig: 0, othSum: 0, othMax: 0, lag: 0, qSum: 0, qN: 0, resyncs: 0 },
       get seq() { return seq; },
       get pending() { return hist.length; },
     };
     const inputsFor = (G, own) => G.players.map((_, s) => (s === me ? own : others[s] || Game.ZERO));
 
     P.onSnapshot = (m) => {
-      if (!m || !m.n || !(m.k > lastK)) return;
+      if (!m || !(m.n || m.b != null) || !(m.k > lastK)) return;
       lastK = m.k;
+      if (m.inp) lastInp = m.inp; else if (lastInp) m.inp = lastInp;      // protocol 2 leaves `inp` out when it did not change, and the message that carried it may have been collapsed already
       // only the newest state is ever applied; of the older ones just the events and the queue reading are still needed
+      // (this has to come before follow(): with protocol 2 the newest snapshot is patched in place)
       if (pend.length) { const o = pend[pend.length - 1]; pend[pend.length - 1] = { q: o.q, n: { ev: o.n.ev } }; }
+      if (!follow(m)) {                                  // a delta on a base we do not have: ask for a keyframe, keep only what must not be lost
+        if (!waiting) { waiting = true; P.stats.resyncs++; if (opt.resync) opt.resync(); }
+        pend.push({ q: m.q, n: { ev: m.ev || [] } });
+        return;
+      }
+      waiting = false;
       pend.push(m);
       if (pend.length > 240) pend.shift();               // a tab left in the background: stay bounded
     };
@@ -188,11 +257,13 @@
         if (q < 0) st.starved++; else { st.qSum += q; st.qN++; }
       }
       P.rate = Math.max(RATE_MIN, Math.min(RATE_MAX, 1 + (Q_TARGET - Math.min.apply(null, qs)) * Q_GAIN));
-      const m = pend[pend.length - 1];
+      let m = null;
+      for (let i = pend.length - 1; i >= 0 && !m; i--) if (pend[i].n.players) m = pend[i];
       pend = [];
+      if (!m) return;                                               // events only (waiting for a keyframe): nothing to apply
       const old = S ? S.grab(G) : null, was = G.players.map((p) => ({ x: p.x, y: p.y }));
       apply(G, m.n);
-      others = (m.inp || []).map((i) => (i ? sanitizeInput(i) : null));
+      if (m.inp) others = m.inp.map((i) => (i ? sanitizeInput(i) : null));
       const ack = m.ack ? m.ack[me] : seq;
       let d = 0;
       while (d < hist.length && hist[d].n <= ack) d++;
@@ -246,5 +317,5 @@
     return P;
   }
 
-  ISO.Net = { snapshot, apply, events, sanitizeInput, packInput, Predictor, MAXPRED };
+  ISO.Net = { PROTO: 3, diff, patch, follower, snapshot, apply, events, sanitizeInput, packInput, Predictor, MAXPRED };
 })();

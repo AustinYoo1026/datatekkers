@@ -10,3 +10,5 @@ services:
     envVars:
       - key: ALLOWED_ORIGINS        # set to your Vercel URL(s), comma separated, e.g. https://iso-football.vercel.app
         sync: false
+      - key: ADMIN_CODE             # secret for Settings > Admin; leave unset to disable admin unlock
+        sync: false

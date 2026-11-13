@@ -4,7 +4,8 @@
 (function () {
   'use strict';
   const ISO = globalThis.ISO, R3D = (ISO.R3D = ISO.R3D || {}), K = R3D.K;
-  const TEAM_COL = ['#4da3ff', '#ff6b5e'];
+  const TEAM_COL = (R3D.TEAM_COL = R3D.TEAM_COL || ['#4da3ff', '#ff6b5e']);      // shared with fx3d.js; ISO.Access.apply writes the palette into it in place (Phase 9.1)
+  const AX = () => ISO.Access || { hc: false, rm: false, noFlash: false };
   let THREE = null, renderer = null, scene = null, canvas = null, loading = null;
   let stadium = null, ball = null, fx = null, camera = null, sun = null, ring = null, rings = [], ringGeo = null;
   let actors = [], keeperActor = null, keeperMine = null, pending = null, built = false, lastBall = null, castSig = null;
@@ -141,13 +142,17 @@
     return { mesh, shadow: null, update(vf) { const b = vf.ball; mesh.position.set(b.x, b.y + K.ballR, b.z); }, onEvent() {}, reset() {} };
   }
 
+  // the home (team 0) kit colours for the flags and the banner of the stands
+  function homeCols(G, info) {
+    try { const k = (info && info.kits) || ISO.resolveKits(G.players[0].def, G.players[1].def); const h = k && k[0]; return h && h.a ? [h.a, h.b || h.a] : null; } catch (e) { return null; }
+  }
   function build() {
     const { G, V, info } = pending;
     clearScene();
     built = false;
     const R = ISO.Render, theme = R.theme(), mapId = R.mapId();
     const quality = tier;
-    stadium = (R3D.Stadium && guard('stadium', () => R3D.Stadium.build(THREE, theme, K, { walls: !!G.walls, quality, mapId }))) || fallbackStadium(theme);
+    stadium = (R3D.Stadium && guard('stadium', () => R3D.Stadium.build(THREE, theme, K, { walls: !!G.walls, quality, mapId, turf: G.turf, kitCols: homeCols(G, info), noFlash: AX().noFlash }))) || fallbackStadium(theme);
     scene.add(stadium.group);
     if (stadium.applyTo) guard('stadium', () => stadium.applyTo(scene));
     if (!stadium.sun) {
@@ -188,10 +193,20 @@
     ring = new THREE.Mesh(new THREE.RingGeometry(0.62, 0.74, 40), new THREE.MeshBasicMaterial({ color: TEAM_COL[0], transparent: true, opacity: 0.9, depthWrite: false }));
     ring.rotation.x = -Math.PI / 2; ring.position.y = 0.03; scene.add(ring);
     if (G.weather === 'rain') guard('rain', () => { applyRainLook(); makeRain(); });
-    fx.reset(); camera.reset(); R3D.Adapter.reset(G); lastBall = null;
+    if (R3D.CamRig && stadium) camera.setLimits(R3D.CamRig.limits(stadium.colliders, stadium.kind, K));
+    camSig = ''; fx.reset(); camera.reset(); R3D.Adapter.reset(G); lastBall = null;
     built = true;       // only once everything above succeeded
   }
 
+  // the camera settings (profile.settings: cam3d, camZoom, camSens, camShake, camGoal) reach the camera only when they change
+  let camSig = '';
+  function applyCamSettings() {
+    const st = (ISO.Profile && ISO.Profile.data && ISO.Profile.data.settings) || {};
+    const noShake = AX().rm, sig = [st.cam3d, st.camZoom, st.camSens, st.camShake, st.camGoal, noShake].join('|');
+    if (sig === camSig) return; camSig = sig;
+    camera.setPreset(st.cam3d && R3D.CamRig.PRESETS[st.cam3d] ? st.cam3d : 'chase');
+    camera.setOptions({ zoom: st.camZoom == null ? 1 : st.camZoom, sens: st.camSens == null ? 1 : st.camSens, shakeK: noShake ? 0 : st.camShake == null ? 1 : st.camShake, goalMode: st.camGoal || 'celeb' });
+  }
   function onMatch(G, V, info) { pending = { G, V, info: info || {} }; built = false; if (R3D.ready && scene) { /* built lazily on the next render */ } }
 
   // ------------------------------------------------------------------ events
@@ -218,6 +233,7 @@
     const plain = { type: e.type, power: e.power, shot: e.shot, kind: e.kind, team: e.team, catch: e.catch, weak: e.weak, smother: e.smother, slide: e.slide, p: e.p ? G.players.indexOf(e.p) : -1 };
     if (ball) guard('ball', () => ball.onEvent(plain, R3D.Adapter.vf));
     if (stadium && e.type === 'goal' && stadium.cheer) guard('stadium', () => stadium.cheer());
+    if (stadium && (e.type === 'save' || e.type === 'post') && stadium.cheer) guard('stadium', () => stadium.cheer(0.6));
     if (stadium && (e.type === 'goal')) guard('stadium', () => stadium.netHit(R3D.Adapter.vf.ball.x, R3D.Adapter.vf.ball.y, R3D.Adapter.vf.ball.z, 12));
   }
 
@@ -271,14 +287,16 @@
     for (let i = 0; i < rings.length; i++) {
       const r = rings[i], pv = vf.players[i];
       r.visible = !!pv && !pv.hidden; if (!pv) continue;
-      r.position.set(pv.x, 0.025, pv.z); r.material.opacity = pv.owner ? 0.95 : 0.5;
+      r.position.set(pv.x, 0.025, pv.z); r.material.opacity = AX().hc || pv.owner ? (AX().hc ? 1 : 0.95) : 0.5;
+      const tc = TEAM_COL[G.players[i].team % 2]; if (r.userData.tc !== tc) { r.userData.tc = tc; r.material.color.set(tc); }      // the palette can change mid-match
     }
     if (ring) { const me = vf.players[vf.me]; ring.visible = !!me && !me.hidden && G.phase !== 'end'; if (me) { ring.position.set(me.x, 0.03, me.z); ring.material.color.set(TEAM_COL[me.team % 2]); } }
+    applyCamSettings();
     camera.update(vf, dt, time, bv);
     // the clear cue belongs to the team of the screen: the box outline glows while that team has to clear
     fxOn = G.phase === 'play' && vf.mustClear >= 0 && vf.mustClear === vf.myTeam; fx.setClear(fxOn, vf.myTeam);
     if (stadium && stadium.setTargets) guard('stadium', () => (G.drill && G.drill.kind === 'target' ? stadium.setTargets(ISO.TARGETS, G.drill.target) : stadium.setTargets(null)));
-    if (stadium) guard('stadium', () => { stadium.update(dt, time); if (stadium.setView) stadium.setView(camera.cam.position.z); });
+    if (stadium) guard('stadium', () => { stadium.update(dt, time); if (stadium.setView) stadium.setView(camera.cam.position.z, camera.cam.position.y); });
     fx.update(dt);
     if (rain) guard('rain', () => updateRain(dt));
     renderer.render(scene, camera.cam);
@@ -291,7 +309,10 @@
   R3D.unproject = (x, y) => (camera ? camera.unproject(x, y) : null);
   R3D.onView = onView;
   R3D.project = (x, y, z, out) => (camera ? camera.project(x, y, z, out) : null);      // world point -> 1280 x 720 screen px (tools / tests)
+  R3D.camPresets = () => R3D.CamRig.ORDER;
   R3D.camState = () => (camera ? camera.st : null);
+  // read-only numbers for the debug HUD (js/debug-hud.js); never touches the scene
+  R3D.debug = () => ({ tier, tAvg, info: renderer ? renderer.info : null, cam: camera ? camera.st : null, players: R3D.Player && R3D.Player.stats ? R3D.Player.stats() : null });
   R3D.scene = () => scene;
   R3D.drawnBall = () => (ball && ball.drawn) || null;
   // The goal pause of a match is long enough for a replay. The 3D view shows the celebration instead, but the pause can be

@@ -171,8 +171,13 @@
     const t = kk.type;
     if (t == null) return 'pass';
     if (kk.cross) return 'cross';
-    if (kk.high) return 'header';
-    if ((kk.z || 0) >= 8 && t !== 'chip') return 'volley';
+    const kd = kk.kind;
+    if (kd === 'header' || kd === 'diveheader') return 'header';
+    if (kd === 'volley' || kd === 'halfvolley') return 'volley';      // a half-volley is the volley clip struck low (kk.z)
+    if (kd === 'outside') return 'finesse';
+    if (kd === 'driven') return 'power';
+    if (!kd && kk.high) return 'header';
+    if (!kd && (kk.z || 0) >= 8 && t !== 'chip') return 'volley';
     if (t === 'first-time') return 'first';
     return KICK[t] ? t : 'normal';
   }
@@ -346,7 +351,8 @@
       const closing = Math.max(1, -(dx * (fin(b.vx, 0) - fin(pv.vx, 0)) + dz * (fin(b.vz, 0) - fin(pv.vz, 0))) / d), tt = Math.max(0, (d - 1.3) / closing);
       st.rdH += (Math.max(0.11, fin(b.y, 0) + fin(b.vy, 0) * tt - 22.5 * tt * tt) - st.rdH) * 0.3;
     }
-    const zc = st.rdH, wv = sm(seg(zc, 0.25, 0.5)), wh = sm(seg(zc, 0.85, 1.1));
+    const ST = ISO.C && ISO.C.SHOT && ISO.C.SHOT.T, ks = ST ? SIM_S : 0.05, vz0 = ST ? ST.volley.zMin * ks : 0.4, hz0 = ST ? ST.head.zMin * ks : 1;      // the sim's own strike heights (C.SHOT.T), as resolveStrike uses them
+    const zc = st.rdH, wv = sm(seg(zc, vz0 - 0.15, vz0 + 0.1)), wh = sm(seg(zc, hz0 - 0.15, hz0 + 0.1));
     relOk = false;
     if (tx !== undefined && tz !== undefined) { rel[0] = tx - fin(pv.x, 0); rel[1] = tz - fin(pv.z, 0); relOk = true; st.rdTX = tx; st.rdTZ = tz; st.rdN = (st.kcN | 0) + 1; }
     st.rdWe = w;
@@ -490,12 +496,63 @@
       P({ K: [0.4, 0.8, 0.14, F], S: [0.4, 0.8, 0.14, F], SX: 0.15, CX: -0.05, HX: -0.2, PY: -0.25, ROLL: -0.06, AK: [0.4, 1.7, 0.5], AS: [1.5, 1.8, 0.35] }),
       load], { loop: true });
   })();
+  // Celebrations (roadmap 2.5). Presentation only: the sim state `celebrate` and its timing do not change; each clip runs on the same
+  // state clock (pv.stT) as the original one. All of them are in place (no root travel, feet on the turf except in the two leaps).
+  // CELEB_CLIPS[id] = { clip, post? }; the loop length is ISO.CELEBS[id].dur. `st.celeb` is set from the actor (actor.celeb).
+  const LEGS = (sw, kn, ab) => ({ K: [sw, kn, ab === undefined ? 0.1 : ab, F], S: [sw, kn, ab === undefined ? 0.1 : ab, F] });
+  const loopC = (t, poses) => clip(t, poses, { loop: true });
+  const ARMSW = loopC([0, 0.25, 0.5, 0.75, 1], [
+    P({ ...LEGS(0.15, 0.3, 0.14), SX: -0.04, HX: -0.25, PY: 0.1, ROLL: 0.03, AK: [0.1, 0.15, 1.45], AS: [0.1, 0.15, 1.45] }),
+    P({ ...LEGS(0.2, 0.42, 0.14), SX: -0.08, HX: -0.32, PY: 0, ROLL: 0.0, AK: [0.15, 0.1, 1.7], AS: [0.15, 0.1, 1.7] }),
+    P({ ...LEGS(0.15, 0.3, 0.14), SX: -0.04, HX: -0.25, PY: -0.1, ROLL: -0.03, AK: [0.1, 0.15, 1.45], AS: [0.1, 0.15, 1.45] }),
+    P({ ...LEGS(0.2, 0.42, 0.14), SX: -0.08, HX: -0.32, PY: 0, ROLL: 0.0, AK: [0.15, 0.1, 1.7], AS: [0.15, 0.1, 1.7] }),
+    P({ ...LEGS(0.15, 0.3, 0.14), SX: -0.04, HX: -0.25, PY: 0.1, ROLL: 0.03, AK: [0.1, 0.15, 1.45], AS: [0.1, 0.15, 1.45] })]);
+  const POINTU = loopC([0, 0.2, 0.4, 0.6, 0.8, 1], [
+    P({ ...LEGS(0.35, 0.7, 0.1), SX: 0.2, HX: 0.1, AK: [0.6, 1.4, 0.3], AS: [0.6, 1.4, 0.3] }),
+    P({ ...LEGS(0.15, 0.3, 0.1), SX: -0.05, HX: -0.3, AK: [3.0, 0.15, 0.3], AS: [3.0, 0.15, 0.15] }),
+    P({ ...LEGS(0.25, 0.5, 0.1), SX: 0.0, HX: -0.3, PY: 0.08, AK: [3.05, 0.1, 0.25], AS: [2.95, 0.1, 0.2] }),
+    P({ ...LEGS(0.15, 0.3, 0.1), SX: -0.05, HX: -0.3, PY: -0.08, AK: [2.95, 0.1, 0.2], AS: [3.05, 0.1, 0.25] }),
+    P({ ...LEGS(0.25, 0.5, 0.1), SX: 0.0, HX: -0.3, AK: [3.0, 0.15, 0.3], AS: [3.0, 0.15, 0.15] }),
+    P({ ...LEGS(0.35, 0.7, 0.1), SX: 0.2, HX: 0.1, AK: [0.6, 1.4, 0.3], AS: [0.6, 1.4, 0.3] })]);
+  const SALUTE = loopC([0, 0.2, 0.5, 0.8, 1], [
+    P({ ...LEGS(0.08, 0.15, 0.04), SX: 0.02, AK: [0.1, 0.3, 0.12], AS: [0.1, 0.3, 0.12] }),
+    P({ ...LEGS(0.08, 0.15, 0.04), SX: 0.0, HX: -0.05, AK: [1.5, 2.3, 0.85], AS: [0.1, 0.3, 0.12] }),
+    P({ ...LEGS(0.1, 0.22, 0.04), SX: 0.0, HX: -0.08, PY: 0.06, AK: [1.55, 2.35, 0.9], AS: [0.1, 0.3, 0.12] }),
+    P({ ...LEGS(0.08, 0.15, 0.04), SX: 0.0, HX: -0.05, AK: [1.5, 2.3, 0.85], AS: [0.1, 0.3, 0.12] }),
+    P({ ...LEGS(0.08, 0.15, 0.04), SX: 0.02, AK: [0.1, 0.3, 0.12], AS: [0.1, 0.3, 0.12] })]);
+  // stiff arm poses held, then snapped: the keys come in close pairs
+  const ROBOT = (() => {
+    const base = { ...LEGS(0.1, 0.2, 0.08), SX: 0.02 };
+    const a = P({ ...base, HY: 0.5, AK: [1.4, 1.3, 0.1], AS: [0.2, 1.3, 0.4] }), b = P({ ...base, HY: -0.5, AK: [0.2, 1.3, 0.4], AS: [1.4, 1.3, 0.1] });
+    const c = P({ ...base, HY: 0.5, CY: 0.15, AK: [0.2, 1.3, 1.3], AS: [0.2, 1.3, 1.3] }), d = P({ ...base, HY: -0.5, CY: -0.15, AK: [3.0, 0.5, 0.2], AS: [0.2, 1.3, 1.3] });
+    return loopC([0, 0.17, 0.25, 0.42, 0.5, 0.67, 0.75, 0.92, 1], [a, a, b, b, c, c, d, d, a]);
+  })();
+  const SITD = loopC([0, 0.25, 0.4, 0.8, 1], [
+    P({ ...LEGS(0.15, 0.3, 0.1), SX: 0.05, AK: [0.1, 0.3, 0.12], AS: [0.1, 0.3, 0.12] }),
+    P({ ...LEGS(0.9, 1.7, 0.18), SX: 0.5, HX: -0.4, AK: [0.7, 2.3, -0.1], AS: [0.7, 2.3, -0.1] }),
+    P({ ...LEGS(1.2, 2.3, 0.2), SX: 0.6, HX: -0.5, AK: [0.8, 2.4, -0.15], AS: [0.8, 2.4, -0.15] }),
+    P({ ...LEGS(1.2, 2.3, 0.2), SX: 0.6, HX: -0.5, HY: 0.1, AK: [0.8, 2.4, -0.15], AS: [0.8, 2.4, -0.15] }),
+    P({ ...LEGS(0.15, 0.3, 0.1), SX: 0.05, AK: [0.1, 0.3, 0.12], AS: [0.1, 0.3, 0.12] })]);
+  const KNEED = loopC([0, 0.2, 0.4, 0.6, 0.8, 1], [
+    P({ ...LEGS(0.3, 0.6, 0.1), SX: 0.2, AK: [0.4, 1.0, 0.3], AS: [0.4, 1.0, 0.3] }),
+    P({ K: [0.7, 1.5, 0.12, F], S: [0.4, 2.3, 0.12, F], SX: -0.3, CX: -0.15, HX: -0.5, AK: [0.3, 0.1, 1.3], AS: [0.3, 0.1, 1.3] }),
+    P({ K: [0.8, 1.7, 0.12, F], S: [0.5, 2.5, 0.12, F], SX: -0.4, CX: -0.2, HX: -0.55, AK: [0.4, 0.1, 1.4], AS: [0.4, 0.1, 1.4] }),
+    P({ K: [0.8, 1.7, 0.12, F], S: [0.5, 2.5, 0.12, F], SX: -0.35, CX: -0.2, HX: -0.55, AK: [2.6, 0.4, 0.3], AS: [2.6, 0.4, 0.3] }),
+    P({ K: [0.7, 1.5, 0.12, F], S: [0.4, 2.3, 0.12, F], SX: -0.3, CX: -0.15, HX: -0.5, AK: [0.3, 0.1, 1.3], AS: [0.3, 0.1, 1.3] }),
+    P({ ...LEGS(0.3, 0.6, 0.1), SX: 0.2, AK: [0.4, 1.0, 0.3], AS: [0.4, 1.0, 0.3] })]);
+  // the leap with a full turn: the fist-pump keys, stretched so the flight lasts 0.7 s (the turn is about 9 rad/s)
+  const SPINC = loopC([0, 0.1, 0.25, 0.4, 0.5, 0.62, 0.76, 0.9, 1], CELEBRATE.p);
+  const flight = (c, a, b, T, h, lift) => { const f = seg(c, a, b); T[LIFT] = lift * h * 4 * f * (1 - f); T[GROUND] = 1 - sm(seg(c, a, a + 0.05)) * (1 - sm(seg(c, b - 0.05, b))); return f; };
+  const CELEB_CLIPS = {
+    fist: { clip: CELEBRATE, post(T, c, pv, st, n, h) { const f = seg(c, 0.1, 0.32); T[LIFT] = 0.36 * h * 4 * f * (1 - f); T[GROUND] = 1 - sm(seg(c, 0.1, 0.15)) * (1 - sm(seg(c, 0.27, 0.32))); } },
+    arms: { clip: ARMSW }, point: { clip: POINTU }, salute: { clip: SALUTE }, robot: { clip: ROBOT }, sit: { clip: SITD }, knee: { clip: KNEED },
+    spin: { clip: SPINC, post(T, c, pv, st, n, h) { const f = flight(c, 0.1, 0.4, T, h, 0.4); T[RYAW] = TAU * (n + f * f * (3 - 2 * f)); } },
+  };
   function clipCelebrate(T, pv, st) {
-    const c = (fin(pv.stT, 0) / 1.6) % 1, f = seg(c, 0.1, 0.32);
-    play(T, CELEBRATE, c, footOf(pv, st), 1);
-    // the flight is a parabola; the feet are released from the turf only while it lasts
-    T[LIFT] = 0.36 * hOf(st) * 4 * f * (1 - f);
-    T[GROUND] = 1 - sm(seg(c, 0.1, 0.15)) * (1 - sm(seg(c, 0.27, 0.32)));
+    const id = CELEB_CLIPS[st && st.celeb] ? st.celeb : 'fist', CD = CELEB_CLIPS[id], dur = ISO.celebById(id).dur, h = hOf(st);
+    const x = fin(pv.stT, 0) / dur, n = Math.floor(x), c = x - n;
+    play(T, CD.clip, c, footOf(pv, st), 1);
+    if (CD.post) CD.post(T, c, pv, st, n, h);      // the leaps: the flight is a parabola, the feet are released from the turf only while it lasts
   }
 
   Object.assign(Clips, { kick: clipKick, kickReady, tackle: clipTackle, slide: clipSlide, stumble: clipStumble, ankle: clipAnkle, celebrate: clipCelebrate, shoulder: clipShoulder, kickVariant });

@@ -667,6 +667,7 @@
   }
 
   ISO.Sprites = {
+    cacheSize: () => cache.size,      // debug HUD (Phase 9.5)
     LAYOUT: { cellW: CW, cellH: CH, scale: S, footX: FOOT_X, footY: FOOT_Y, anims: ANIMS, dirs: DIRS },
     forPlayer, forKeeper, draw, drawLive, portrait, ball, BALL_FRAMES, BALL_PX, drawChar, REST, POSE_KEYS, DRAW_SCALE,
   };

@@ -368,13 +368,14 @@
     const dq = new THREE.Quaternion(), hugV = new Float32Array(3);
     let hasPrev = false, hasDrawn = false, frames = 0, pTrueY = 0, trueH = 0;   // pTrueY / trueH: the drawn ball's height before the high-ball compression
     let modeKey = -1, relT = 0, relDur = 0, relEase = false, touchW = 0, restW = 0, kickHold = 0;      // kickHold: spin lock (real s). modeKey: owner index, -1 loose, -2 held, -3 dead
-    let dead = false, deadT = 0, deadPhase = null, dspin = 0, netInside = false;
+    let dsurf = null, dead = false, deadT = 0, deadPhase = null, dspin = 0, netInside = false;
     let sqT = 1, sqD = 0, netOn = false, netT = 0, netAmt = 0;
     let khOn = false, khT = 0, khSpin = false;               // kick hold: the drawn ball waits at khP (sim s since the kick event), then joins the sim ball
     const khP = new THREE.Vector3(), khO = new THREE.Vector3(), khD = new THREE.Vector3();
     const nomB = { vx: 0, vy: 0, vz: 0 };
     const khV = new THREE.Vector3(), khG = new THREE.Vector3();      // khV: the drawn ball during a kick (hold, then catch-up); khG: scratch (gap to the sim ball)
     let khFin = false, khWin = false, khRel = false, khH = 0, khFoot = 1, khUx = 0, khUz = 1;      // finish now (an event), in the hold / catch-up window this frame, the hold is over (it lasted khH sim s), kicking foot, kick direction (plan)
+    let swWPrev = 0, khE0 = 0;
     let swW = 0, swFoot = 0, swLat = 0;                      // strike spot while a shot is charged: weight 0..1, the foot it is on (0 = not chosen yet), its smoothed lateral offset (m, + = right)
     const strike = { on: 0, x: 0, z: 0, foot: 0, t: -1, hold: -1, cut: 0 };      // exposed as `strike`
     let khI = -1, khF = 0;                                   // the owner's index and the share of his travel the held ball follows (K.kickFollow, 0 = stays in the world)
@@ -480,20 +481,21 @@
           dv.y -= GRAV * h; hb += dv.y * h;
           if (hb <= 0) {
             hb = 0;
-            if (dv.y < -VBOUNCE) { sqT = 0; sqD = clamp(-dv.y * 0.02, 0.05, 0.18); dv.y = -dv.y * 0.48; dv.x *= 0.84; dv.z *= 0.84; }
+            if (dv.y < -VBOUNCE) { sqT = 0; sqD = clamp(-dv.y * 0.02, 0.05, 0.18); const be = dsurf ? dsurf.e : 0.48, bk = dsurf ? dsurf.keep : 0.84; dv.y = -dv.y * be; dv.x *= bk; dv.z *= bk; }
             else dv.y = 0;
           }
         }
         dp.y = hb + R;
         collide(px, ph, pz);
         hb = dp.y - R;
-        const air = hb > AIRH, k1 = air ? 0.2 : 0.7, k0 = air ? 0 : K0;
+        const air = hb > AIRH, k1 = air ? 0.2 : (dsurf ? dsurf.k1 : 0.7), k0 = air ? 0 : (dsurf ? dsurf.k0 * S : K0);
         sp = Math.hypot(dv.x, dv.z);
         if (sp > 0) { const ns = Math.max(0, sp - (k1 * sp + k0) * h); dv.x *= ns / sp; dv.z *= ns / sp; }
       }
     }
 
     function update(vf, dt) {
+      dsurf = vf.surf || null;      // the sim's pitch row (C.PHYS.SURF), resolved by the adapter each frame; the dry-grass literals below are the fallback
       dt = dt > 0 ? Math.min(dt, 0.1) : 0;
       const b = vf.ball;
       simP.set(b.x || 0, (b.y || 0) + R, b.z || 0);
@@ -534,6 +536,7 @@
         }
         swT = sm(clamp((tcN - KT_M - SP_T0) / (SP_T1 - SP_T0), 0, 1));
       }
+      swWPrev = swW;
       swW += (swT - swW) * (1 - Math.exp(-SP_RATE * dt));
       if (!own) { swW = 0; swFoot = 0; if (!khOn) strike.on = 0; } else if (swW < 1e-3 && !chg) swFoot = 0;
       if (own) {
@@ -618,7 +621,7 @@
           // through, then joins the sim path (kickA, kickB); no carried offset, the hold is the offset
           khOn = true; khT = -dt * TS; khSpin = true; khRel = tcK <= KT_M + KH_MIN || modeKey !== me; khH = 0;      // contact (almost) at once: no hold, only the join along the path
            strike.cut = 0; khP.copy(prevDrawn); khV.copy(prevDrawn); relDur = 0;
-          khI = modeKey; khF = clamp(fin(K.kickFollow, 0), 0, 1); khFoot = swFoot || 1;
+          khE0 = swWPrev; khI = modeKey; khF = clamp(fin(K.kickFollow, 0), 0, 1); khFoot = swFoot || 1;
           const o0 = khF > 0 && vf.players ? vf.players[khI] : null; if (o0) khO.set(fin(o0.x, 0), 0, fin(o0.z, 0)); else khF = 0;
         } else {
           // a release or a first touch keeps moving with the sim through this frame; a catch / throw / restart starts from rest
@@ -663,7 +666,8 @@
             if (o.kick && o.kick.foot) khFoot = o.kick.foot > 0 ? 1 : -1;
             const yw = fin(o.yaw, 0), fy = Math.sin(yw), fc = Math.cos(yw), e = sm(clamp(t / (KR_EASE * Math.max(KH, 1e-3)), 0, 1)), sl = khFoot * SP_L;
             const spx = fin(o.x, 0) + fy * SP_F - fc * sl, spz = fin(o.z, 0) + fc * SP_F + fy * sl;
-            khV.x += (spx - khV.x) * e; khV.z += (spz - khV.z) * e; khV.y += (R - khV.y) * e;
+            const e2 = e * (1 - khE0);
+            khV.x += (spx - khV.x) * e2; khV.z += (spz - khV.z) * e2; khV.y += (R - khV.y) * e2;
             strike.x = spx; strike.z = spz; strike.foot = khFoot;
           }
           strike.on = 1; strike.t = t; strike.hold = -1;
@@ -689,6 +693,10 @@
             const mv = (simP.x - lastSim.x + mx2) * khUx + (simP.z - lastSim.z + mz2) * khUz;      // net advance along the kick direction this frame
             if (mv < 0 && hasDrawn) { mx2 -= mv * khUx; mz2 -= mv * khUz; }      // a drawn ball ahead of the sim ball waits for it: only lateral motion
             khV.x += mx2; khV.y += my2; khV.z += mz2;
+          }
+          {      // the drawn ball never moves more than KR x the sim ball's own step in one frame (the cut to the contact included): the rest of the gap stays for the next frames
+            const cx0 = prevDrawn.x, cy0 = prevDrawn.y, cz0 = prevDrawn.z, dB = Math.hypot(khV.x - cx0, khV.y - cy0, khV.z - cz0), cap = KR * Math.hypot(simP.x - lastSim.x, simP.y - lastSim.y, simP.z - lastSim.z) + 0.004;
+            if (hasDrawn && dB > cap) { const f = cap / dB; khV.x = cx0 + (khV.x - cx0) * f; khV.y = cy0 + (khV.y - cy0) * f; khV.z = cz0 + (khV.z - cz0) * f; }
           }
           khG.set(simP.x - khV.x, simP.y - khV.y, simP.z - khV.z);
           if (khFin || khG.length() < 0.01) { khV.copy(simP); khOn = false; }

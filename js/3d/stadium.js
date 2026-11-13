@@ -32,24 +32,29 @@
 
   // ---------------------------------------------------------------- per-map flavour (palette-driven; unknown ids fall back to heuristics)
   const FLAV = {
-    stadium: { sky: ['#02050a', '#18222f'], night: 1, tree: 'pine' },
-    street: { sky: ['#04060a', '#252a36'], night: 1, tree: 'round', treeCol: '#2a4a2a', city: 1 },
-    beach: { sky: ['#2a78cc', '#cfeaf6'], night: 0, sun: '#fff3dc', tree: 'palm', sea: '#1d6fa5', clouds: 1 },
-    snow: { sky: ['#0b1424', '#44566e'], night: 1, tree: 'pine', snowy: 1, weather: 'snow' },
-    neon: { sky: ['#030209', '#2c1454'], night: 1, tree: 'pine', treeCol: '#241a47', city: 1 },
-    sunset: { sky: ['#272a5c', '#ff9a52'], night: 0, dusk: 1, sun: '#ffb070', tree: 'round', treeCol: '#4a5a24', clouds: 1 },
-    monsoon: { sky: ['#03070c', '#1c2a36'], night: 1, tree: 'round', treeCol: '#1a3a26', weather: 'rain' },
-    jungle: { sky: ['#3d7aa0', '#d4ead2'], night: 0, sun: '#fff0d0', tree: 'palm', sea: '#2a6a5a', ground: '#173f1f', clouds: 1 },
-    moon: { sky: ['#000000', '#0b0d16'], night: 1, tree: 'rock', earth: 1, ground: '#3a3d44' },
-    desert: { sky: ['#3f7fc6', '#f6d6a0'], night: 0, sun: '#fff0c8', tree: 'palm', dunes: 1, sea: null, ground: '#c98a42' },
-    retro: { sky: ['#000000', '#002a0c'], night: 1, tree: 'pine', treeCol: '#00aa3a' },
-    sakura: { sky: ['#2c2148', '#f2aac6'], night: 0, dusk: 1, sun: '#ffd8e0', tree: 'round', treeCol: '#f5b8d0', weather: 'petals', clouds: 1 },
-    dock: { sky: ['#04070b', '#232d3a'], night: 1, tree: 'none', city: 1, dock: 1 },
-    gold: { sky: ['#050301', '#3a2a0a'], night: 1, tree: 'pine' },
-    mud: { sky: ['#24221e', '#6a6252'], night: 0, dusk: 1, sun: '#e8dcc8', tree: 'round', treeCol: '#3a3a22', clouds: 1 },
-    fs_wood: { indoor: 1, wood: 1 }, fs_blue: { indoor: 1 }, fs_red: { indoor: 1 }, fs_glass: { indoor: 1, glass: 1 },
-    fs_roof: { sky: ['#030712', '#28344e'], night: 1, city: 1, rooftop: 1 },
+    stadium: { sky: ['#02050a', '#18222f'], night: 1, tree: 'pine', sunDir: [-50, 62], crowd: 1, roof: 'full', flags: 24, tifo: 1, flash: 1, wave: 1 },
+    street: { sky: ['#04060a', '#252a36'], night: 1, tree: 'round', treeCol: '#2a4a2a', city: 1, sunDir: [-30, 62], crowd: 0.8, led: 1, flash: 1 },
+    beach: { sky: ['#2a78cc', '#cfeaf6'], night: 0, sun: '#fff3dc', tree: 'palm', sea: '#1d6fa5', clouds: 1, sunDir: [20, 56], crowd: 0.85, flags: 12, wave: 1 },
+    snow: { sky: ['#0b1424', '#44566e'], night: 1, tree: 'pine', snowy: 1, weather: 'snow', sunDir: [-60, 62], crowd: 0.8, roof: 'full', flags: 16, tifo: 1, flash: 1, wave: 1 },
+    neon: { sky: ['#030209', '#2c1454'], night: 1, tree: 'pine', treeCol: '#241a47', city: 1, sunDir: [-40, 62], crowd: 0.9, roof: 'full', led: 1, flash: 1, wave: 1 },
+    sunset: { sky: ['#272a5c', '#ff9a52'], night: 0, dusk: 1, sun: '#ffb070', tree: 'round', treeCol: '#4a5a24', clouds: 1, sunDir: [160, 24], crowd: 0.7, roof: 'none', flags: 12 },
+    monsoon: { sky: ['#03070c', '#1c2a36'], night: 1, tree: 'round', treeCol: '#1a3a26', weather: 'rain', sunDir: [-50, 62], crowd: 0.6, roof: 'full', flash: 1 },
+    jungle: { sky: ['#3d7aa0', '#d4ead2'], night: 0, sun: '#fff0d0', tree: 'palm', sea: '#2a6a5a', ground: '#173f1f', clouds: 1, sunDir: [35, 58], crowd: 0.5, flags: 8 },
+    moon: { sky: ['#000000', '#0b0d16'], night: 1, tree: 'rock', earth: 1, ground: '#3a3d44', sunDir: [-110, 62], crowd: 0.25, roof: 'none' },
+    desert: { sky: ['#3f7fc6', '#f6d6a0'], night: 0, sun: '#fff0c8', tree: 'palm', dunes: 1, sea: null, ground: '#c98a42', sunDir: [-20, 60], crowd: 0.4, flags: 8 },
+    retro: { sky: ['#000000', '#002a0c'], night: 1, tree: 'pine', treeCol: '#00aa3a', sunDir: [-50, 62], crowd: 0.5, roof: 'full', led: 1, flash: 1 },
+    sakura: { sky: ['#2c2148', '#f2aac6'], night: 0, dusk: 1, sun: '#ffd8e0', tree: 'round', treeCol: '#f5b8d0', weather: 'petals', clouds: 1, sunDir: [-140, 24], crowd: 0.7, roof: 'none', flags: 12, wave: 1 },
+    dock: { sky: ['#04070b', '#232d3a'], night: 1, tree: 'none', city: 1, dock: 1, sunDir: [-70, 62], crowd: 0.5, flash: 1 },
+    gold: { sky: ['#050301', '#3a2a0a'], night: 1, tree: 'pine', sunDir: [-50, 62], crowd: 1, roof: 'full', flags: 24, tifo: 1, flash: 1, wave: 1 },
+    mud: { sky: ['#24221e', '#6a6252'], night: 0, dusk: 1, sun: '#e8dcc8', tree: 'round', treeCol: '#3a3a22', clouds: 1, sunDir: [125, 24], crowd: 0.35, roof: 'none', flags: 6 },
+    fs_wood: { indoor: 1, wood: 1, crowd: 0.7, flags: 8, wave: 1 }, fs_blue: { indoor: 1, crowd: 0.7, led: 1, wave: 1 }, fs_red: { indoor: 1, crowd: 0.9, flags: 12, wave: 1 },
+    fs_glass: { indoor: 1, glass: 1, crowd: 0.6, led: 1 },
+    fs_roof: { sky: ['#030712', '#28344e'], night: 1, city: 1, rooftop: 1, sunDir: [-50, 62], crowd: 0.5, flash: 1 },
   };
+  // Phase 6.3 row fields (all optional): sunDir [azimuth, elevation] degrees (the light sits at that bearing from the pitch, 0 = beyond the far end,
+  // 180 = behind the goal; elevation 22..90: day 55, dusk 24, night 62), crowd 0.25..1 (density of the instanced fans and of the seat painting),
+  // roof 'full' | 'none' (cantilever roof on the big stands), flags n <= 24 (waving flags), tifo (banner hung under the roof, kit colours),
+  // flash (camera flashes on a goal, night maps), led (scrolling ad boards), wave (the sections of the crowd sway out of step).
   const DEF_THEME = { bg: '#0c1016', around: 'crowd', crowd: ['#3a4658', '#566377', '#7a2f3a'], wall: '#131a22', base: '#2c7a3d',
     bands: ['#2a7a3c', '#2f8443'], line: 'rgba(255,255,255,.86)', mark: 'rgba(255,230,120,.9)', net: 'rgba(10,30,18,.55)', post: '#f4f6f8', vig: 0.28,
     ads: [['ISO FOOTBALL', '#0f1a14', '#35e08a'], ['DATATEKKERS', '#132033', '#7fc4ff']] };
@@ -85,7 +90,7 @@
   // Pitch plane: 70 m wide, x in [-35, 35], z in [-18, 42 + back]; `back` is the extra playable depth behind the old far edge.
   // Canvas top row = z = -18 (texture flipY).
   const PX0 = -35, PZ0 = -18, PW = 70, PH0 = 60;
-  function paintPitch(th, fl, D, size, futsal) {
+  function paintPitch(th, fl, D, size, futsal, turf) {
     const BK = D.back || 0, PH = PH0 + BK, DEPA = D.depth + BK;
     const cv = canvas(size, size), c = cv.getContext('2d'), R = rng(7);
     const sx = size / PW, sz = size / PH;
@@ -104,15 +109,26 @@
     } else if (!futsal) {  // cross-cut: faint lengthways stripes every 5 m
       for (let x = -HX - 25; x < 40; x += 10) { c.fillStyle = 'rgba(255,255,255,.028)'; c.fillRect(x, PZ0, 5, PH); }
     }
+    // pitch type (3D only: the 2D view keeps its text label): lush = darker with stronger stripes, firm = paler and worn, astro = flat with crumb
+    if (!futsal && turf === 'lush') {
+      c.fillStyle = 'rgba(0,28,6,.16)'; c.fillRect(PX0, PZ0, PW, PH);
+      for (let z = Math.floor(PZ0 / 2.5) * 2.5; z < PZ0 + PH; z += 5) { c.fillStyle = 'rgba(0,40,8,.13)'; c.fillRect(PX0, z, PW, 2.52); c.fillStyle = 'rgba(200,255,170,.045)'; c.fillRect(PX0, z + 2.5, PW, 2.52); }
+    } else if (!futsal && turf === 'firm') {
+      c.fillStyle = 'rgba(214,196,120,.2)'; c.fillRect(PX0, PZ0, PW, PH);
+    } else if (!futsal && turf === 'astro') {
+      c.fillStyle = css(mixc(th.bands[0], th.bands[1], 0.5), 0.72); c.fillRect(PX0, PZ0, PW, PH);
+      for (let i = 0, n = (size * size) / 90; i < n; i++) { c.fillStyle = R() < 0.5 ? 'rgba(0,0,0,.16)' : 'rgba(255,255,255,.07)'; c.fillRect(PX0 + R() * PW, PZ0 + R() * PH, 0.06, 0.06); }
+    }
     // grain
     for (let i = 0, n = (size * size) / 140; i < n; i++) {
       c.fillStyle = R() < 0.5 ? 'rgba(255,255,255,.035)' : 'rgba(0,0,0,.05)';
       c.fillRect(PX0 + R() * PW, PZ0 + R() * PH, 0.05, fl.wood ? 0.05 : 0.17);
     }
     // goalmouth + spot wear on grass
-    const grass = !futsal && th.around !== 'beach' && !fl.snowy && parse(th.base).g > parse(th.base).r;
+    const grass = !futsal && th.around !== 'beach' && !fl.snowy && parse(th.base).g > parse(th.base).r && turf !== 'astro';
     if (grass) {
-      const wear = (x, z, r, a) => { const g = c.createRadialGradient(x, z, 0, x, z, r); g.addColorStop(0, 'rgba(140,115,70,' + a + ')'); g.addColorStop(1, 'rgba(140,115,70,0)'); c.fillStyle = g; c.fillRect(x - r, z - r, 2 * r, 2 * r); };
+      const wk = turf === 'firm' ? 1.7 : turf === 'lush' ? 0.4 : 1;      // firm: a worn goal mouth, lush: hardly any wear
+      const wear = (x, z, r, a) => { a *= wk; r *= turf === 'firm' ? 1.25 : 1; const g = c.createRadialGradient(x, z, 0, x, z, r); g.addColorStop(0, 'rgba(140,115,70,' + a + ')'); g.addColorStop(1, 'rgba(140,115,70,0)'); c.fillStyle = g; c.fillRect(x - r, z - r, 2 * r, 2 * r); };
       wear(0, 1.1, 3.4, 0.32); wear(0, D.penD, 1.0, 0.22); wear(0, 5.5, 5, 0.1);
     }
     if (fl.snowy) {        // drifts
@@ -164,6 +180,7 @@
   // seated crowd: 4 rows of 128 px, each row = one tier. Bottom 40% of a row maps onto the riser (torsos + heads of the row
   // in front), the top 60% onto the tread (laps, seats). 1024 px = 16 m of seating.
   function paintCrowd(th, fl) {
+    const dens = fl.crowd == null ? 1 : clamp(fl.crowd, 0.25, 1);
     const cv = canvas(1024, 512), c = cv.getContext('2d'), R = rng(11), cols = th.crowd;
     const seat = mixc(th.wall, th.bg, 0.4), skins = ['#f1c9a5', '#d9a07a', '#a8714a', '#6e4a32', '#e8b896'];
     c.fillStyle = css(seat, 1); c.fillRect(0, 0, 1024, 512);
@@ -177,7 +194,7 @@
       if (R() < 0.8) { const bx = R() * 900, bw = 90 + R() * 120, a = cols[(R() * cols.length) | 0], b = cols[(R() * cols.length) | 0];
         c.fillStyle = a; c.fillRect(bx, rs + 4, bw, 44); c.fillStyle = b; c.fillRect(bx, rs + 18, bw, 12); }
       for (let x = R() * 12; x < 1024 + 30; x += 29 + R() * 9) {
-        if (R() < 0.1) continue;
+        if (R() < 0.1 + (1 - dens) * 0.6) continue;     // empty seats: a thin crowd leaves more of them
         const col = cols[(R() * cols.length) | 0];
         c.fillStyle = css(scl(col, 0.55), 1); c.fillRect(x - 11, top + 30 + R() * 10, 22, rs - top - 34);       // lap / legs
         c.fillStyle = col; c.beginPath(); c.moveTo(x - 13, bot); c.lineTo(x - 12, rs + 14); c.quadraticCurveTo(x, rs + 6, x + 12, rs + 14); c.lineTo(x + 13, bot); c.fill();
@@ -214,8 +231,8 @@
     return cv;
   }
   // LED ad strip atlas: one 1024 x 128 row per ad, plus a dark last row for the board backs/tops
-  function paintAds(th) {
-    const ads = th.ads.slice(0, 7), rows = ads.length + 1, cv = canvas(1024, 128 * rows), c = cv.getContext('2d');
+  function paintAds(th, tifo) {
+    const ads = th.ads.slice(0, 7), rows = ads.length + 1 + (tifo ? 1 : 0), cv = canvas(1024, 128 * rows), c = cv.getContext('2d');
     ads.forEach((a, i) => {
       const y = i * 128;
       c.fillStyle = a[1]; c.fillRect(0, y, 1024, 128);
@@ -225,8 +242,14 @@
       c.fillStyle = 'rgba(0,0,0,.12)'; for (let s = 0; s < 128; s += 4) c.fillRect(0, y + s, 1024, 1);   // LED scanlines
       c.fillStyle = 'rgba(0,0,0,.55)'; c.fillRect(0, y, 1024, 5); c.fillRect(0, y + 123, 1024, 5);
     });
-    c.fillStyle = css(scl(th.wall, 0.8), 1); c.fillRect(0, (rows - 1) * 128, 1024, 128);
-    return { cv, rows };
+    const dy = ads.length * 128;
+    c.fillStyle = css(scl(th.wall, 0.8), 1); c.fillRect(0, dy, 1024, 128);
+    if (tifo) {          // the supporters' banner: diagonal bands in the home colours, one extra 1024 x 128 row under the dark one
+      const y = dy + 128; c.fillStyle = tifo[0]; c.fillRect(0, y, 1024, 128); c.fillStyle = tifo[1];
+      for (let x = -128; x < 1088; x += 128) { c.beginPath(); c.moveTo(x, y + 128); c.lineTo(x + 64, y + 128); c.lineTo(x + 128, y); c.lineTo(x + 64, y); c.fill(); }
+      c.fillStyle = 'rgba(0,0,0,.35)'; c.fillRect(0, y, 1024, 8); c.fillRect(0, y + 120, 1024, 8);
+    }
+    return { cv, rows, tifo: !!tifo };
   }
   function paintNet() {
     const cv = canvas(128, 128), c = cv.getContext('2d');
@@ -354,6 +377,9 @@
     const indoor = kind === 'hall', night = indoor ? 1 : fl.night;
     const BK = D.back || 0, HX = D.half, DEP = D.depth, DEPA = DEP + BK, W2 = D.goalW / 2, GH = D.goalH, GDp = D.goalD, PR = D.postR || 0.06;
     const R = rng(1234);
+    const roofFull = fl.roof ? fl.roof === 'full' : true;                       // 'none' drops the cantilever roof of the big stands
+    const kc = opts.kitCols && opts.kitCols.length > 1 ? opts.kitCols : [th.crowd[Math.min(3, th.crowd.length - 1)], th.crowd[Math.min(1, th.crowd.length - 1)]];
+    const tifoOn = !!fl.tifo && kind === 'crowd' && roofFull;
 
     const keep = { geo: [], mat: [], tex: [] };
     const G = (g) => (keep.geo.push(g), g), M = (m) => (keep.mat.push(m), m);
@@ -374,7 +400,7 @@
     const lampCol = night ? lin('#fff6e0') : lin('#9aa0a8');
 
     // ---- pitch
-    const pitchTex = tex(paintPitch(th, fl, D, q >= 2 ? 1024 : 2048, futsal), { aniso: 16 });
+    const pitchTex = tex(paintPitch(th, fl, D, q >= 2 ? 1024 : 2048, futsal, opts.turf), { aniso: 16 });
     const PH = PH0 + BK;
     const pg = G(new THREE.PlaneGeometry(PW, PH)); pg.rotateX(-Math.PI / 2); pg.translate(PX0 + PW / 2, 0, PZ0 + PH / 2);
     const pitch = add(new THREE.Mesh(pg, M(new THREE.MeshStandardMaterial({ map: pitchTex, roughness: fl.wood ? 0.55 : fl.glass ? 0.45 : 0.93, metalness: 0 }))), 'pitch');
@@ -398,6 +424,7 @@
     const Bf = new Builder();          // chain-link fence (transparent)
     const Bw = new Builder();          // buildings (window texture)
     const fans = [];                   // instanced spectators: x, y, z, yaw
+    const flagSpots = [];              // flag candidates: x, y, z, yaw
     const glows = [], lamps = [];      // glow sprite points / point light positions
     const colliders = { backZ: DEPA, backH: futsal ? 1.2 : 0.6, boardZ: -3, boardX: HX + 2, boardH: 0.95, standZ: -5, standX: HX + 5, walls: futsal, wallH: 1.2 };
 
@@ -482,9 +509,9 @@
     }
 
     // ---- ad boards (LED, unlit) behind the goal line and along both touchlines
-    const ad = paintAds(th), adTex = tex(ad.cv, { aniso: 8 }), AR = ad.rows, nAds = AR - 1;
+    const ad = paintAds(th, tifoOn ? kc : null), adTex = tex(ad.cv, { aniso: 8, ws: fl.led ? 1 : 0 }), AR = ad.rows, nAds = AR - 1 - (tifoOn ? 1 : 0);
     const adUV = (i) => { const r = i % nAds, px = 0.6 / (128 * AR); return [0, 1 - (r + 1) / AR + px, 1, 1 - r / AR - px]; };
-    const darkUV = [0.1, 0.5 / AR, 0.9, 0.5 / AR];
+    const darkUV = [0.1, 1 - (nAds + 0.5) / AR, 0.9, 1 - (nAds + 0.5) / AR], tifoUV = [0, 1 - (nAds + 2) / AR + 0.6 / (128 * AR), 1, 1 - (nAds + 1) / AR - 0.6 / (128 * AR)];
     let adi = 0;
     const boardRun = (P, L, seg, h, t, B) => { const n = Math.max(1, Math.round(L / seg)), sl = L / n; for (let i = 0; i < n; i++) lbox(B || Bb, P, i * sl + 0.03, (i + 1) * sl - 0.03, 0, t, 0, h, WHITE, adUV(adi++), darkUV); };
     if (!futsal) {
@@ -532,6 +559,13 @@
           strut(Bs, fr, mt, 0.07, cSteel); strut(Bs, bk, mt, 0.09, cSteel);
         }
       }
+      if (cfg.roof && cfg.tifo) {          // the supporters' banner hangs under the front edge of the roof (the end stand only)
+        const w = Math.min(26, L - 8), a0 = (L - w) / 2;
+        Bb.quad(P(a0, -2.25, cfg.roofH - 3.2), P(a0 + w, -2.25, cfg.roofH - 3.2), P(a0 + w, -2.25, cfg.roofH - 0.05), P(a0, -2.25, cfg.roofH - 0.05), tifoUV, WHITE);
+      }
+      if (fl.flags && !(q >= 2)) for (let al = 4; al < L - 3; al += 5) {      // candidate flag spots on the upper rows
+        const k = T - 2 - ((al / 5) | 0) % 3, o = k * dep + 0.5, h = fh + (k + 1) * rise, p = P(al + R() * 2, o, h); flagSpots.push(p[0], p[1], p[2], P.yaw);
+      }
       if (cfg.fans) for (let k = 0; k < cfg.fans; k++) {
         const h = fh + (k + 1) * rise, o = k * dep + 0.32;
         for (let al = 0.5 + R() * 0.3; al < L - 0.4; al += 0.6 + R() * 0.12) { if (R() < 0.12) continue; const p = P(al, o, h); fans.push(p[0], p[1], p[2], P.yaw); }
@@ -560,8 +594,8 @@
     // ---------------------------------------------------------------- surround by kind
     let fanCap = 0;
     if (kind === 'crowd') {
-      const cfg = { T: 10, dep: 0.85, rise: 0.55, fh: 1.3, roof: true, roofH: 9.8, fans: 3 };
-      stand(FR(-31, -5, 1, 0), 62, cfg);
+      const cfg = { T: 10, dep: 0.85, rise: 0.55, fh: 1.3, roof: roofFull, roofH: 9.8, fans: 3 };
+      stand(FR(-31, -5, 1, 0), 62, Object.assign({ tifo: tifoOn }, cfg));
       stand(FR(-HX - 5, 26 + BK, 0, -1), 30.6 + BK, cfg);
       stand(FR(HX + 5, -4.6, 0, 1), 30.6 + BK, cfg);
       for (const [x, z] of [[-34, -15], [34, -15], [-34, 33 + BK], [34, 33 + BK]]) tower(x, z, 30, true);
@@ -707,7 +741,7 @@
     }
 
     // ---- instanced fans (bounce on cheer() in the vertex shader: zero CPU per frame)
-    const fanN0 = fans.length / 4, keepFrac = q === 0 ? 1 : q === 1 ? 0.75 : 0.3;
+    const fanN0 = fans.length / 4, keepFrac = (q === 0 ? 1 : q === 1 ? 0.75 : 0.3) * (fl.crowd == null ? 1 : clamp(fl.crowd, 0.25, 1));
     const fanN = Math.floor(fanN0 * keepFrac);
     const animFans = q < 2;
     if (fanN > 0) {
@@ -717,21 +751,59 @@
       fmat.onBeforeCompile = (sh) => {
         sh.uniforms.uT = U.uT; sh.uniforms.uJump = U.uJump;
         sh.vertexShader = sh.vertexShader
-          .replace('#include <common>', '#include <common>\nattribute vec2 aCr;\nuniform float uT;\nuniform float uJump;')
+          .replace('#include <common>', '#include <common>\nattribute vec2 aCr;\nattribute float aSec;\nuniform float uT;\nuniform float uJump;')
           .replace('#include <uv_vertex>', '#include <uv_vertex>\n#ifdef USE_MAP\nvMapUv.x = (vMapUv.x + aCr.y) * 0.125;\n#endif')
-          .replace('#include <begin_vertex>', '#include <begin_vertex>\nfloat fph = aCr.x * 6.2831853;\ntransformed.y += uJump * 0.42 * max(0.0, sin(uT * 7.5 + fph)) + 0.02 * sin(uT * 1.9 + fph * 7.0);\ntransformed.x += uJump * 0.05 * sin(uT * 5.0 + fph);');
+          .replace('#include <begin_vertex>', '#include <begin_vertex>\nfloat fph = aCr.x * 6.2831853;\ntransformed.y += uJump * 0.42 * max(0.0, sin(uT * 7.5 + fph)) + 0.02 * sin(uT * 1.9 + fph * 7.0);' + (fl.wave ? '\ntransformed.x += 0.035 * sin(uT * (0.9 + aSec * 0.37) + aSec * 2.1 + fph);\ntransformed.y += 0.03 * max(0.0, sin(uT * (1.1 + aSec * 0.21) - aSec * 1.7));' : '') + '\ntransformed.x += uJump * 0.05 * sin(uT * 5.0 + fph);');
       };
-      fmat.customProgramCacheKey = () => 'r3d-fans';
-      const im = new THREE.InstancedMesh(fg, fmat, fanN), cr = new Float32Array(fanN * 2), e = new THREE.Euler(), sc = new THREE.Vector3();
+      fmat.customProgramCacheKey = () => 'r3d-fans' + (fl.wave ? 'w' : '');
+      const im = new THREE.InstancedMesh(fg, fmat, fanN), cr = new Float32Array(fanN * 2), secA = new Float32Array(fanN), e = new THREE.Euler(), sc = new THREE.Vector3();
       const step = fanN0 / fanN;
       for (let i = 0; i < fanN; i++) {
         const j = Math.floor(i * step) * 4, s = 0.9 + R() * 0.2;
         e.set(0, fans[j + 3], 0); _q.setFromEuler(e); _m.compose(_p.set(fans[j], fans[j + 1], fans[j + 2]), _q, sc.set(s, s, s)); im.setMatrixAt(i, _m);
         cr[i * 2] = R(); cr[i * 2 + 1] = Math.floor(R() * 8);
+        secA[i] = Math.floor((fans[j] + 40) / 14) + (fans[j + 2] > 2 ? 6 : 0);          // the stand section: every one sways at its own pace
       }
-      fg.setAttribute('aCr', new THREE.InstancedBufferAttribute(cr, 2));
+      fg.setAttribute('aCr', new THREE.InstancedBufferAttribute(cr, 2)); fg.setAttribute('aSec', new THREE.InstancedBufferAttribute(secA, 1));
       im.instanceMatrix.needsUpdate = true; im.frustumCulled = false;
       fanCap = fanN; add(im, 'fans');
+    }
+
+    // ---- flags (one instanced mesh, +1 draw call, quality 0 and 1): a pole and a waving cloth in the home colours, only on the stands
+    const flagN = fl.flags && !(q >= 2) ? Math.min(24, fl.flags, flagSpots.length / 4) >> (q ? 1 : 0) : 0;
+    if (flagN > 0) {
+      const Bfl = new Builder(), nx = 4, FW = 0.9, FHt = 0.55, ph = 1.35;
+      Bfl.quad([-0.02, 0, 0], [0.02, 0, 0], [0.02, ph + FHt, 0], [-0.02, ph + FHt, 0], null, [0.62, 0.62, 0.66]);              // pole
+      for (let i = 0; i < nx; i++) Bfl.quad([0.02 + i * FW / nx, ph, 0], [0.02 + (i + 1) * FW / nx, ph, 0], [0.02 + (i + 1) * FW / nx, ph + FHt, 0], [0.02 + i * FW / nx, ph + FHt, 0], null, WHITE);   // cloth
+      const flg = G(Bfl.build(THREE)), fm = M(new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide }));
+      fm.onBeforeCompile = (sh) => {
+        sh.uniforms.uT = U.uT;
+        sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute float aFl;\nuniform float uT;')
+          .replace('#include <begin_vertex>', '#include <begin_vertex>\nfloat fw = max(0.0, position.x - 0.03);\ntransformed.z += fw * 0.35 * sin(uT * 6.0 + position.x * 7.0 + aFl * 6.2831);\ntransformed.y += fw * 0.08 * sin(uT * 4.3 + position.x * 5.0 + aFl * 9.0);');
+      };
+      fm.customProgramCacheKey = () => 'r3d-flags';
+      const fim = new THREE.InstancedMesh(flg, fm, flagN), fph = new Float32Array(flagN), ca = color(kc[0]), cb = color(kc[1]), e = new THREE.Euler(), sc = new THREE.Vector3(), stp = flagSpots.length / 4 / flagN;
+      for (let i = 0; i < flagN; i++) {
+        const j = Math.floor(i * stp) * 4, s = 0.9 + R() * 0.3; e.set(0, flagSpots[j + 3], 0); _q.setFromEuler(e);
+        _m.compose(_p.set(flagSpots[j], flagSpots[j + 1], flagSpots[j + 2]), _q, sc.set(s, s, s)); fim.setMatrixAt(i, _m);
+        fim.setColorAt(i, i % 2 ? cb : ca); fph[i] = R();
+      }
+      flg.setAttribute('aFl', new THREE.InstancedBufferAttribute(fph, 1));
+      fim.instanceMatrix.needsUpdate = true; if (fim.instanceColor) fim.instanceColor.needsUpdate = true; fim.frustumCulled = false; add(fim, 'flags');
+    }
+    // ---- camera flashes on a goal (night maps, quality 0 and 1): up to 160 sparkling points in the stands, driven by the cheer uniform
+    if (fl.flash && night && !(q >= 2) && !opts.noFlash && fanN0 > 0) {      // Phase 9.1: Settings › reduce flashes skips the goal camera flashes
+      const nF = Math.min(160, Math.floor(fanN0)), fp = new Float32Array(nF * 3), stp = fanN0 / nF;
+      for (let i = 0; i < nF; i++) { const j = Math.floor(i * stp) * 4; fp[i * 3] = fans[j]; fp[i * 3 + 1] = fans[j + 1] + 1.15; fp[i * 3 + 2] = fans[j + 2]; }
+      const fg2 = G(new THREE.BufferGeometry()); fg2.setAttribute('position', new THREE.BufferAttribute(fp, 3));
+      const flm = M(new THREE.PointsMaterial({ map: tex(paintGlow()), color: color('#ffffff'), size: 0.9, sizeAttenuation: true, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false }));
+      flm.onBeforeCompile = (sh) => {
+        sh.uniforms.uT = U.uT; sh.uniforms.uJump = U.uJump;
+        sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nuniform float uT;\nuniform float uJump;')
+          .replace('gl_PointSize = size;', 'gl_PointSize = size * step(0.99, uJump) * step(0.82, fract(uT * 3.1 + position.x * 7.3 + position.z * 3.7));');
+      };
+      flm.customProgramCacheKey = () => 'r3d-flash';
+      const fpts = add(new THREE.Points(fg2, flm), 'flashes'); fpts.frustumCulled = false; fpts.renderOrder = 4;
     }
 
     // ---- trees (24 instanced: pine / round / palm / rock) behind the open far end
@@ -879,10 +951,26 @@
     const sunCol = indoor ? '#fffaf0' : fl.sun || (night ? '#eef3ff' : '#fff4e0');
     const hemiSky = indoor ? '#e8eef8' : night ? mixc(skyHor, '#b8c8e0', 0.6) : mixc(skyTop, '#ffffff', 0.45);
     const hemi = add(new THREE.HemisphereLight(color(hemiSky), color(css(scl(th.base, 0.6), 1)), indoor ? 1.3 : night ? 1.0 : 1.15), 'hemi');
-    const sun = new THREE.DirectionalLight(color(sunCol), indoor ? 1.9 : night ? 2.4 : fl.dusk ? 2.5 : 2.8);
-    sun.name = 'sun'; sun.position.set(-14, 26, 20); sun.target.position.set(0, 0, 8.5); group.add(sun); group.add(sun.target);
+    // the sun's bearing and height per map (FLAV.sunDir; the old fixed light was az -50.6, el 55): a low dusk sun throws long shadows. The
+    // shadow frustum is fitted to the playable area in light space for any direction (minimum elevation 22 degrees), and the intensity
+    // is scaled so the ground keeps about the same light (sun * sin el), within 0.9..1.5.
+    const sd = fl.sunDir || [-50.6, night ? 62 : fl.dusk ? 24 : 55], sAz = sd[0] * Math.PI / 180, sEl = clamp(sd[1], 22, 90) * Math.PI / 180;
+    const sunK = indoor ? 1 : clamp(0.819 / Math.sin(sEl), 0.9, 1.5);
+    const sun = new THREE.DirectionalLight(color(sunCol), (indoor ? 1.9 : night ? 2.4 : fl.dusk ? 2.5 : 2.8) * sunK);
+    const SUN_TZ = 8.5, SUN_D = 40, sdx = Math.cos(sEl) * Math.sin(sAz), sdy = Math.sin(sEl), sdz = Math.cos(sEl) * Math.cos(sAz);
+    sun.name = 'sun'; sun.position.set(sdx * SUN_D, sdy * SUN_D, SUN_TZ + sdz * SUN_D); sun.target.position.set(0, 0, SUN_TZ); group.add(sun); group.add(sun.target);
     sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048); sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.02;
-    { const sc = sun.shadow.camera; sc.left = -26; sc.right = 26; sc.top = 18; sc.bottom = -18; sc.near = 1; sc.far = 90; sc.updateProjectionMatrix(); }
+    {   // fit: project the corners of the playable box (x +-(HX+1), z -2..DEPA+1, height 0..3) on the light's right and up axes and its depth
+      const sc = sun.shadow.camera, zx = sdx, zy = sdy, zz = sdz;
+      let rx = zz, rz = -zx; const rl = Math.hypot(rx, rz) || 1; rx /= rl; rz /= rl;          // right = up x z (up = +y)
+      const ux = zy * rz, uy = zz * rx - zx * rz, uz = -zy * rx;                              // up = z x right
+      let l = 1e9, r = -1e9, b = 1e9, t = -1e9, nr = 1e9, fr = -1e9;
+      for (const cx of [-HX - 1, HX + 1]) for (const cz of [-2, DEPA + 1]) for (const cy of [0, 3]) {
+        const px = cx, py = cy, pz = cz - SUN_TZ, a = px * rx + pz * rz, u = px * ux + py * uy + pz * uz, d = SUN_D - (px * zx + py * zy + pz * zz);
+        if (a < l) l = a; if (a > r) r = a; if (u < b) b = u; if (u > t) t = u; if (d < nr) nr = d; if (d > fr) fr = d;
+      }
+      sc.left = l - 1; sc.right = r + 1; sc.bottom = b - 1; sc.top = t + 1; sc.near = Math.max(0.5, nr - 14); sc.far = fr + 6; sc.updateProjectionMatrix();
+    }
     if (night && q < 2 && !indoor) for (let i = 0; i < lamps.length; i += 3) {
       const pl = new THREE.PointLight(color('#fff2dc'), kind === 'crowd' ? 60 : 25, kind === 'crowd' ? 110 : 60, 1);
       pl.position.set(lamps[i] * 0.85, lamps[i + 1], lamps[i + 2] * 0.85 + 1.2); add(pl, 'floodPoint');
@@ -901,13 +989,15 @@
       if (cheerJ > 0) cheerJ = cheerJ - dt * 0.3 > 0 ? cheerJ - dt * 0.3 : 0;
       U.uJump.value = animFans ? (cheerJ > 0.7 ? 1 : cheerJ / 0.7) : 0;
       if (net.awake && dt > 0) stepNet(dt);
+      if (fl.led) adTex.offset.x = (U.uT.value * 0.03) % 1;                  // the LED boards scroll
       if (seaTex) { seaTex.offset.x = (U.uT.value * 0.004) % 1; seaTex.offset.y = (U.uT.value * 0.012) % 1; }
       if (lMesh.visible) litMat.opacity = 0.55 + 0.45 * (0.5 + 0.5 * Math.sin(U.uT.value * 7));
     }
     // The chase camera may stand behind the back end (camera3d place()): its pieces are gone by the time the lens is level with the board
     // (before that they are behind the lens, so the fade is never seen) and nothing of it can sit between the lens and the player
-    function setView(camZ) {
-      const u = clamp((camZ - (DEPA - 0.5)) / 0.9, 0, 1), f = 1 - u * u * (3 - 2 * u);
+    function setView(camZ, camY) {
+      // the back end only fades when the lens is low enough to be behind it (a high camera sees over the board)
+      const u = clamp((camZ - (DEPA - 0.5)) / 0.9, 0, 1), hi = camY === undefined ? 0 : clamp((camY - 5) / 3, 0, 1), f = 1 - (u * u * (3 - 2 * u)) * (1 - hi * hi * (3 - 2 * hi));
       for (const b of backFade) {
         const tr = b.tr || f < 0.999;
         b.m.visible = f > 0.01; b.mat.opacity = b.op * f;
@@ -928,5 +1018,5 @@
     return { group, update, setView, netHit, setTargets, sun, hemi, cheer, fog, background, applyTo, dispose, colliders, kind, night: !!night, id, fans: fanCap };
   }
 
-  R3D.Stadium = { build, flavours: FLAV, parseColor: parse };
+  R3D.Stadium = { build, flavours: FLAV, FLAV, parseColor: parse };
 })();

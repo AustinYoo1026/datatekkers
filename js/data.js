@@ -2,6 +2,7 @@
 (function () {
   'use strict';
   const ISO = (globalThis.ISO = globalThis.ISO || {});
+  ISO.VERSION = '2.81';      // the release shown on the menu; README.md and index.html must say the same (CI checks)
 
   // Attribute order used by the compact roster table below.
   const KEYS = ['pac', 'acc', 'dri', 'agi', 'bal', 'bct', 'fin', 'sho', 'lng', 'cur', 'wf', 'skl', 'str', 'tck', 'sta'];
@@ -15,10 +16,12 @@
   // Skill-move star rating (1-5) derived from the Skill Moves attribute.
   ISO.stars = (skl) => (skl >= 90 ? 5 : skl >= 80 ? 4 : skl >= 68 ? 3 : skl >= 55 ? 2 : 1);
 
-  function P(id, name, short, nat, flag, club, era, ovr, foot, num, attrs, look, kit) {
+  function P(id, name, short, nat, flag, club, era, ovr, foot, num, attrs, look, kit, role) {
     const attr = {};
     KEYS.forEach((k, i) => (attr[k] = attrs[i]));
-    return { id, name, short, nat, flag, club, era, ovr, foot, num, attr, look, kit };
+    const d = { id, name, short, nat, flag, club, era, ovr, foot, num, attr, look, kit };
+    if (role) d.role = role;      // generated players carry their archetype; the 20 hand-authored stars are in ROLE_FIX below
+    return d;
   }
   const kit = (a, b, pat, shorts, socks) => ({ a, b, pat, shorts, socks });
 
@@ -118,6 +121,7 @@
     box2box:   [ -2, -2,  0, -4,  0,  1, -4,  0,  0, -3,  -6, -8,  3,   0,  8],
     defender:  [ -3, -3, -8, -6,  0, -4,-18, -6,-10,-10,  -8,-18,  6,   4,  4],
   };
+  ISO.PROF = PROF;
   function gen(id, ovr, prof) {
     let h = 7; for (const ch of id) h = (h * 31 + ch.charCodeAt(0)) | 0;
     const rnd = () => { h = (Math.imul(h, 1103515245) + 12345) | 0; return ((h >>> 16) & 0x7fff) / 0x7fff; };
@@ -178,7 +182,7 @@
   const look = (skin, hair, hairColor, x) => Object.assign({ skin, hair, hairColor, h: 1, w: 1 }, x || {});
   const SK = { pale: '#f6d7bd', fair: '#f1c9a5', light: '#e8bd95', tan: '#c98f62', brown: '#9a6a44', dark: '#6b4226', deep: '#4e2f1c' };
   const X = (id, name, short, nat, flag, club, era, ovr, foot, num, prof, lk) =>
-    P(id, name, short, nat, flag, club, era, ovr, foot, num, gen(id, ovr, prof), lk, CLUB[club] || kit('#f4f4f4', '#17171b', 'solid', '#17171b', '#f4f4f4'));
+    P(id, name, short, nat, flag, club, era, ovr, foot, num, gen(id, ovr, prof), lk, CLUB[club] || kit('#f4f4f4', '#17171b', 'solid', '#17171b', '#f4f4f4'), prof);
   ISO.PLAYERS.push(
     // common
     X('cheadams', 'Che Adams', 'C. ADAMS', 'SCO', '🏴󠁧󠁢󠁳󠁣󠁴󠁿', 'Torino', 'modern', 70, 'R', 18, 'striker', look(SK.brown, 'fade', '#17100c', { beard: 'stubble', beardColor: '#17100c' })),
@@ -311,6 +315,146 @@
 
   ISO.PLAYERS.find((p) => p.id === 'son').attr.wf = 95;      // two-footed
 
+  // ---- player individuality (Phase 2: traits, playstyles, movement profiles, weak foot) ---------------------------------
+  // Everything is derived from the catalogue def through ISO.styleOf(def) and cached per def object. Nothing is stored on
+  // players or in the game state, so nothing is serialised: client and server (same build) resolve identical tables.
+  // ISO.MODS lists every knob the sim reads: key: [neutral value, 'mul' | 'add', lo, hi]. 'mul' mods multiply the neutral value
+  // (role, body and trait factors stack), 'add' mods add to it; the result is clamped to [lo, hi]. The neutral table is the
+  // default column: the sim is bit-identical to the pre-Phase-2 build when every knob is at its default (ISO.STYLE_OFF = true).
+  const qa = (v) => Math.max(0, Math.min(1, (v - 40) / 59));
+  ISO.MODS = {
+    // movement (role + body)
+    top: [1, 'mul', 0.97, 1.03], accLo: [1, 'mul', 0.88, 1.12], accHi: [1, 'mul', 0.88, 1.12], cut: [1, 'mul', 0.88, 1.15],
+    turn: [1, 'mul', 0.9, 1.15], turnBall: [1, 'mul', 0.9, 1.15], stop: [1, 'mul', 0.8, 1.2], lat: [1, 'mul', 1, 1.04],
+    fwd: [1, 'mul', 1, 1.12], stride: [1, 'mul', 0.9, 1.12], dribLead: [1, 'mul', 0.8, 1.1], dribPull: [1, 'mul', 0.9, 1.15],
+    // traits
+    firstStep: [1, 'mul', 1, 1.15], burst: [1, 'mul', 1, 1.15],                                  // Quick Step
+    wobble: [1, 'mul', 0.6, 1], heavy: [1, 'mul', 0.7, 1],                                       // Technical, Press Resistant
+    finErr: [1, 'mul', 0.7, 1], finSpin: [1, 'mul', 1, 1.25],                                    // Finesse Specialist
+    headV: [1, 'mul', 1, 1.12], headErr: [1, 'mul', 0.75, 1], headReach: [0, 'add', 0, 6],       // Power Header
+    volErr: [1, 'mul', 0.75, 1], volZ: [0, 'add', 0, 6], diveRec: [1, 'mul', 0.8, 1],            // Acrobatic
+    longErr: [1, 'mul', 0.8, 1], longV: [1, 'mul', 1, 1.08],                                     // Long Shot Taker
+    pressErr: [1, 'mul', 0.6, 1], jostleV: [0.85, 'add', 0.85, 0.95],                            // Press Resistant
+    stamDrain: [1, 'mul', 0.8, 1], stamRegen: [1, 'mul', 1, 1.2], tired: [0.86, 'add', 0.86, 0.92],   // Relentless
+    recT: [1, 'mul', 0.8, 1], stumT: [1, 'mul', 0.8, 1], blockP: [0, 'add', 0, 0.08],            // Quick Reflexes (outfield)
+    skCost: [1, 'mul', 0.8, 1], botch: [1, 'mul', 0.7, 1], readRate: [1, 'mul', 1, 1.2], fakeSell: [1, 'mul', 1, 1.5],   // Trickster
+  };
+  // Six playstyles, reusing the PROF archetype keys used to generate the roster. Values are factors / deltas on ISO.MODS.
+  ISO.ROLES = {
+    winger:    { name: 'Winger',    mods: { top: 1.012, lat: 1.03, accLo: 1.04, cut: 1.06, turn: 1.04, dribLead: 0.95 } },
+    striker:   { name: 'Poacher',   mods: { fwd: 1.06, accLo: 1.03, accHi: 1.02 } },
+    playmaker: { name: 'Playmaker', mods: { turnBall: 1.08, dribLead: 0.9, dribPull: 1.08, cut: 1.03 } },
+    target:    { name: 'Target Man', mods: { top: 0.988, accLo: 0.94, accHi: 1.04, cut: 0.94, turn: 0.94, stop: 0.92 } },
+    box2box:   { name: 'Engine',    mods: { accHi: 1.03, stop: 1.03, turn: 1.02 } },
+    defender:  { name: 'Stopper',   mods: { stop: 1.1, turn: 1.02, accLo: 1.02, top: 0.995 } },
+  };
+  // Ten traits. score(a, def) is a 0-100 style rating from the attributes; bias moves the trait's rank and qualification so that
+  // each trait ends up on roughly 8-35% of the roster (tools/check.js asserts it). mods are the same shape as ROLES.
+  ISO.TRAITS = {
+    quickstep: { id: 'quickstep', name: 'Quick Step', tag: 'QUICK STEP', desc: 'Explosive first yards and a sharper burst out of a stop.',
+      score: (a) => a.acc * 0.6 + a.agi * 0.4, bias: 0, mods: { firstStep: 1.12, burst: 1.1 } },
+    technical: { id: 'technical', name: 'Technical', tag: 'TECHNICAL', desc: 'Close touches: the ball stays tight and a first touch rarely runs away.',
+      score: (a) => (a.dri + a.bct) / 2, bias: 1.5, mods: { dribLead: 0.9, wobble: 0.75, heavy: 0.8 } },
+    finesse: { id: 'finesse', name: 'Finesse Specialist', tag: 'FINESSE', desc: 'Placed, curling finesse shots: tighter spread and more bend.',
+      score: (a) => a.cur * 0.6 + a.fin * 0.4, bias: 0, mods: { finErr: 0.85, finSpin: 1.12 } },
+    header: { id: 'header', name: 'Power Header', tag: 'HEADER', desc: 'Wins the high ball: harder, truer headers from a little further.',
+      score: (a) => a.str * 0.55 + a.fin * 0.25 + a.sho * 0.2, bias: 5, mods: { headV: 1.08, headErr: 0.85, headReach: 3 } },
+    acrobat: { id: 'acrobat', name: 'Acrobatic', tag: 'ACROBAT', desc: 'Volleys from higher, more accurately, and bounces up from a diving header.',
+      score: (a) => a.skl * 0.5 + a.agi * 0.3 + a.bal * 0.2, bias: 0, mods: { volErr: 0.85, volZ: 3, diveRec: 0.85 } },
+    longshot: { id: 'longshot', name: 'Long Shot Taker', tag: 'LONG SHOT', desc: 'Shoots from distance: less spread and more pace the further out.',
+      score: (a) => a.lng * 0.6 + a.sho * 0.4, bias: 1.25, mods: { longErr: 0.88, longV: 1.04 } },
+    press: { id: 'press', name: 'Press Resistant', tag: 'PRESS PROOF', desc: 'Stays composed under pressure: less thrown off by a close defender or a jostle.',
+      score: (a) => a.bal * 0.55 + a.str * 0.45, bias: 1.25, mods: { pressErr: 0.75, jostleV: 0.06, wobble: 0.85 } },
+    relentless: { id: 'relentless', name: 'Relentless', tag: 'RELENTLESS', desc: 'Runs all match: slower stamina drain, faster recovery.',
+      score: (a) => a.sta, bias: 2.25, mods: { stamDrain: 0.85, stamRegen: 1.15, tired: 0.04 } },
+    reflex: { id: 'reflex', name: 'Quick Reflexes', tag: 'REFLEXES', desc: 'Back on his feet sooner after a tackle or a stumble, and better at blocking shots.',
+      score: (a) => a.tck * 0.4 + a.agi * 0.3 + a.acc * 0.3, bias: -2, mods: { recT: 0.85, stumT: 0.85, blockP: 0.06 } },
+    trickster: { id: 'trickster', name: 'Trickster', tag: 'TRICKSTER', desc: 'Skill moves cost less and rarely go wrong, and fakes fool more defenders.',
+      score: (a) => a.skl, bias: 0, mods: { skCost: 0.8, botch: 0.75, readRate: 1.15, fakeSell: 1.25 } },
+  };
+  ISO.TRAIT_ORDER = Object.keys(ISO.TRAITS);
+  // Hand-authored stars: roles and traits chosen by hand (the rest are derived from the attributes).
+  const ROLE_FIX = { messi: 'playmaker', ronaldo: 'striker', mbappe: 'winger', haaland: 'target', neymar: 'winger', yamal: 'winger', vinicius: 'winger',
+    salah: 'winger', bellingham: 'box2box', debruyne: 'playmaker', dembele: 'winger', kane: 'striker', pele: 'striker', maradona: 'playmaker',
+    ronaldinho: 'playmaker', r9: 'striker', henry: 'striker', zidane: 'playmaker', cruyff: 'playmaker', beckham: 'playmaker' };
+  const TRAIT_FIX = { messi: ['technical', 'finesse', 'quickstep'], ronaldo: ['header', 'longshot', 'relentless'], mbappe: ['quickstep', 'relentless'],
+    haaland: ['header', 'press'], neymar: ['trickster', 'technical', 'quickstep'], yamal: ['technical', 'trickster'], vinicius: ['quickstep', 'trickster', 'technical'],
+    salah: ['quickstep', 'finesse', 'relentless'], bellingham: ['relentless', 'press', 'header'], debruyne: ['longshot', 'finesse'], dembele: ['quickstep', 'trickster'],
+    kane: ['longshot', 'header', 'finesse'], pele: ['acrobat', 'technical', 'finesse'], maradona: ['technical', 'press', 'trickster'],
+    ronaldinho: ['trickster', 'finesse', 'technical'], r9: ['quickstep', 'press', 'finesse'], henry: ['quickstep', 'finesse'],
+    zidane: ['technical', 'press', 'finesse'], cruyff: ['technical', 'quickstep', 'trickster'], beckham: ['finesse', 'longshot', 'relentless'] };
+  // Weak-foot stars from the Weak Foot attribute (thresholds chosen for the roster's spread).
+  ISO.wfStars = (wf) => (wf >= 92 ? 5 : wf >= 84 ? 4 : wf >= 74 ? 3 : wf >= 62 ? 2 : 1);
+  ISO.STYLE_OFF = false;      // kill switch: true makes styleOf return the neutral table (tests and tools/sim.js STYLE=off)
+  const baseOf = (d) => d.base || d;
+  // The role: an explicit def.role, else the hand-authored fix, else the PROF archetype whose attribute offsets are nearest.
+  ISO.roleOf = (def) => {
+    const b = baseOf(def);
+    if (b.role && ISO.ROLES[b.role]) return b.role;
+    if (ROLE_FIX[b.id]) return ROLE_FIX[b.id];
+    let best = 'box2box', bd = 1e18;
+    for (const r in PROF) {
+      let s = 0;
+      KEYS.forEach((k, i) => { const e = (b.attr[k] || 0) - b.ovr - PROF[r][i]; s += e * e; });
+      if (s < bd) { bd = s; best = r; }
+    }
+    return best;
+  };
+  // Traits: explicit def.traits (tests), else the hand-authored list, else the best-ranked styles (2 slots, 3 from ovr 85).
+  ISO.traitsOf = (def) => {
+    if (Array.isArray(def.traits)) return def.traits.filter((t) => ISO.TRAITS[t]);
+    const b = baseOf(def);
+    if (Array.isArray(b.traits)) return b.traits.filter((t) => ISO.TRAITS[t]);
+    if (TRAIT_FIX[b.id]) return TRAIT_FIX[b.id].slice();
+    const rows = ISO.TRAIT_ORDER.map((id) => { const T = ISO.TRAITS[id], s = T.score(b.attr, b) - T.bias; return { id, s, rank: s - b.ovr }; });
+    rows.sort((x, y) => y.rank - x.rank);
+    const slots = b.ovr >= 85 ? 3 : 2;
+    const out = rows.filter((r) => r.s >= 90 || (r.rank >= 1.5 && r.s >= 60)).slice(0, slots).map((r) => r.id);
+    if (!out.length) out.push(rows[0].id);
+    return out;
+  };
+  const neutralM = () => { const m = {}; for (const k in ISO.MODS) m[k] = ISO.MODS[k][0]; return m; };
+  const NEUTRAL = Object.freeze({ role: 'none', traits: Object.freeze([]), m: Object.freeze(neutralM()), wfStars: 3, celeb: 'fist' });
+  const STYLE_CACHE = new WeakMap();
+  // Celebrations (roadmap 2.5): presentation only. The sim state 'celebrate' and its timing never depend on them.
+  // dur: the loop length of the clip on the state clock; cam: the 3D goal camera (distance, height, extra yaw toward the goal).
+  ISO.CELEBS = [
+    { id: 'fist', name: 'FIST PUMP', cost: 0, dur: 1.6, loop: true, cam: { D: 6.5, H: 2.6, yaw: 0.35 }, desc: 'A leap, a fist to the sky, then both fists pumping.' },
+    { id: 'arms', name: 'ARMS WIDE', cost: 300, dur: 2.0, loop: true, cam: { D: 6.8, H: 2.4, yaw: 0.3 }, desc: 'Head back, arms stretched wide, soaking it in.' },
+    { id: 'point', name: 'POINT UP', cost: 300, dur: 2.0, loop: true, cam: { D: 6.5, H: 2.2, yaw: 0.3 }, desc: 'Both index fingers to the sky.' },
+    { id: 'salute', name: 'SALUTE', cost: 500, dur: 2.0, loop: true, cam: { D: 5.8, H: 2.0, yaw: 0.3 }, desc: 'A crisp salute to the crowd.' },
+    { id: 'robot', name: 'ROBOT', cost: 700, dur: 1.6, loop: true, cam: { D: 6.0, H: 2.2, yaw: 0.3 }, desc: 'Stiff, mechanical arm moves on the beat.' },
+    { id: 'sit', name: 'SIT DOWN', cost: 600, dur: 2.4, loop: true, cam: { D: 5.4, H: 1.6, yaw: 0.25 }, desc: 'Cool as ice: drop into a low squat, arms folded.' },
+    { id: 'knee', name: 'KNEE DROP', cost: 900, dur: 2.2, loop: true, cam: { D: 5.4, H: 1.5, yaw: 0.25 }, desc: 'Sink low on the knees, head back, arms out.' },
+    { id: 'spin', name: 'SPIN LEAP', cost: 1500, dur: 2.4, loop: true, cam: { D: 8.0, H: 3.0, yaw: 0.3 }, desc: 'A leap with a full turn in the air, then a fist pump.' },
+  ];
+  const CELEB_IDS = Object.create(null);      // no prototype: 'constructor' and '__proto__' are not celebrations
+  for (const c of ISO.CELEBS) CELEB_IDS[c.id] = c;
+  ISO.celebById = (id) => CELEB_IDS[id] || CELEB_IDS.fist;
+  ISO.hasCeleb = (id) => !!CELEB_IDS[id];
+  ISO.CELEB_SIG = { id: 'signature', name: 'SIGNATURE', desc: "Your player's own celebration (every star has one; others follow their playstyle)." };
+  const CELEB_FIX = { messi: 'point', ronaldo: 'arms', mbappe: 'salute', haaland: 'sit', neymar: 'knee', yamal: 'robot', vinicius: 'spin', salah: 'knee', bellingham: 'arms',
+    debruyne: 'fist', dembele: 'robot', kane: 'fist', pele: 'fist', maradona: 'arms', ronaldinho: 'spin', r9: 'arms', henry: 'knee', zidane: 'salute', cruyff: 'point', beckham: 'knee' };
+  const ROLE_CELEB = { winger: 'knee', striker: 'fist', playmaker: 'point', target: 'arms', box2box: 'salute', defender: 'robot' };
+  function buildStyle(def) {
+    const role = ISO.roleOf(def), traits = ISO.traitsOf(def), b = baseOf(def), a = def.attr, M = ISO.MODS, m = neutralM();
+    const apply = (mods) => { for (const k in mods) { const e = M[k]; if (!e) continue; m[k] = e[1] === 'mul' ? m[k] * mods[k] : m[k] + mods[k]; } };
+    apply(ISO.ROLES[role].mods);
+    // body: continuous, from height, width and strength. Tall = longer stride, slower off the mark; strong = stronger late.
+    const hf = Math.max(-1, Math.min(1, ((b.look && b.look.h || 1) - 1) / 0.14)), sf = (qa(a.str) - 0.5) * 2;
+    apply({ stride: 1 + 0.1 * hf, accLo: 1 - 0.07 * hf - 0.02 * sf, accHi: 1 + 0.03 * hf + 0.04 * sf, turn: 1 - 0.05 * hf, cut: 1 - 0.04 * hf });
+    for (const t of traits) apply(ISO.TRAITS[t].mods);
+    for (const k in M) m[k] = Math.max(M[k][2], Math.min(M[k][3], m[k]));
+    return Object.freeze({ role, traits: Object.freeze(traits), m: Object.freeze(m), wfStars: ISO.wfStars(a.wf), celeb: CELEB_FIX[b.id] || ROLE_CELEB[role] || 'fist' });
+  }
+  // The one resolver the sim, AI and UI read. Pure: the same def always gives the same table.
+  ISO.styleOf = (def) => {
+    if (ISO.STYLE_OFF || !def || !def.attr) return NEUTRAL;
+    let s = STYLE_CACHE.get(def);
+    if (!s) { s = buildStyle(def); STYLE_CACHE.set(def, s); }
+    return s;
+  };
+
   // Rarity tiers drive the box draw.
   ISO.RARITY = {
     common: { name: 'COMMON', col: '#9aa3b2', dup: 50 },
@@ -332,6 +476,43 @@
       look: { skin: '#9a6a44', hair: 'buzz', hairColor: '#17100c', beard: 'stubble', beardColor: '#17100c', h: 0.9, w: 0.9 },
       kit: kit('#ff8a3d', '#4a1f00', 'solid', '#4a1f00', '#ff8a3d') },
   ];
+
+  // Phase 3.4: goalkeeper personalities. A keeper def may carry `gk` (a style id). The tables below have the same shape as ISO.MODS:
+  // key: [neutral, 'mul' | 'add', lo, hi]. The neutral table multiplies by exactly 1 / adds 0, so a keeper with no `gk` (every keeper the
+  // server, the drills and the default offline game use) is bit-identical to the pre-style keeper. Only offline CPU games pass a styled keeper.
+  ISO.GK_MODS = {
+    depth: [1, 'mul', 0.5, 1.5], narrow: [1, 'mul', 0.6, 1.4], rushP: [1, 'mul', 0.3, 2], rushR: [1, 'mul', 0.8, 1.4], rushCd: [1, 'mul', 0.6, 1.5],
+    slideP: [1, 'mul', 0.3, 2], slideR: [1, 'mul', 0.8, 1.3], claim: [1, 'mul', 0.7, 1.6], antic: [1, 'mul', 0.4, 1.5], react: [1, 'mul', 0.9, 1.1],
+    wait: [1, 'mul', 0.9, 1.2], readErr: [1, 'mul', 0.8, 1.2], lineSpd: [1, 'mul', 0.9, 1.15], hold: [1, 'mul', 0.5, 1.4], distDepth: [1, 'mul', 0.8, 1.3],
+    distWide: [1, 'mul', 0.8, 1.3], penGuess: [0, 'add', 0, 0.6],
+  };
+  ISO.GK_STYLES = {
+    aggressive: { name: 'Aggressive', desc: 'Rushes and slides at dribblers, narrows hard, gambles in a penalty.', knobs: { rushP: 1.6, rushR: 1.15, slideP: 1.4, narrow: 1.25, claim: 1.2, hold: 0.7, readErr: 1.1, penGuess: 0.5 } },
+    conservative: { name: 'Conservative', desc: 'Stays home, rarely comes out, protects the line.', knobs: { rushP: 0.4, slideP: 0.5, narrow: 0.7, depth: 0.7, claim: 0.85, wait: 1.1, readErr: 0.92, hold: 1.2, distWide: 1.2 } },
+    reflex: { name: 'Reflex', desc: 'Quick off the mark, reads the wind-up, but sits on his line.', knobs: { react: 0.9, antic: 0.6, depth: 0.8, readErr: 1.12, rushP: 0.8 } },
+    sweeper: { name: 'Sweeper', desc: 'Plays high: claims loose balls, sweeps up and throws long.', knobs: { claim: 1.5, rushR: 1.3, rushP: 1.3, depth: 1.3, narrow: 1.15, hold: 0.6, distDepth: 1.2, react: 1.05 } },
+    positioning: { name: 'Positioning', desc: 'Always in the right place: reads the line, rarely gambles.', knobs: { depth: 1.15, readErr: 0.85, lineSpd: 1.1, antic: 1.3, rushP: 0.7, slideP: 0.8, wait: 1.05 } },
+  };
+  ISO.GK_ORDER = Object.keys(ISO.GK_STYLES);
+  const gkNeutral = () => { const m = {}; for (const k in ISO.GK_MODS) m[k] = ISO.GK_MODS[k][0]; return m; };
+  const GK_NEUTRAL = Object.freeze({ id: 'neutral', name: 'Balanced', desc: 'No particular style.', m: Object.freeze(gkNeutral()) });
+  const GK_CACHE = new Map();
+  // pure table of a style id ('neutral' for anything unknown)
+  ISO.gkTable = (id) => {
+    const st = ISO.GK_STYLES[id];
+    if (!st || !Object.prototype.hasOwnProperty.call(ISO.GK_STYLES, id)) return GK_NEUTRAL;
+    let t = GK_CACHE.get(id);
+    if (!t) {
+      const m = gkNeutral();
+      for (const k in st.knobs) { const e = ISO.GK_MODS[k]; if (e) m[k] = Math.max(e[2], Math.min(e[3], e[1] === 'mul' ? m[k] * st.knobs[k] : m[k] + st.knobs[k])); }
+      t = Object.freeze({ id, name: st.name, desc: st.desc, m: Object.freeze(m) }); GK_CACHE.set(id, t);
+    }
+    return t;
+  };
+  // The one resolver the sim reads (at call time, from the keeper def: nothing is stored on the keeper or G).
+  ISO.keeperStyleOf = (def) => (ISO.STYLE_OFF || !def || !def.gk ? GK_NEUTRAL : ISO.gkTable(def.gk));
+  // A stable style for a CPU opponent from its player id (offline only)
+  ISO.gkFor = (def) => { let h = 7; const id = (def && def.id) || ''; for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0; return ISO.GK_ORDER[h % ISO.GK_ORDER.length]; };
 
   // --- kit helpers ---------------------------------------------------------
   function rgb(hex) {
@@ -442,16 +623,27 @@
       look: Object.assign({}, d.look, { boot: ISO.PRIME.boot }) });
   };
   // A character as the owner fields them: prime stats (if bought) and the equipped skin.
-  ISO.outfit = (d, prime, skinId) => {
-    const sk = ISO.skinById(skinId);
-    if (!prime && sk.id === 'home') return d;
+  // celeb (optional): a bought celebration id; unknown ids and 'signature' leave the player's own. It clones, so the catalogue def is never mutated.
+  ISO.outfit = (d, prime, skinId, celeb) => {
+    const sk = ISO.skinById(skinId), cs = celeb && celeb !== 'signature' && ISO.hasCeleb(celeb);
+    if (!prime && sk.id === 'home' && !cs) return d;
     const o = prime ? ISO.primeOf(d) : Object.assign({}, d, { base: d });
+    if (cs) o.celeb = celeb;
     if (sk.id !== 'home') {
       o.kit = ISO.skinKit(d, sk.id); o.skin = sk.id;
       if (sk.boot && !prime) o.look = Object.assign({}, d.look, { boot: sk.boot });
     }
     return o;
   };
+
+  // The celebration a def plays: a bought one (def.celeb) else its signature (CELEB_FIX, then the playstyle, then 'fist').
+  ISO.celebOf = (def) => {
+    const c = def && def.celeb;
+    if (c && c !== 'signature' && CELEB_IDS[c]) return c;
+    return ISO.styleOf(def).celeb || 'fist';
+  };
+  // Sim revision: bump on any change that alters match results. The server sends it in `start`; a client with another revision warns.
+  ISO.SIM_REV = '2.81-p2';
 
   // Skill moves the player has to unlock in the store (the CPU is only limited by skill stars).
   ISO.MOVE_COST = { feint: 0, knock: 0, stepover: 0, roll: 0, dragback: 0, croqueta: 0, roulette: 0, heel: 0, nutmeg: 0, elastico: 0, rainbow: 0 };      // every skill move is unlocked from the start
@@ -480,6 +672,13 @@
     { id: 'fs_roof', name: 'ROOFTOP CAGE', cat: 'futsal', walls: true, cost: 1800, desc: 'Wire-fenced court over the skyline' },
     { id: 'fs_glass', name: 'GLASS CUBE', cat: 'futsal', walls: true, cost: 2400, desc: 'A clear-walled neon box' },
   ];
+  // Rule sets (Phase 4.1), read by js/game.js through ISO.RULES[G.rules] (opt-in per match, offline only; the server never passes `rules`).
+  // top / acc: sprint speed and acceleration x; skCost / skCd: skill stamina cost and cooldown x; stars: extra skill-move stars (cap 5);
+  // wallE: wall restitution x; win: goals to win; limit: seconds (0 = none), then the leader wins and a level score is sudden death;
+  // outBox: points for a goal struck from outside the box; wallGoal: points for a goal that came off a wall.
+  ISO.RULES = {
+    street: { top: 1.05, acc: 1.15, skCost: 0.6, skCd: 0.7, stars: 1, wallE: 0.9, win: 5, limit: 180, outBox: 2, wallGoal: 2 },
+  };
   // Ball skins (cosmetic, local to your screen). Drawn by sprites.js: base gradient, a sweeping slab, panels, outline, optional glow and stripes.
   ISO.BALLS = [
     { id: 'classic', name: 'MATCHDAY', cost: 0, desc: 'The standard ball', base: ['#ffffff', '#e6e9ee'], slab: '#f1735f', panel: '#1f2433', ink: '#1f2433' },

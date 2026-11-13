@@ -11,11 +11,13 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const { WebSocketServer } = require('ws');
 
 const ROOT = path.resolve(__dirname, '..');
 for (const f of ['data', 'game', 'net']) require(path.join(ROOT, 'js', f + '.js'));
-const ISO = globalThis.ISO, C = ISO.C;
+const ISO = globalThis.ISO, C = ISO.C, Net = ISO.Net;
+const { cleanName, validatePick, sanitizeMoves } = require('./validate');
 
 const PORT = +process.env.PORT || 8080, HOST = process.env.HOST || '0.0.0.0';
 const SEND_EVERY = Math.max(1, +process.env.SEND_EVERY || 2);      // sim steps per snapshot: the sim advances 120 x C.SPEED steps a second, so 36 snapshots per second
@@ -24,6 +26,10 @@ const SEND_EVERY = Math.max(1, +process.env.SEND_EVERY || 2);      // sim steps 
 // little ahead slows its own clock down, so the limit is generous.
 const Q_MAX = +process.env.Q_MAX || 10, Q_KEEP = +process.env.Q_KEEP || 3;
 const MAX_ROOMS = +process.env.MAX_ROOMS || 200;
+const KEY_EVERY = Math.max(1, +process.env.KEY_EVERY || 144);      // a full keyframe every this many snapshots (protocol 2 sends deltas in between)
+const ADMIN_CODE = process.env.ADMIN_CODE || '';                   // unset: the admin check always fails
+const sha = (x) => crypto.createHash('sha256').update(String(x)).digest();
+const ADMIN_HASH = ADMIN_CODE ? sha(ADMIN_CODE) : null;
 const IDLE_MS = 10 * 60 * 1000;       // empty / abandoned rooms are dropped
 
 // ------------------------------------------------------------------ static files
@@ -53,20 +59,7 @@ function newCode() {
     if (!rooms.has(c)) return c;
   }
 }
-const cleanName = (s) => String(s || 'Player').replace(/[^\w .-]/g, '').trim().slice(0, 14) || 'Player';
-
-// A player's choice as the client sends it: { id, prime, skin }. Rebuilt here so nobody can send arbitrary stats.
-function sanitizePick(p) {
-  const base = ISO.PLAYERS.find((d) => d.id === (p && p.id)) || ISO.PLAYERS[0];
-  const skin = ISO.skinById(p && p.skin).id;
-  return { id: base.id, prime: !!(p && p.prime), skin };
-}
-const defOf = (p) => ISO.outfit(ISO.playerById(p.id), p.prime, p.skin);
-const FREE_MOVES = Object.keys(ISO.Game.SKILLS).filter((id) => !(ISO.MOVE_COST[id] > 0));
-function sanitizeMoves(list) {          // a client that sends nothing valid gets only the free moves, never all of them
-  if (!Array.isArray(list)) return new Set(FREE_MOVES);
-  return new Set(list.filter((id) => typeof id === 'string' && ISO.Game.SKILLS[id]).concat(FREE_MOVES));
-}
+const defOf = (p) => ISO.outfit(ISO.playerById(p.id), p.prime, p.skin, p.celeb);
 const BOOLS = Object.keys(ISO.Game.ZERO).filter((k) => typeof ISO.Game.ZERO[k] === 'boolean');      // every button the sim reads
 const sanitizeInput = ISO.Net.sanitizeInput;        // shared with the clients, which predict with exactly the same values
 
@@ -80,7 +73,7 @@ class Room {
   constructor(code, size) {
     this.code = code; this.size = size; this.seats = new Array(size).fill(null); this.G = null; this.state = 'lobby';     // lobby | match | over
     this.kickoff = 0; this.rematch = new Array(size).fill(false); this.touched = Date.now();
-    this.net = []; this.events = []; this.steps = 0;
+    this.net = []; this.events = []; this.steps = 0; this.base = null; this.baseK = 0; this.flushes = 0;
   }
   get count() { return this.seats.filter(Boolean).length; }
   get full() { return this.count === this.size; }
@@ -118,13 +111,15 @@ class Room {
   start() {
     this.state = 'match'; this.rematch.fill(false);
     const defs = this.seats.map((s) => defOf(s.pick));
-    this.G = ISO.Game.create({ roster: defs, kickoff: this.kickoff, moves: this.seats.map((s) => s.moves), replay: true });      // the goal pause is long enough for the clients' replay
+    this.G = ISO.Game.create({ roster: defs, kickoff: this.kickoff, moves: this.seats.map((s) => s.moves), replay: true, turf: 'grass' });      // the server picks the pitch; a client message never does      // the goal pause is long enough for the clients' replay
     // per seat: q = inputs waiting ({ n, i }), seen = newest seq received, ack = seq of the last one consumed, last = the input applied in the latest step
     this.net = this.seats.map(() => ({ q: [], seen: 0, ack: 0, last: null, dry: false }));
+    this.base = null; this.baseK = 0; this.flushes = 0; this.lastInp = null;
+    for (const s of this.seats) s.hasBase = false;
     this.events = []; this.steps = 0; this.acc = 0; this.last = performance.now();
     // moves: the clients re-simulate everybody, so they need to know which skill moves each seat may use
     this.broadcast({ t: 'start', size: this.size, picks: this.seats.map((s) => s.pick), names: this.seats.map((s) => s.name), kickoff: this.kickoff,
-      moves: this.seats.map((s) => Array.from(s.moves)) });
+      moves: this.seats.map((s) => Array.from(s.moves)), rev: ISO.SIM_REV });      // rev: the clients warn on a sim revision mismatch
     this.sync();
   }
   // One input per client step, numbered: { t:'in', n, i }. They queue up and are consumed one per simulation step.
@@ -160,13 +155,38 @@ class Room {
       if (G.phase === 'end') { this.state = 'over'; this.sync(); break; }
     }
   }
+  // Protocol 1 seats always get the whole snapshot. Protocol 2 seats get it as a keyframe (first one, every KEY_EVERY,
+  // the last one, and whenever they ask with { t:'key' }) and a lossless delta against the previous snapshot otherwise.
   flush() {
-    const snap = ISO.Net.snapshot(this.G, this.events), net = this.net;
+    const snap = Net.snapshot(this.G, this.events), net = this.net;
+    const ev = snap.ev; delete snap.ev;
     this.events = [];
+    const k = this.steps, key = this.G.phase === 'end' || this.flushes % KEY_EVERY === 0;
     // k: step count. ack: last input seq consumed per seat. inp: the input applied in the latest step per seat.
     // q: inputs still queued per seat, or -1 if the queue ran dry since the last snapshot (the clients steer their clocks by it)
-    this.broadcast({ t: 's', at: Date.now(), k: this.steps, ack: net.map((s) => s.ack), inp: net.map((s) => (s.last ? ISO.Net.packInput(s.last) : null)),
-      q: net.map((s) => (s.dry ? -1 : s.q.length)), n: snap });
+    const head = { t: 's', at: Date.now(), k, ack: net.map((s) => s.ack) };
+    const inp = net.map((s) => (s.last ? Net.packInput(s.last) : null)), inpS = JSON.stringify(inp), inpSame = inpS === this.lastInp;
+    const q = net.map((s) => (s.dry ? -1 : s.q.length));
+    let full = null; const delta = {};
+    for (const seat of this.seats) {
+      if (!seat) continue;
+      if (seat.proto >= 2 && seat.hasBase && !key && this.base) {
+        const v = seat.proto >= 3 ? 3 : 2;      // one delta per protocol version, built once for every seat of it
+        if (!delta[v]) {
+          const m = { ...head, q, b: this.baseK }, d = Net.diff(this.base, snap, v >= 3);
+          if (!inpSame) m.inp = inp;
+          if (d !== undefined) m.d = d;
+          if (ev.length) m.ev = ev;
+          delta[v] = JSON.stringify(m);
+        }
+        if (seat.ws.readyState === 1) seat.ws.send(delta[v]);
+      } else {
+        if (!full) full = JSON.stringify({ ...head, inp, q, n: { ...snap, ev } });
+        if (seat.ws.readyState === 1) seat.ws.send(full);
+        if (seat.proto >= 2) seat.hasBase = true;
+      }
+    }
+    this.base = snap; this.baseK = k; this.lastInp = inpS; this.flushes++;
     for (const s of net) s.dry = false;
   }
   wantRematch(i) {
@@ -193,6 +213,8 @@ class Room {
 const ORIGINS = (process.env.ALLOWED_ORIGINS || '').split(',').map((s) => s.trim().replace(/\/$/, '')).filter(Boolean);
 const wss = new WebSocketServer({
   server: httpServer, path: '/ws', maxPayload: 4096,
+  // permessage-deflate is opt-in (WS_DEFLATE=1): its CPU and memory cost per socket was not measured
+  perMessageDeflate: process.env.WS_DEFLATE === '1' ? { threshold: 256, zlibDeflateOptions: { level: 3, memLevel: 7 }, serverMaxWindowBits: 13, clientMaxWindowBits: 13, concurrencyLimit: 10 } : false,
   verifyClient: ({ origin, req }) => !ORIGINS.length || !origin || ORIGINS.includes(origin) || origin === 'http://' + req.headers.host || origin === 'https://' + req.headers.host,
 });
 
@@ -201,32 +223,44 @@ function leave(seat) {
   if (seat.room) seat.room.leave(seat);
 }
 const queued = (seat) => Object.values(queues).some((q) => q.includes(seat));
+// -> a seat, or null after telling the client why not
 function makeSeat(ws, m) {
-  return { ws, name: cleanName(m.name), pick: sanitizePick(m.pick), moves: sanitizeMoves(m.moves), room: null, team: 0 };
+  const v = validatePick(m.pick);
+  if (!v.ok) { send(ws, { t: 'error', msg: v.msg }); return null; }
+  return { name: cleanName(m.name), pick: v.pick, moves: sanitizeMoves(m.moves), proto: m.v >= 3 ? 3 : m.v >= 2 ? 2 : 1, hasBase: false };
 }
 
 wss.on('connection', (ws) => {
-  let seat = { ws, name: 'Player', pick: sanitizePick(null), moves: null, room: null, team: 0 };
+  let seat = { ws, name: 'Player', pick: validatePick(null).pick, moves: null, room: null, team: 0, proto: 1, hasBase: false };
+  let strikes = 0, adminTries = 0;
   ws.alive = true; ws.on('pong', () => { ws.alive = true; });
   let budget = 300, refill = Date.now();                  // simple per-socket rate limit (a client sends one input per sim step: ~72 a second, in bursts)
 
   ws.on('message', (raw) => {
     const now = Date.now();
     budget = Math.min(300, budget + ((now - refill) / 1000) * 180); refill = now;
-    if (--budget < 0) return;
+    if (--budget < 0) { if (++strikes >= 600) ws.close(1008, 'Too many messages'); return; }
+    strikes = 0;
     let m;
     try { m = JSON.parse(raw); } catch { return; }
     if (!m || typeof m.t !== 'string') return;
 
     if (m.t === 'in') { if (seat.room && seat.room.state === 'match' && m.i && typeof m.i === 'object') seat.room.input(seat.team, m); return; }
+    if (m.t === 'key') { seat.hasBase = false; return; }
+    if (m.t === 'admin') {
+      const ok = !!ADMIN_HASH && adminTries < 5 && typeof m.code === 'string' && m.code.length <= 200 && crypto.timingSafeEqual(sha(m.code), ADMIN_HASH);
+      adminTries++; send(ws, { t: 'admin', ok }); return;
+    }
     if (m.t === 'ping') { send(ws, { t: 'pong', c: m.c, at: Date.now() }); return; }
     if (m.t === 'rematch') { if (seat.room) seat.room.wantRematch(seat.team); return; }
     if (m.t === 'team') { if (seat.room) seat.room.switchTeam(seat); return; }
     if (m.t === 'leave') { leave(seat); send(ws, { t: 'out' }); return; }
 
     if (m.t === 'create' || m.t === 'join' || m.t === 'quick') {
+      const s = makeSeat(ws, m);
+      if (!s) return;
       if (seat.room || queued(seat)) leave(seat);
-      const s = makeSeat(ws, m); Object.assign(seat, s, { room: null });
+      Object.assign(seat, s, { room: null });
       const mode = m.mode === '2v2' ? '2v2' : '1v1';
       if (m.t === 'create') {
         if (rooms.size >= MAX_ROOMS) { send(ws, { t: 'error', msg: 'Server is full, try again in a minute.' }); return; }
@@ -250,12 +284,14 @@ wss.on('connection', (ws) => {
       return;
     }
     if (m.t === 'pick' && seat.room && seat.room.state !== 'match') {         // change character in the lobby
-      Object.assign(seat, { pick: sanitizePick(m.pick), moves: sanitizeMoves(m.moves) }); seat.room.sync();
+      const v = validatePick(m.pick);
+      if (!v.ok) { send(ws, { t: 'error', msg: v.msg }); return; }
+      Object.assign(seat, { pick: v.pick, moves: sanitizeMoves(m.moves) }); seat.room.sync();
     }
   });
   ws.on('close', () => leave(seat));
   ws.on('error', () => {});
-  send(ws, { t: 'hello' });
+  send(ws, { t: 'hello', v: 3 });
 });
 
 // ------------------------------------------------------------------ main loop

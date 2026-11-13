@@ -4,7 +4,8 @@
 (function () {
   'use strict';
   const ISO = globalThis.ISO, R3D = ISO.R3D, K = R3D.K, S = K.S;
-  const TEAM_COL = ['#4da3ff', '#ff6b5e'];
+  const TEAM_COL = (ISO.R3D.TEAM_COL = ISO.R3D.TEAM_COL || ['#4da3ff', '#ff6b5e']);      // shared with r3d.js; ISO.Access.apply writes the palette into it in place (Phase 9.1)
+  const AX = () => ISO.Access || { scale: 1, hc: false, rm: false, noFlash: false, labels: true, fxText: true };
 
   function create(THREE, scene) {
     const texts = [];
@@ -25,7 +26,7 @@
         tmp.set(colors[i % colors.length]); col[j * 3] = tmp.r; col[j * 3 + 1] = tmp.g; col[j * 3 + 2] = tmp.b;
       }
     }
-    function text(str, x, y, z, color, big, life) { life = life || 1.1; texts.push({ str, x, y, z, color: color || '#fff', life, max: life, big, slot: -1, rise: 0.8 }); }
+    function text(str, x, y, z, color, big, life) { if (!AX().fxText) return; life = life || 1.1; texts.push({ str, x, y, z, color: color || '#fff', life, max: life, big, slot: -1, rise: 0.8 }); }
     // the clear pop-ups: one slot per player, a new message replaces the one showing. Anchored just above the head (rising a little),
     // and dropped to chest height while another event text of that player (the tackle that won the ball) is still showing above it.
     function clearText(str, P, team, color, big, life) {
@@ -36,15 +37,16 @@
     }
     let bwX = 0, bwZ = 0;
 
+    const SHOT_LABEL = { volley: 'VOLLEY', halfvolley: 'HALF-VOLLEY', header: 'HEADER', diveheader: 'DIVING HEADER', driven: 'DRIVEN', outside: 'OUTSIDE FOOT' };
     // sim events -> world effects (G gives the entity positions; events carry entity objects)
     function onEvent(G, e) {
       const b = G.ball, bw = K.toWorld(b.x, b.y, b.z), P = e.p && K.toWorld(e.p.x, e.p.y, 0), Kp = e.k && K.toWorld(e.k.x, e.k.y, 0);
       const tc = (p) => TEAM_COL[p.team] || '#fff';
       switch (e.type) {
-        case 'kick': if (e.shot) burst(bw.x, 0.1, bw.z, ['#e9f7ee', '#bfe8cb'], 8, 2.5); break;
+        case 'kick': if (e.shot) { burst(bw.x, 0.1, bw.z, ['#e9f7ee', '#bfe8cb'], 8, 2.5); let sl = SHOT_LABEL[e.kind]; if (e.weak) sl = sl ? sl + ' · WEAK FOOT' : 'WEAK FOOT'; if (sl) text(sl, bw.x, bw.y + 1.2, bw.z, '#cfeeda'); } break;
         case 'board': burst(bw.x, 0.15, bw.z, ['#d9d3c2'], 4, 0.8); break;      // the back board: a puff of dust, no text
         case 'post': burst(bw.x, bw.y, bw.z, ['#ffffff'], 10, 3); text('WOODWORK!', bw.x, bw.y + 0.8, bw.z, '#fff'); break;
-        case 'goal': burst(bw.x, bw.y, bw.z, ['#ffffff', '#35e08a'], 40, 6); break;      // the GOAL! banner is the shared overlay (render.js overlays)
+        case 'goal': burst(bw.x, bw.y, bw.z, ['#ffffff', '#35e08a'], 40, 6); if (e.pts > 1) text('+' + e.pts, bw.x, bw.y + 1.4, bw.z, '#ffcf4d'); break;      // the GOAL! banner is the shared overlay (render.js overlays)
         case 'save': { const s = K.toWorld(G.keeper.x, G.keeper.y, 0); burst(bw.x, bw.y, bw.z, ['#ffffff', '#ffe066'], 10, 3); text(e.slide ? 'SLID IN' : e.smother ? 'SMOTHERED' : e.weak ? 'SPILLED!' : e.catch ? 'CAUGHT!' : 'SAVE!', s.x, 2.6, s.z, '#ffe066'); break; }
         case 'tackle': burst(bw.x, 0.1, bw.z, ['#8bd45e', '#5aa02f'], 8, 2.2); if (e.on && P) text('TACKLE', P.x, 2.4, P.z, tc(e.p)); break;
         case 'lunge': if (e.slide && P) burst(P.x, 0.1, P.z, ['#8bd45e', '#5aa02f'], 12, 2); break;
@@ -139,8 +141,8 @@
         camera.project(t.x, ty + (1 - t.life / t.max) * t.rise, t.z, pp);
         if (!pp.visible) continue;
         const k = t.life / t.max, a = Math.min(1, k * 3), s = (t.big ? 30 : 20) * (1 + (1 - Math.min(1, (t.max - t.life) * 8)) * 0.4);
-        c.globalAlpha = a; c.font = '800 italic ' + s + 'px "Avenir Next Condensed","Arial Narrow",Arial,sans-serif';
-        c.lineWidth = 5; c.strokeStyle = 'rgba(6,10,14,.85)'; c.strokeText(t.str, pp.x, pp.y); c.fillStyle = t.color; c.fillText(t.str, pp.x, pp.y);
+        c.globalAlpha = a; c.font = '800 italic ' + s * AX().scale + 'px "Avenir Next Condensed","Arial Narrow",Arial,sans-serif';
+        c.lineWidth = AX().hc ? 7 : 5; c.strokeStyle = 'rgba(6,10,14,.85)'; c.strokeText(t.str, pp.x, pp.y); c.fillStyle = t.color; c.fillText(t.str, pp.x, pp.y);
       }
       c.globalAlpha = 1;
       const so = G.drill && G.drill.so;
@@ -150,7 +152,7 @@
         const kp = G.keeper; K.toWorld(kp.x, kp.y, 0, pw); camera.project(pw.x, 2.2, pw.z, pp);
         if (pp.visible) {
           c.fillStyle = TEAM_COL[0]; c.beginPath(); c.moveTo(pp.x - 6, pp.y - 7); c.lineTo(pp.x + 6, pp.y - 7); c.lineTo(pp.x, pp.y); c.closePath(); c.fill();
-          c.font = '800 13px ' + FONT; c.textBaseline = 'bottom'; c.lineWidth = 3; c.strokeStyle = 'rgba(0,0,0,.6)';
+          c.font = '800 ' + 13 * AX().scale + 'px ' + FONT; c.textBaseline = 'bottom'; c.lineWidth = AX().hc ? 5 : 3; c.strokeStyle = 'rgba(0,0,0,.6)';
           const lb = (V && V.labels && V.labels[0]) || 'YOU'; c.strokeText(lb, pp.x, pp.y - 8); c.fillText(lb, pp.x, pp.y - 8);
         }
       }
@@ -159,12 +161,12 @@
         const p = G.players[i], label = so ? '' : V && V.labels && V.labels[i];
         if (p.state === 'away') continue;
         K.toWorld(p.x, p.y, 0, pw);
-        if (label) {
+        if (label && AX().labels) {
           camera.project(pw.x, 1.86 * ((p.def.look && p.def.look.h) || 1) + 0.1, pw.z, pp);
           if (pp.visible) {
             c.fillStyle = TEAM_COL[p.team % 2];
             c.beginPath(); c.moveTo(pp.x - 6, pp.y - 7); c.lineTo(pp.x + 6, pp.y - 7); c.lineTo(pp.x, pp.y); c.closePath(); c.fill();
-            c.font = '800 13px ' + FONT; c.textBaseline = 'bottom'; c.lineWidth = 3; c.strokeStyle = 'rgba(0,0,0,.6)';
+            c.font = '800 ' + 13 * AX().scale + 'px ' + FONT; c.textBaseline = 'bottom'; c.lineWidth = AX().hc ? 5 : 3; c.strokeStyle = 'rgba(0,0,0,.6)';
             c.strokeText(label, pp.x, pp.y - 8); c.fillText(label, pp.x, pp.y - 8);
           }
         }

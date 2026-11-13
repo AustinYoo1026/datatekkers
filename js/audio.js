@@ -42,7 +42,7 @@
     if (!ctx || muted) return;
     e = e || {};
     switch (type) {
-      case 'kick': { const p = e.power || 0.5; tone('sine', 150 + p * 60, 50, 0.13, 0.5 * (0.5 + p)); noise(1400, 0.8, 0.07, 0.35 * (0.4 + p)); break; }
+      case 'kick': { const p = e.power || 0.5; if (e.kind === 'header' || e.kind === 'diveheader') { tone('sine', 110 + p * 30, 60, 0.1, 0.45 * (0.5 + p)); noise(500, 0.8, 0.05, 0.25 * (0.4 + p)); break; } tone('sine', 150 + p * 60, 50, 0.13, 0.5 * (0.5 + p)); noise(1400, 0.8, 0.07, 0.35 * (0.4 + p)); break; }
       case 'touch': tone('sine', 120, 60, 0.06, 0.18); break;
       case 'bounce': tone('sine', 95, 55, 0.07, 0.14); break;
       case 'post': tone('triangle', 880, 820, 0.35, 0.35); tone('sine', 1320, 1250, 0.25, 0.2); noise(3000, 2, 0.05, 0.3); break;
@@ -51,6 +51,8 @@
       case 'lunge': noise(e.slide ? 900 : 1600, 0.6, e.slide ? 0.4 : 0.1, e.slide ? 0.2 : 0.1); break;
       case 'save': noise(700, 0.7, 0.14, 0.5); tone('sine', 130, 60, 0.12, 0.35); noise(1100, 0.5, 0.9, 0.16, 0.05, 'bandpass', 0.2); break;
       case 'ankles': tone('sine', 300, 90, 0.25, 0.3); noise(500, 0.8, 0.12, 0.35); break;
+      case 'stop': tone('triangle', 260, 120, 0.08, 0.05); break;
+      case 'burst': tone('sawtooth', 180, 420, 0.1, 0.04); break;
       case 'skill': tone('sine', 620, 980, 0.09, 0.07); break;
       case 'beep': tone('square', 660, 660, 0.12, 0.09); break;
       case 'whistle': whistle(0.5); break;

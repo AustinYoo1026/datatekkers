@@ -1,0 +1,57 @@
+name: CI
+on:
+  pull_request:
+  push:
+    branches: [main]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      # Node 26 is what the project is developed on (26.13). If actions/setup-node cannot resolve it, use 'latest' or the newest v-line.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '26'
+      - name: Syntax (node --check)
+        run: |
+          set -e
+          for f in js/*.js js/3d/*.js server/*.js tools/*.js; do node --check "$f"; done
+      - name: Versions agree (README, index.html, js/data.js)
+        run: |
+          set -e
+          V=$(node -e "require('./js/data.js'); console.log(globalThis.ISO.VERSION)")
+          echo "ISO.VERSION=$V"
+          grep -q "Beta $V" README.md || { echo "README.md does not mention Beta $V"; exit 1; }
+          grep -qi "BETA $V" index.html || { echo "index.html does not show BETA $V"; exit 1; }
+      - name: Sim (rules + soak)
+        run: |
+          node tools/check.js 60
+          node tools/test-physics.js
+          node tools/sim.js 40 normal
+          node tools/balance.js --smoke
+          node tools/ai-test.js --smoke
+          node tools/season-test.js 200 --sim
+          node tools/pres-test.js
+          node tools/drill-test.js
+      - name: Server tests
+        run: |
+          npm ci --prefix server
+          cd server
+          for t in test*.js; do echo "== $t"; node "$t"; done
+          echo "== protocol 2"
+          PROTO=2 node test-lag.js 50 10
+          PROTO=2 node test-crossplay.js
+          echo "== protocol 3"
+          PROTO=3 node test-delta.js
+          PROTO=3 node test-lag.js 50 10
+          PROTO=3 node test-crossplay.js
+      - name: Animation gate (ratchet, blocking)
+        run: node tools/anim-gate.js
+      - name: Camera rig tests (blocking)
+        run: node tools/cam-test.js
+      - name: Stadium environment tests (blocking)
+        run: node tools/stadium-test.js
+      - name: Animation check (strict limits, informational)
+        run: node tools/anim-check.js
+        continue-on-error: true

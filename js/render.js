@@ -13,7 +13,8 @@
   const T = (o) => ({ x: o.y, y: FW - o.x });
   const viewP = (p) => Object.assign(Object.create(p), { x: p.y, y: FW - p.x, vx: p.vy, vy: -p.vx, face: faceS(p.face), fallDir: p.fallDir !== undefined ? faceS(p.fallDir) : undefined });
   const hyp = Math.hypot, TAU = Math.PI * 2;
-  const TEAM_COL = ['#35e08a', '#ffb23d'];
+  const TEAM_COL = ['#35e08a', '#ffb23d'];      // the ONE exported array: ISO.Access.apply writes the colour-blind / high-contrast palette into it in place (Phase 9.1)
+  const AXD = { scale: 1, hc: false, rm: false, noFlash: false, labels: true, fxText: true }, AX = () => ISO.Access || AXD;
 
   // ---- maps: every pitch is painted from a theme (ISO.MAPS lists them for the store) ----
   const ADS = [['ISO FOOTBALL', '#0f1a14', '#35e08a'], ['FIRST TO THREE', '#f4f4f4', '#10151c'], ['DATATEKKERS', '#132033', '#7fc4ff'],
@@ -244,12 +245,23 @@
     T.lean = 0.04 + 0.11 * amp + 0.1 * k;
   }
 
+  // 2D celebration poses: (T, t) -> pose keys, t in seconds on the state clock (the original fist pump keeps its own phase)
+  const CELEB_2D = {
+    fist(T, t) { T.armsUp = 1; T.air = Math.abs(Math.sin(t)) * 6.5; T.t1 = 0.2 + 0.25 * Math.sin(t * 2); T.k1 = 0.5; T.t2 = 0.2 - 0.25 * Math.sin(t * 2); T.k2 = 0.5; T.ab = 0.25; },
+    arms(T, t) { T.ab = 1.45; T.tilt = 0.12 * Math.sin(t * 3); T.lean = -0.12; T.k1 = T.k2 = 0.3 + 0.2 * Math.abs(Math.sin(t * 3)); T.t1 = T.t2 = 0.15; T.e1 = T.e2 = 0.1; },
+    point(T, t) { T.armsUp = 1; T.e1 = T.e2 = 0.1; T.air = Math.abs(Math.sin(t * 4)) * 2.5; T.k1 = T.k2 = 0.35; T.t1 = T.t2 = 0.2; T.tilt = 0.08 * Math.sin(t * 4); },
+    salute(T, t) { T.s1 = 1.3; T.e1 = 2.1; T.ab = 0.25; T.k1 = T.k2 = 0.12 + 0.1 * Math.abs(Math.sin(t * 3)); },
+    robot(T, t) { const q = Math.floor(t * 2.5) % 4; T.armsUp = q === 3 ? 1 : 0; T.ab = q === 2 ? 1.3 : 0; T.s1 = q === 0 ? 1.5 : 0.2; T.s2 = q === 1 ? 1.5 : 0.2; T.e1 = T.e2 = 1.4; T.tilt = q % 2 ? 0.1 : -0.1; T.k1 = T.k2 = 0.15; },
+    sit(T, t) { const u = sm(t / 0.6); T.t1 = T.t2 = 1.15 * u; T.k1 = T.k2 = 2.1 * u; T.lean = 0.45 * u; T.s1 = T.s2 = 0.8 * u; T.e1 = T.e2 = 2.2 * u; },
+    knee(T, t) { const u = sm(t / 0.5); T.t1 = 0.8 * u; T.k1 = 1.6 * u; T.t2 = 0.3 * u; T.k2 = 2.3 * u; T.lean = -0.3 * u; T.ab = 1.2 * u; },
+    spin(T, t) { const f = clamp((t % 2.4) / 0.9, 0, 1), a = f > 0 && f < 1 ? Math.sin(f * Math.PI) : 0; T.armsUp = a > 0 ? 1 : 0; T.air = a * 9; T.k1 = T.k2 = 0.4; T.spread = a * 4; T.t1 = T.t2 = 0.25 * a; T.tilt = a > 0 ? 0.25 * Math.sin(f * Math.PI * 4) : 0; },
+  };
   // target pose (and how it should be shown) for an outfield player
   function playerPose(p, A) {
     const sp = hyp(p.vx, p.vy), st = p.state, T = {}, o = { T, rate: 24, dir: null, flip: null, angle: null, dx: 0, dy: 0 };
     if (st === 'celebrate') {
-      const t = fx.t * 6.5;
-      T.armsUp = 1; T.air = Math.abs(Math.sin(t)) * 6.5; T.t1 = 0.2 + 0.25 * Math.sin(t * 2); T.k1 = 0.5; T.t2 = 0.2 - 0.25 * Math.sin(t * 2); T.k2 = 0.5; T.ab = 0.25;
+      const id = ISO.celebOf ? ISO.celebOf(p.def) : 'fist';
+      (CELEB_2D[id] || CELEB_2D.fist)(T, id === 'fist' ? fx.t * 6.5 : p.stT);      // roadmap 2.5: a pose per celebration (presentation only)
       o.dir = 'down';
     } else if (st === 'ankle') {            // ankles broken: stagger, go down, sit there, scramble up
       const u = p.stT / (p.stDur || 0.8), fd = p.fallDir !== undefined ? p.fallDir : p.face + Math.PI;
@@ -257,7 +269,7 @@
       if (u < 0.2) Object.assign(T, { t1: 1.0, k1: 0.25, t2: -0.8, k2: 0.95, lean: -0.3, s1: -1.5, s2: 1.7, ab: 0.6, e1: 0.3, e2: 0.3 });
       else if (u < 0.8) Object.assign(T, { rot: -1.32, t1: 1.3, k1: 0.55, t2: 0.95, k2: 1.15, s1: -1.0, s2: -0.5, e1: 0.5, e2: 0.7, lean: 0.1 });
       else Object.assign(T, { rot: -0.3, t1: 1.0, k1: 1.6, t2: 0.3, k2: 1.3, lean: 0.3, s1: 0.5, s2: -0.3, e1: 0.8, e2: 0.8 });
-    } else if (st === 'slide' || st === 'down') {
+    } else if (st === 'slide' || st === 'down' || st === 'hdive') {
       const up = st === 'down' && p.stDur - p.stT < 0.13;         // the last moment on the ground is the get-up
       o.dir = 'side'; o.flip = false; o.angle = p.face; o.rate = up ? 20 : 30;
       if (up) Object.assign(T, { rot: -0.25, t1: 1.0, k1: 1.5, t2: 0.3, k2: 1.3, lean: 0.25, s1: 0.4, s2: -0.3 });
@@ -309,6 +321,14 @@
       const w = Math.sin((p.runPh || 0) * 1.5), m = clamp(sp / 50, 0, 1);
       Object.assign(T, { t1: 0.45 + 0.2 * w * m, k1: 0.9, t2: 0.1 - 0.2 * w * m, k2: 0.9, spread: 2.8 + 1.4 * Math.abs(w) * m, ab: 0.7, e1: 0.8, e2: 0.8, lean: 0.2, tilt: 0.1, bob: -0.4 });
       o.rate = 28;
+    } else if (p.stopT > 0) {               // the brake: weight dropped back, leading leg planted, a sliding stop
+      const u = clamp(1 - p.stopT / ISO.C.DRIB.STOP_T, 0, 1);
+      Object.assign(T, { t1: 0.9 - 0.4 * u, k1: 0.25, t2: -0.5, k2: 0.7, spread: 2.4, ab: 0.6, e1: 0.5, e2: 0.5, lean: -0.2 + 0.1 * u, s1: -0.5, s2: 0.5 });
+      o.rate = 44;
+    } else if (p.close && !p.shield) {      // close control: small quick touches, knees bent, low centre of gravity
+      const w = Math.sin((p.runPh || 0) * 2), m = clamp(sp / 60, 0, 1);
+      Object.assign(T, { t1: 0.25 + 0.2 * w * m, k1: 0.55 + 0.2 * Math.max(0, w), t2: 0.25 - 0.2 * w * m, k2: 0.55 + 0.2 * Math.max(0, -w), spread: 1.6, ab: 0.4, e1: 0.4, e2: 0.4, lean: 0.12, bob: -0.25 });
+      o.rate = 36;
     } else if (p.jock || p.shield) {        // jockey / shield: low, wide, shuffling
       const w = Math.sin(p.runPh || 0), m = clamp(sp / 60, 0, 1);
       Object.assign(T, { t1: 0.3 + 0.15 * w * m, k1: 0.6, t2: 0.3 - 0.15 * w * m, k2: 0.6, spread: 2.2 + 1.2 * w * m, ab: 0.55, e1: 0.5, e2: 0.5, lean: 0.14 });
@@ -359,7 +379,7 @@
     let anim = 'idle', frame = 0, d = dirOf(p.face), angle = null;
     const runFrame = Math.floor(p.animDist / 7) % 6;
     if (p.state === 'celebrate') { anim = 'celebrate'; frame = Math.floor(fx.t * 9) % 4; d = { dir: 'down', flip: false }; }
-    else if (p.state === 'ankle' || p.state === 'slide' || p.state === 'down') { anim = 'slide'; d = { dir: 'side', flip: false }; angle = p.state === 'ankle' && p.fallDir !== undefined ? p.fallDir + Math.PI : p.face; }
+    else if (p.state === 'ankle' || p.state === 'slide' || p.state === 'down' || p.state === 'hdive') { anim = 'slide'; d = { dir: 'side', flip: false }; angle = p.state === 'ankle' && p.fallDir !== undefined ? p.fallDir + Math.PI : p.face; }
     else if (p.state === 'stumble') anim = 'stumble';
     else if (p.state === 'tackle' || p.state === 'shoulder') { anim = 'tackle'; frame = p.stT < 0.08 ? 0 : 1; }
     else if (p.state === 'skill' && p.skill) { const fr = SKILL_FRAMES[p.skill.id]; if (fr) { anim = 'skill'; frame = fr[Math.floor(Math.min(0.999, p.skill.t / p.skill.dur) * fr.length)]; } else { anim = 'run'; frame = runFrame; } }
@@ -420,10 +440,10 @@
     // label + arrow
     const top = -57 * (p.def.look.h || 1) / (ls || 1);
     c.fillStyle = col; c.textAlign = 'center';
-    if (label) {
+    if (label && AX().labels) {
       c.beginPath(); c.moveTo(-5, top - 5); c.lineTo(5, top - 5); c.lineTo(0, top + 1); c.closePath(); c.fill();
-      c.font = '800 10px "Avenir Next Condensed","Arial Narrow",Arial,sans-serif'; c.textBaseline = 'bottom';
-      c.lineWidth = 3; c.strokeStyle = 'rgba(0,0,0,.6)'; c.strokeText(label, 0, top - 6); c.fillText(label, 0, top - 6);
+      c.font = '800 ' + 10 * AX().scale + 'px "Avenir Next Condensed","Arial Narrow",Arial,sans-serif'; c.textBaseline = 'bottom';
+      c.lineWidth = AX().hc ? 5 : 3; c.strokeStyle = 'rgba(0,0,0,.6)'; c.strokeText(label, 0, top - 6); c.fillText(label, 0, top - 6);
     }
     // shot power meter
     if (p.charge) {
@@ -475,24 +495,29 @@
     }
   }
   function text(x, y, str, col, big, life, slot) {
+    if (!AX().fxText) return;      // Settings › HUD: floating event text off
     if (slot) fx.texts = fx.texts.filter((t) => t.slot !== slot);      // one pop-up slot: a new message replaces the old one
     fx.texts.push({ x, y, str, col: col || '#fff', life: life || 1.1, big, slot });
   }
 
+  const SHOT_LABEL = { volley: 'VOLLEY', halfvolley: 'HALF-VOLLEY', header: 'HEADER', diveheader: 'DIVING HEADER', driven: 'DRIVEN', outside: 'OUTSIDE FOOT' };
   function onEvent(G, e) {
     const b = T(G.ball);
     const P = e.p && T(e.p), K = e.k && T(e.k);
     switch (e.type) {
-      case 'kick': if (e.shot) burst(b.x, b.y, 6, ['#e9f7ee', '#bfe8cb'], 90, 0.3); break;
-      case 'post': fx.shake = Math.max(fx.shake, 5 * e.power); burst(b.x, b.y, 8, ['#ffffff'], 120, 0.3); text(b.x, b.y + 24, 'WOODWORK!', '#fff'); break;
+      case 'kick': if (e.shot) { burst(b.x, b.y, 6, ['#e9f7ee', '#bfe8cb'], 90, 0.3); let sl = SHOT_LABEL[e.kind]; if (e.weak) sl = sl ? sl + ' · WEAK FOOT' : 'WEAK FOOT'; if (sl) text(b.x, b.y - 22, sl, '#cfeeda'); } break;
+      case 'post': fx.shake = Math.max(fx.shake, 5 * e.power); burst(b.x, b.y, 8, ['#ffffff'], 120, 0.3); text(b.x, b.y + 24, e.bar ? 'CROSSBAR!' : 'WOODWORK!', '#fff'); break;
+      case 'bounce': if (e.power > 0.3) burst(b.x, b.y, Math.round(2 + 5 * e.power), ['#cfe6c4', '#9cc48a'], 40 + 60 * e.power, 0.2); break;
       case 'board': fx.shake = Math.max(fx.shake, 1.5 * (e.power || 0.5)); burst(b.x, Math.min(b.y, L - 2), 4, ['#cfd6dd'], 60, 0.25); break;      // the soft back board: a thud, no text
-      case 'goal': fx.shake = 12; fx.flash = 1;
+      case 'goal': fx.shake = 12; if (!AX().noFlash) fx.flash = 1; if (e.pts > 1) text(b.x, b.y - 34, '+' + e.pts, '#ffcf4d');      // street rules: a bonus goal
         burst(b.x, b.y, 30, ['#ffffff', '#35e08a'], 240, 0.6);
-        for (let i = 0; i < 90; i++) fx.parts.push({ x: Math.random() * FH, y: -40 - Math.random() * 160, vx: (Math.random() - 0.5) * 60, vy: 120 + Math.random() * 140, life: 2.6, max: 2.6, col: [TEAM_COL[e.team], '#ffffff', '#ffe066'][i % 3], g: 0, s: 3 + Math.random() * 3, conf: Math.random() * TAU });
+        for (let i = 0, nc = AX().rm ? 24 : 90; i < nc; i++) fx.parts.push({ x: Math.random() * FH, y: -40 - Math.random() * 160, vx: (Math.random() - 0.5) * 60, vy: 120 + Math.random() * 140, life: 2.6, max: 2.6, col: [TEAM_COL[e.team], '#ffffff', '#ffe066'][i % 3], g: 0, s: 3 + Math.random() * 3, conf: Math.random() * TAU });
         break;
       case 'save': fx.shake = Math.max(fx.shake, 3); burst(b.x, b.y, 8, ['#ffffff', '#ffe066'], 130, 0.35); text(K.x, K.y + 46, e.slide ? 'SLID IN' : e.smother ? 'SMOTHERED' : e.weak ? 'SPILLED!' : e.catch ? 'CAUGHT!' : 'SAVE!', '#ffe066'); break;
       case 'tackle': burst(b.x, b.y, 7, TH.turf, 110, 0.35); if (e.on) text(P.x, P.y - 52, 'TACKLE', TEAM_COL[e.p.team]); break;
       case 'lunge': if (e.slide) burst(P.x, P.y, 10, TH.turf, 90, 0.45); break;
+      case 'stop': burst(P.x, P.y + 8, 8, TH.turf, 85, 0.4); break;
+      case 'burst': burst(P.x, P.y + 8, 7, TH.turf, 120, 0.35); break;
       case 'beaten': text(P.x, P.y - 52, 'BEATEN', '#ff8a8a'); break;
       case 'skill': text(P.x, P.y - 58, e.name.toUpperCase(), '#ffffff'); break;
       case 'fake': text(P.x, P.y - 58, 'FAKE SHOT', '#ffffff'); break;
@@ -505,7 +530,7 @@
         if (!(lastV && G.players[lastV.me || 0] && G.players[lastV.me || 0].team === e.team)) break;
         // one slot per player, drawn under the feet so it never lands on the tackle / save text above the head
         const q = P || b, y = Math.min(q.y + 30, L - 8), slot = 'clr' + (e.p ? G.players.indexOf(e.p) : -1);
-        if (e.type === 'clear') { text(q.x, y, 'CLEARED', 'rgba(210,225,215,.85)', false, 0.6, slot); fx.cflash = 1; }
+        if (e.type === 'clear') { text(q.x, y, 'CLEARED', 'rgba(210,225,215,.85)', false, 0.6, slot); fx.cflash = AX().noFlash ? 0.5 : 1; }
         else text(q.x, y, e.type === 'clearit' ? 'CLEAR IT' : 'CLEAR IT FIRST', '#ffe066', false, 0.8, slot);
         break;
       }
@@ -743,8 +768,8 @@
       if (t.life <= 0) continue;
       const q = pr(cam, t.x, t.y + 40, 58 + t.h);
       c.globalAlpha = Math.min(1, t.life * 2.5);
-      c.font = '800 italic 24px "Avenir Next Condensed","Arial Narrow",Arial,sans-serif';
-      c.lineWidth = 5; c.strokeStyle = 'rgba(6,10,14,.8)'; c.strokeText(t.str, q.x, q.y); c.fillStyle = t.col; c.fillText(t.str, q.x, q.y);
+      c.font = '800 italic ' + 24 * AX().scale + 'px "Avenir Next Condensed","Arial Narrow",Arial,sans-serif';
+      c.lineWidth = AX().hc ? 7 : 5; c.strokeStyle = 'rgba(6,10,14,.8)'; c.strokeText(t.str, q.x, q.y); c.fillStyle = t.col; c.fillText(t.str, q.x, q.y);
     }
     c.globalAlpha = 1; fx.texts = fx.texts.filter((t) => t.life > 0);
   }
@@ -754,8 +779,8 @@
   // fields the figures are posed from). A goal plays that tape back through the cinematic camera. The tape is a copy:
   // playing it reads nothing from, and writes nothing to, the match.
   const TAPE_S = 7.5, RP = { tape: [], clock: 0, goalAt: -1, on: false, ents: null, cam: null, seenGoal: false };
-  const snapP = (p) => ({ x: p.x, y: p.y, vx: p.vx, vy: p.vy, face: p.face, state: p.state, stT: p.stT, stDur: p.stDur, kickT: p.kickT, runPh: p.runPh, animDist: p.animDist,
-    fallDir: p.fallDir, jock: p.jock, shield: p.shield, exhausted: false, jog: p.jog, top: p.top,
+  const snapP = (p) => ({ x: p.x, y: p.y, vx: p.vx, vy: p.vy, face: p.face, state: p.state, stT: p.stT, stDur: p.stDur, kickT: p.kickT, kickKind: p.kickKind, runPh: p.runPh, animDist: p.animDist,
+    fallDir: p.fallDir, jock: p.jock, shield: p.shield, close: p.close, stopT: p.stopT, exhausted: false, jog: p.jog, top: p.top,
     charge: p.charge ? { t: p.charge.t, type: p.charge.type, ft: p.charge.ft } : null,
     skill: p.skill ? { id: p.skill.id, t: p.skill.t, dur: p.skill.dur, sx: p.skill.sx, sy: p.skill.sy, lean: p.skill.lean } : null });
   const snapK = (k) => ({ x: k.x, y: k.y, vx: k.vx, vy: k.vy, face: k.face, state: k.state, stT: k.stT, diveT: k.diveT, diveDir: k.diveDir, slid: k.slid, animDist: k.animDist, high: k.high });
@@ -838,7 +863,7 @@
   // ------------------------------------------------------------------ frame
   function draw2D(c, G, V, dt) {
     c.save();
-    if (fx.shake > 0.2) { c.translate((Math.random() - 0.5) * fx.shake, (Math.random() - 0.5) * fx.shake); fx.shake *= Math.pow(0.004, dt); } else fx.shake = 0;
+    if (fx.shake > 0.2) { { const sk = fx.shake * shakeK(); c.translate((Math.random() - 0.5) * sk, (Math.random() - 0.5) * sk); } fx.shake *= Math.pow(0.004, dt); } else fx.shake = 0;
     c.drawImage(pitch, 0, 0, VW, VH);
     c.translate(OX, OY); c.scale(Z, Z);
 
@@ -851,6 +876,7 @@
     if (!V.quiet && (mustClearMine(G, V) || fx.cflash > 0)) clearGlow(c, (X, D) => ({ x: X, y: D, s: 1 }), 2.6);
     drawNets(c);          // the net sits behind everything, so the keeper stands in front of the goal
     if (G.drill && G.drill.kind === 'target') drawTargets(c, G);
+    if (G.cust && ISO.EditorUI) ISO.EditorUI.drawWorld(c, G.cust, fx.t);      // Phase 4.4: a custom drill's cones, walls and lit targets (same transform as the editor)
     drawBallShadow(c, b);
     const ents = [];
     G.players.forEach((p0, i) => { const p = viewP(p0); ents.push({ y: p.y, f: () => drawPlayer(c, G.ball.owner === p0, p, V.sheets[i], V.labels[i], p0) }); });
@@ -875,8 +901,8 @@
       t.life -= dt; t.y -= 22 * dt;
       if (t.life <= 0) continue;
       c.globalAlpha = Math.min(1, t.life * 2.5);
-      c.font = '800 italic 13px "Avenir Next Condensed","Arial Narrow",Arial,sans-serif';
-      c.lineWidth = 3.5; c.strokeStyle = 'rgba(6,10,14,.8)'; c.strokeText(t.str, t.x, t.y); c.fillStyle = t.col; c.fillText(t.str, t.x, t.y);
+      c.font = '800 italic ' + 13 * AX().scale + 'px "Avenir Next Condensed","Arial Narrow",Arial,sans-serif';
+      c.lineWidth = AX().hc ? 6 : 3.5; c.strokeStyle = 'rgba(6,10,14,.8)'; c.strokeText(t.str, t.x, t.y); c.fillStyle = t.col; c.fillText(t.str, t.x, t.y);
     }
     c.globalAlpha = 1;
     fx.texts = fx.texts.filter((t) => t.life > 0);
@@ -892,7 +918,7 @@
       ball: Object.assign(Object.create(G.ball), { x: G.ball.y, y: FW - G.ball.x, vx: G.ball.vy, vy: -G.ball.vx }),
     };
     c.save();
-    if (fx.shake > 0.2) { c.translate((Math.random() - 0.5) * fx.shake, (Math.random() - 0.5) * fx.shake); fx.shake *= Math.pow(0.004, dt); } else fx.shake = 0;
+    if (fx.shake > 0.2) { { const sk = fx.shake * shakeK(); c.translate((Math.random() - 0.5) * sk, (Math.random() - 0.5) * sk); } fx.shake *= Math.pow(0.004, dt); } else fx.shake = 0;
     drawScene3D(c, S, PEN_CAM, G);
     drawFx3D(c, PEN_CAM, dt);
     c.restore();
@@ -907,7 +933,7 @@
       clear: !V.quiet && (mustClearMine(G, V) || fx.cflash > 0),
     };
     c.save();
-    if (fx.shake > 0.2) { c.translate((Math.random() - 0.5) * fx.shake, (Math.random() - 0.5) * fx.shake); fx.shake *= Math.pow(0.004, dt); } else fx.shake = 0;
+    if (fx.shake > 0.2) { { const sk = fx.shake * shakeK(); c.translate((Math.random() - 0.5) * sk, (Math.random() - 0.5) * sk); } fx.shake *= Math.pow(0.004, dt); } else fx.shake = 0;
     drawScene3D(c, S, cam, G);
     drawFx3D(c, cam, dt);
     c.restore();
@@ -989,6 +1015,7 @@
   // between the goal and the taker, whichever renderer is underneath.
   function overlays(c, G, V, rs, pen) {
     if (G.weather === 'rain' && !V.quiet) { c.save(); c.font = '800 13px Arial,sans-serif'; c.textAlign = 'right'; c.textBaseline = 'middle'; c.fillStyle = 'rgba(170,205,240,.9)'; c.fillText('\u2614 RAIN', VW - 16, 92); c.restore(); }
+    if (G.turf && G.turf !== 'grass' && !V.quiet) { c.save(); c.font = '800 13px Arial,sans-serif'; c.textAlign = 'right'; c.textBaseline = 'middle'; c.fillStyle = 'rgba(210,230,200,.9)'; c.fillText(G.turf.toUpperCase() + ' PITCH', VW - 16, G.weather === 'rain' ? 110 : 92); c.restore(); }
     if (G.phase === 'countdown') {
       const n = Math.ceil(G.phaseT / G.cdTick), frac = (G.phaseT / G.cdTick) % 1;
       const sub = pen ? (G.drill.so.sudden ? 'SUDDEN DEATH · ' : '') + (G.drill.so.turn === 'shoot' ? 'YOUR KICK' : (G.players[1].def.short || 'CPU').toUpperCase() + ' TO SHOOT — SAVE IT')
@@ -997,7 +1024,7 @@
     } else if (G.phase === 'goal') {
       const t = (G.goalDur || C.GOAL_T) - G.phaseT, lg = G.goals[G.goals.length - 1], name = G.players[lg && lg.by != null ? lg.by : 1 - G.concede].def.short;
       if (G.drill) banner(c, G.drill.msg, G.drill.sub, pen && G.drill.so.turn !== 'shoot' ? '#f1735f' : '#35e08a', t, pen ? 350 : OY + 130, pen ? VW / 2 : 0);
-      else if (!rs || rs.mix < 0.5) banner(c, 'GOAL!', (G.own ? 'OWN GOAL · ' : '') + name + '  ' + G.score[0] + ' – ' + G.score[1], TEAM_COL[1 - G.concede], t);
+      else if (!rs || rs.mix < 0.5) banner(c, 'GOAL!' + (G.rules && G.goals.length && G.goals[G.goals.length - 1].pts > 1 ? ' +' + G.goals[G.goals.length - 1].pts : ''), (G.own ? 'OWN GOAL · ' : '') + name + '  ' + G.score[0] + ' – ' + G.score[1], TEAM_COL[1 - G.concede], t);
     } else if ((G.phase === 'ready' || G.phase === 'out') && (G.msg || G.outInfo || G.drill)) {
       const str = G.drill ? G.drill.msg : G.phase === 'ready' ? G.msg : { saved: 'SAVED', out: 'OUT' }[G.outInfo.kind];
       if (pen) banner(c, str, '', G.drill.so.turn === 'shoot' ? '#f1735f' : '#35e08a', 1.0 - G.phaseT, 350, VW / 2);
@@ -1013,6 +1040,7 @@
     }
   }
 
+  const shakeK = () => { if (AX().rm) return 0; const v = ISO.Profile && ISO.Profile.data && ISO.Profile.data.settings && ISO.Profile.data.settings.camShake; return v == null ? 1 : v; };      // settings.camShake scales the screen shake (3D camera parity)
   function reset() { fx.parts = []; fx.texts = []; fx.trail = []; fx.shake = 0; fx.flash = 0; fx.cflash = 0; RP.tape.length = 0; RP.goalAt = -1; RP.ents = null; RP.cam = null; LIVE.init = false; LIVE.cam = null; }
 
   // mouse aim reticle (screen coords) with a guide from the human player
@@ -1031,5 +1059,8 @@
   }
   // is the goal replay on screen right now? (the match underneath is paused in its goal phase)
   const inReplay = (G, V) => !!replayState(G, V);
-  ISO.Render = { draw, onEvent, reset, VW, VH, TEAM_COL, Z, OX, OY, drawAim, setMap, thumb, unprojectGoal, unprojectLive, inReplay, setBall, overlays, penaltyOverlay, theme: () => TH, mapId: () => mapId };
+  // read-only helpers for the debug HUD (js/debug-hud.js): a ground point (sim x, y) to canvas pixels as this frame's classic view draws it, and the effect counts
+  const debugProj = (X, Y) => (LIVE.cam ? pr(LIVE.cam, Y, FW - X, 0) : { x: OX + Z * Y, y: OY + Z * (FW - X) });
+  const debugCounts = () => ({ parts: fx.parts.length, texts: fx.texts.length });
+  ISO.Render = { debugProj, debugCounts, draw, onEvent, reset, VW, VH, TEAM_COL, Z, OX, OY, drawAim, setMap, thumb, unprojectGoal, unprojectLive, inReplay, setBall, overlays, penaltyOverlay, theme: () => TH, mapId: () => mapId };
 })();

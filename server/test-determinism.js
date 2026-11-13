@@ -20,8 +20,9 @@ for (let m = 0; m < N; m++) {
   const four = m % 3 === 2;
   const roster = (four ? [0, 1, 2, 3] : [0, 1]).map((i) => P[(m * 7 + i * 3) % P.length]);
   const moves = roster.map((_, i) => (i % 2 ? null : new Set(Object.keys(ISO.Game.SKILLS))));
-  const G = ISO.Game.create({ roster, seed: 4000 + m, kickoff: m % 2, replay: true, moves });
-  const H = ISO.Game.create({ roster, seed: 1, kickoff: 1 - (m % 2), moves });          // the "client": same roster, different everything else
+  const kp = m % 4 === 1 ? [ISO.KEEPERS[0], { ...ISO.KEEPERS[1], gk: ISO.GK_ORDER[(m >> 2) % ISO.GK_ORDER.length] }] : undefined;      // Phase 3.4: one match in four has the same styled keeper on both sides (it is not in the snapshot: both ends must already agree)
+  const G = ISO.Game.create({ roster, keepers: kp, seed: 4000 + m, kickoff: m % 2, replay: true, moves, turf: ISO.Game.turfs[m % 4], rain: m % 2 === 1 });      // pitch and weather on G only: the snapshot must carry the surface
+  const H = ISO.Game.create({ roster, keepers: kp, seed: 1, kickoff: 1 - (m % 2), moves });          // the "client": same roster, different everything else
   const ai = roster.map((_, i) => ISO.AI.create(['hard', 'normal', 'easy'][(m + i) % 3]));
   let steps = 0;
   const input = () => G.players.map((p, i) => ISO.Net.sanitizeInput(ISO.Net.packInput(ISO.AI.update(G, p, ai[i], C.STEP))));

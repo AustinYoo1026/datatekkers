@@ -23,7 +23,7 @@ const WebSocket = require('ws');
 const ROOT = path.resolve(__dirname, '..');
 for (const f of ['data', 'game', 'net']) require(path.join(ROOT, 'js', f + '.js'));
 { const w = console.warn; console.warn = () => {}; globalThis.THREE = require(path.join(ROOT, 'js', 'vendor', 'three.min.js')); console.warn = w; }
-for (const f of ['coords', 'adapter', 'camera3d']) require(path.join(ROOT, 'js', '3d', f + '.js'));
+for (const f of ['coords', 'camrig', 'adapter', 'camera3d']) require(path.join(ROOT, 'js', '3d', f + '.js'));
 const ISO = globalThis.ISO, C = ISO.C, Net = ISO.Net, Game = ISO.Game, R3D = ISO.R3D, K = R3D.K, THREE = globalThis.THREE;
 const DELAY = process.argv[2] != null ? +process.argv[2] : 25, JITTER = process.argv[3] != null ? +process.argv[3] : 6;
 const GCY = (C.GY0 + C.GY1) / 2, VW = 1280, VH = 720;
@@ -212,6 +212,19 @@ function partA() {
 }
 
 // ================================================================== B / C: through the server
+// PROTO=2 makes this client speak protocol 2 (deltas). expand() rebuilds the full snapshot into m.n (a private copy) and fills a missing
+// m.inp from the previous one, so the checks below are the same as for protocol 1; the Predictor gets the untouched delta message.
+const PROTO = +process.env.PROTO >= 2 ? +process.env.PROTO : 1;
+function expand(c, m) {
+  if (PROTO < 2) return m;
+  const raw = JSON.parse(JSON.stringify(m));
+  if (!c.follow) c.follow = ISO.Net.follower();
+  if (!c.follow(m)) fail('a delta arrived without its base');
+  m.n = JSON.parse(JSON.stringify(m.n));
+  if (m.inp) c.lastInp = m.inp; else m.inp = c.lastInp;
+  return raw;
+}
+
 const freePort = () => new Promise((res, rej) => { const l = require('net').createServer(); l.on('error', rej); l.listen(0, '127.0.0.1', () => { const p = l.address().port; l.close(() => res(p)); }); });
 // starts a server on a free port; a server that dies at start (the port was taken in between) is retried on another one
 async function server(env) {
@@ -242,7 +255,7 @@ function delayed(deliver) {          // a link that delays every message by DELA
     setTimeout(drain, Math.max(0, at - performance.now()) + 1);
   };
 }
-const OWN = { kick: 1, skill: 1, lunge: 1, fake: 1 };
+const OWN = { kick: 1, skill: 1, lunge: 1, fake: 1, stop: 1, burst: 1 };
 // The reference: every snapshot the server sent (it sends one per step here), by step. Filled by the first client.
 function reference() { return { top: 0, shadow: null, shadowN: 0, shadowBad: 0, shadowDiff: null, evN: 0, changes: 0 }; }
 const tally = (o, k) => { o[k] = (o[k] || 0) + 1; };
@@ -269,12 +282,13 @@ function client(port, name, pick, mkView, ref) {
     if (m.t === 'error') fail(name + ': the server sent an error: ' + m.msg);
     if (m.t === 'room') c.me = m.you;
     if (m.t === 'start') {
-      c.G = Game.create({ roster: m.picks.map((p) => ISO.outfit(ISO.playerById(p.id), p.prime, p.skin)) });
+      c.G = Game.create({ roster: m.picks.map((p) => ISO.outfit(ISO.playerById(p.id), p.prime, p.skin, p.celeb)) });
       c.G.players.forEach((p, i) => { p.moves = m.moves[i] ? new Set(m.moves[i]) : null; });
-      c.P = Net.Predictor({ me: c.me, send: c.send });
+      c.P = Net.Predictor({ me: c.me, send: c.send, resync: () => c.send({ t: 'key' }) });
       c.view = mkView(c.me); c.picks = m.picks; c.moves = m.moves;
     }
     if (m.t === 's' && c.P) {
+      const raw = expand(c, m);
       if (ref && !ref.owner) ref.owner = c;
       if (ref && ref.owner === c && m.k > ref.top) record(ref, c, m);
       // the input the server applied for this seat is the one this client sent under that number
@@ -294,7 +308,7 @@ function client(port, name, pick, mkView, ref) {
         if (!same(mine, theirs)) { c.predBad++; c.predDiff = firstDiff(mine, theirs, 'G'); }
       }
       for (const k of c.pred.keys()) { if (k > m.k) break; c.pred.delete(k); }
-      c.P.onSnapshot(m);
+      c.P.onSnapshot(raw);
     }
     if (c.on) c.on(m);
   });
@@ -311,7 +325,7 @@ function client(port, name, pick, mkView, ref) {
     if (n && c.P.synced && c.G.phase !== 'end') c.pred.set(c.lastK + c.P.pending, state(c.G));
   }, 16);
   c.open = new Promise((r) => c.ws.on('open', r));
-  c.join = (m) => c.send({ name, pick, ...m });
+  c.join = (m) => c.send({ name, pick, ...(PROTO >= 2 ? { v: PROTO } : {}), ...m });
   c.close = () => { clearInterval(c.timer); c.ws.close(); };
   c.zero = () => { c.predN = c.predBad = 0; c.predDiff = null; for (const k in c.P.stats) c.P.stats[k] = 0; };
   return c;
@@ -323,7 +337,7 @@ function record(ref, c, m) {
   ref.evN += m.n.ev.length;
   if (!prev || m.k !== prev.k + 1) return;
   if (!same(prev.inp, m.inp)) ref.changes++;
-  if (!ref.shadow) { ref.shadow = Game.create({ roster: c.picks.map((p) => ISO.outfit(ISO.playerById(p.id), p.prime, p.skin)) }); ref.shadow.players.forEach((p, i) => { p.moves = c.moves[i] ? new Set(c.moves[i]) : null; }); }
+  if (!ref.shadow) { ref.shadow = Game.create({ roster: c.picks.map((p) => ISO.outfit(ISO.playerById(p.id), p.prime, p.skin, p.celeb)) }); ref.shadow.players.forEach((p, i) => { p.moves = c.moves[i] ? new Set(c.moves[i]) : null; }); }
   const H = ref.shadow;
   Net.apply(H, wireJSON(prev.n)); H.events.length = 0;
   Game.step(H, m.inp.map((i) => (i ? Net.sanitizeInput(i) : Game.ZERO)));

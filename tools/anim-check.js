@@ -10,6 +10,7 @@
      --no-skills    section C: pure CPU-vs-CPU (by default the home player also presses a skill chord about once a second)
      --root dir     check another copy of the repo (needs its js/ folder), e.g. an export of HEAD, to compare before / after
      --skip substr  do not load the modules whose path contains this (to see how the rest copes)
+     --stride f     section B: the subject's stride factor (sim ms.stride, 0.9 - 1.12; default 1)
      --trace key    A: a scene name (frames around its worst value); C: a state or transition (e.g. --trace "free > tackle")
    Exit code: 0 nothing over a limit, 1 a limit exceeded, 2 a module failed to load, a section crashed or a scene could not be staged.
 
@@ -136,6 +137,7 @@ const ONLY = argv.reduce((a, v, i) => (argv[i - 1] === '--only' ? a.concat(v.toU
 const want = (s) => !ONLY.length || ONLY.includes(s);
 const ROOT = path.resolve(optv('root', path.join(__dirname, '..')));
 const CLIP_F = optv('clip', null), JSON_OUT = flag('json'), ALL = flag('all'), TRACE = optv('trace', null), NO_SKILLS = flag('no-skills'), TOP = +optv('top', 20);
+const STRIDE_F = +optv('stride', 1);      // section B: stride factor (default 1: output unchanged)
 const MATCHES = +optv('matches', 3), SECS = +optv('secs', 150), HZ_C = +optv('hz', 60);
 
 // ---------------------------------------------------------------- browser stubs + module loading
@@ -572,6 +574,11 @@ SCENES.push({ name: 'celebrate', clip: (k) => k === 'celebrate', variants: FT, t
   setup(G) { const p = G.players[0]; p.x = 60; p.y = 110; p.face = PI / 2; away(G.players[1]); G.ball.x = 20; G.ball.y = 700; },
   pre(G, k) { if (k === sec(1.0)) { const p = G.players[0]; G.phase = 'goal'; G.phaseT = 99; p.charge = null; p.state = 'celebrate'; p.stT = 0; p.stDur = 0; } },
   input: () => [IN({ my: 1 }), ZERO] }) });
+// ---- the purchasable celebrations (roadmap 2.5): the same scene with def.celeb set. Only those that pass the strict thresholds are listed (see PHASE2_NOTES.md)
+for (const id of ['arms', 'point', 'salute', 'robot', 'sit', 'knee', 'spin']) SCENES.push({ name: 'celebrate:' + id, clip: (k) => k === 'celebrate', variants: FT, tail: 0, cap: 3.2, phase: 'any', make: (v) => ({ roster: [Object.assign(defFoot(v.foot), { celeb: id }), OPPD], solo: true, seed: 18,
+  setup(G) { const p = G.players[0]; p.x = 60; p.y = 110; p.face = PI / 2; away(G.players[1]); G.ball.x = 20; G.ball.y = 700; },
+  pre(G, k) { if (k === sec(1.0)) { const p = G.players[0]; G.phase = 'goal'; G.phaseT = 99; p.charge = null; p.state = 'celebrate'; p.stT = 0; p.stDur = 0; } },
+  input: () => [IN({ my: 1 }), ZERO] }) });
 // ---- locomotion through the game's own velocity response: starts, stops, cuts, the defensive stances
 const LOC = [
   ['start-stop', false, (k) => (k < sec(0.6) ? {} : k < sec(1.8) ? { my: 1 } : {})],
@@ -935,7 +942,8 @@ function gaitRun(o) {
     const s = o.fn(f * dt), vx = Math.sin(s.dir) * s.sp, vz = Math.cos(s.dir) * s.sp;
     pv = A.samplePV('idle', 0, 0, pv);
     pv.jog = jog; pv.top = top; pv.speed = s.sp; pv.vx = vx; pv.vz = vz; pv.yaw = s.face; pv.sprint = !!s.sprint; pv.jock = !!s.jock; pv.focus = !!s.focus; pv.owner = !!s.owner;
-    const dph = ((s.sp * dts) / (STRIDE_M * (1 + 0.3 * Math.min(1, s.sp / top)))) * TAU;
+    const dph = ((s.sp * dts) / (STRIDE_M * STRIDE_F * (1 + 0.3 * Math.min(1, s.sp / top)))) * TAU;      // --stride f: the sim's per-player stride factor (ms.stride, 0.9-1.12) scales the phase
+    pv.stride = STRIDE_F;
     ph += dph; pv.runPh = ph; x += vx * dts; z += vz * dts; pv.x = x; pv.z = z;
     // a dribbled ball beside the strong foot, 0.3 m ahead (ball3d's owned-ball mapping puts it about there at a jog)
     if (s.owner) { bv.x = x + Math.sin(s.face) * 0.3 - Math.cos(s.face) * 0.3; bv.z = z + Math.cos(s.face) * 0.3 + Math.sin(s.face) * 0.3; }

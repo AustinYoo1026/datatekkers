@@ -472,6 +472,7 @@
       const skin = hexOk(L.skin, DEF_SKIN), boot = hexOk(L.boot, DEF_BOOT);
       actor.spec = sp; actor.keeper = keeper;
       actor.foot = def.foot === 'L' || def.foot === 'left' ? -1 : 1;
+      actor.celeb = ISO.celebOf ? ISO.celebOf(def) : 'fist';      // roadmap 2.5: the celebration clip (a bought one, else the signature)
       // rig dimensions (metres)
       const R = actor.rig;
       R.h = h; R.w = w; R.pelvisY = B.pelvis * h; R.thigh = B.thigh * h; R.shin = B.shin * h; R.ankle = B.ankle * h; R.uarm = B.uarm * h; R.farm = B.farm * h;

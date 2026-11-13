@@ -43,10 +43,12 @@
   const LOW_UP = 24, LOW_DN = 9;      // spring rates (1/s) of the pelvis lowering that keeps a planted leg from over-stretching
   const SLEW = new Float32Array(N);      // fastest a pose channel may move per second (0 = no limit besides the filter's)
   SLEW[RX] = SLEW[LIFT] = SLEW[RZ] = 8; SLEW[RYAW] = SLEW[PITCH] = SLEW[ROLL] = 10;
-  const LOCK_OFF = { slide: 1, down: 1, ankle: 1, celebrate: 1, stumble: 1 };      // clips that are meant to slide: no foot lock
+  const LOCK_OFF = { slide: 1, down: 1, ankle: 1, celebrate: 1, stumble: 1, hdive: 1 };      // clips that are meant to slide: no foot lock
+  const RD_FALL = 4;      // 1/s: fastest the first-time approach weight is let go of when the strike does not come
   const FT_REACH = 1.3, FT_LEAD = 0.25;      // first-time shots: the sim strikes when the ball is within this many metres; the approach pose is blended in over the last FT_LEAD sim s
   const KICK_NEAR = 0.6, KICK_FADE = 0.6;      // the kick IK only cleans up: full within KICK_NEAR (m) of where the clip's swing has the boot, gone KICK_FADE further out
   const OWN_T = 0.2;      // s (real): longest a foot's own swing (a far foot, a foot in the air after a clip) takes
+  const LK_NEAR = 0.2;      // x h: the gait's plant is inherited only if the clip's own foot is this close to it
   const LK_STEP_V = 6;      // m/s (real): how fast a released foot travels to the clip's foot
   const LK_LET = 0.95;      // the planted foot is let go at this share of the leg's reach, before the knee is straight
   const LK_SPD = 2.5;      // m/s (real): fastest the clip may move a foot over the body for it to count as standing
@@ -114,19 +116,19 @@
     const v3 = new THREE.Vector3(), v4 = new THREE.Vector3(), mPI = new THREE.Matrix4();
     const qa = new THREE.Quaternion(), qb = new THREE.Quaternion(), qc = new THREE.Quaternion(), qd = new THREE.Quaternion(), AX = new THREE.Vector3(1, 0, 0), AY = new THREE.Vector3(0, 1, 0);
     // feet (i: 0 left, 1 right; block of 16 each): 0 x 1 z 2 y 3 pitch 4 heading (group-local; planted: the ankle's flat-foot
-    // point on the turf) | at lift-off: 5 x 6 z 7 y 8 pitch 9 heading 10 swing progress | ankle target: 11 x 12 y 13 z | 14 reach weight | 15 swing arch taken away (a foot that starts its swing already in the air) | 15 swing arch taken away (a foot that starts its swing already in the air)
-    const lkOn = new Uint8Array(2), lkW = new Float32Array(2), lkS = new Float32Array(2), lkP = new Float32Array(8), lkR = new Float32Array(4), lkQ = new Float32Array([1, 1]), lkDur = new Float32Array(2), lkH = new Float32Array(2), lkD = new Float32Array(4), fs = new Uint8Array(2), own = new Uint8Array(2), sOwn = new Float32Array(2), FT = new Float32Array(32), TPt = new Float32Array(3), WT = new Float32Array(6);
+    // point on the turf) | at lift-off: 5 x 6 z 7 y 8 pitch 9 heading 10 swing progress | ankle target: 11 x 12 y 13 z | 14 reach weight | 15 swing arch taken away (a foot that starts its swing already in the air)
+    const lkI = new Uint8Array(2), lkG = new Float32Array(4), lkGs = new Uint8Array(2), lkOn = new Uint8Array(2), lkW = new Float32Array(2), lkS = new Float32Array(2), lkC = new Float32Array(2), lkP = new Float32Array(8), lkR = new Float32Array(4), lkQ = new Float32Array([1, 1]), lkDur = new Float32Array(2), lkH = new Float32Array(2), lkD = new Float32Array(4), fs = new Uint8Array(2), own = new Uint8Array(2), sOwn = new Float32Array(2), FT = new Float32Array(32), TPt = new Float32Array(3), WT = new Float32Array(6);
     const st = {
       init: false, yaw: 0, lastX: 0, lastZ: 0, pvx: 0, pvz: 0, ax: 0, az: 0, aL: 0, aF: 0, yawRate: 0, clock: 0, foot: actor.foot || 1, barge: 1, sbOn: false,
       sw: new Float32Array(8), chargeF: 0, rate: 24, ikSide: 0, kickK: 1, prevKickT: 0, cx: 0, cy: 0, cz: 0, contact: false,
-      rdW: 0, rdSide: 1, rdX: 0, rdY: 0, rdZ: 0, touchSide: 0, touchW: 0, touchSole: false, leanP: 0, leanR: 0, bank: 0, lockT: 0, lockW: 0, lookY: 0, lookX: 0, lookW: 0, turn: 0,
+      rdW: 0, rdH: 0, rdWs: 0, rdLx: 0, rdLz: 0, rdSide: 1, rdX: 0, rdY: 0, rdZ: 0, touchSide: 0, touchW: 0, touchSole: false, leanP: 0, leanR: 0, bank: 0, lockT: 0, lockW: 0, lookY: 0, lookX: 0, lookW: 0, turn: 0,
       diveSide: 1, held: false, throwT: 0, h: 1, rig: actor.rig, seed: (SEED++ * 2.399) % TAU,
       vL: 0, vF: 0, tL: 0, tF: 1, vr: 0, md: 0, mdx: 0, mdz: 0, y0: 0, gph: 0, dq: 0, cb: 0, kox: 0, koz: 0, koy: 0, acc: 0, kp: new Float32Array(4), shL: 0, shF: 1, shW: 0, gkV: 0, gkW: 1, gkHW: 0, settled: true, kf: 0, nar: 1, locoT: 0, spr: 0, prevPh: 0, prevAD: 0,
-      key: -1, prevStT: 0, lowF: 0, lowV: 0, Ds: 0.4, mva: 0, loco: false, legT: new Float32Array(2), legW: new Float32Array(2), legG: new Float32Array(2), bL: 0, bF: 0, bY: 0, bR: BALL_R, bOk: false,
+      key: -1, sf: 1, prevStT: 0, lowF: 0, lowV: 0, Ds: 0.4, mva: 0, loco: false, legT: new Float32Array(2), legW: new Float32Array(2), legG: new Float32Array(2), bL: 0, bF: 0, bY: 0, bR: BALL_R, bOk: false,
     };
     const W_DRIB = 0, W_JOCK = 1, W_FOCUS = 2, W_CHG = 3, W_EXH = 4, W_WALL = 5, W_LOCO = 6;
 
-    function reset() { st.init = false; st.throwT = 0; st.held = false; st.lookW = 0; st.sw.fill(0); st.loco = false; }
+    function reset() { st.init = false; st.rdWs = 0; st.rdW = 0; st.rdLx = st.rdLz = st.rdX = st.rdY = st.rdZ = 0; st.throwT = 0; st.held = false; st.lookW = 0; st.sw.fill(0); st.loco = false; }
 
     // ground points: [bone, x, y, z, radius] (offsets scaled by rig.h at use)
     const GP = [
@@ -171,7 +173,7 @@
       if (air >= 0) {      // put the gait clock where this foot is that far into its swing (the other foot is then in its stance)
         const D = st.Ds, q = PI + PI * D + FT[air * 16 + 10] * (TAU - 2 * PI * D);
         st.gph = (q - air * PI + TAU) % TAU;
-      } else if (air === -2) for (let i = 0; i < 2; i++) { const o = i * 16; if (!fs[i]) { fs[i] = 1; FT[o + 1] -= pivot(FT[o + 3], h); FT[o + 2] = Math.max(FT[o + 2] - 0.0, ankleY(FT[o + 3], h)); } }
+      } else if (air === -2) for (let i = 0; i < 2; i++) { const o = i * 16; if (!fs[i]) { fs[i] = 1; FT[o + 1] -= pivot(FT[o + 3], h); FT[o + 2] = Math.max(FT[o + 2], ankleY(FT[o + 3], h)); } }
     }
     // where the ankle of foot i goes to put the boot on the ball (group-local, into TPt): sole on top, or the instep / inside
     // against the side of the ball that faces that hip
@@ -215,7 +217,7 @@
       const r = v / jog, k = kS, mvv = sm(v / (0.3 * jog)), vr = st.vr;
       // one cycle (two steps) covers the sim's stride at a run; backwards and sideways it is shorter, and the cadence floor
       // shortens it further at low speed, down to stepping on the spot
-      const jk = clamp(st.sw[W_JOCK] + st.sw[W_FOCUS], 0, 1), Ls = STRIDE_M * (1 + 0.3 * clamp(v / top, 0, 1)), Lj = Ls * (1 - JOCK_STEP * jk);      // a jockeying defender takes short, quick steps: the ankles stay ~0.7 m apart
+      const jk = clamp(st.sw[W_JOCK] + st.sw[W_FOCUS], 0, 1), Ls = STRIDE_M * st.sf * (1 + 0.3 * clamp(v / top, 0, 1)), Lj = Ls * (1 - JOCK_STEP * jk);      // a jockeying defender takes short, quick steps: the ankles stay ~0.7 m apart
       const LcN = wf * (rph === rph ? Lj : Lj * h) + (wb * Math.min(Ls, 1.7) + ws * lerp(0.6, SIDE_L, st.nar)) * h;
       const fmin = Math.max(lerp(0.8, 1.15, sm(vr / 1.2)), st.settled ? 0 : 1.5 * (1 - mvv));
       const stepping = v > 0.2 || !st.settled;
@@ -357,6 +359,7 @@
     function target(pv, dt, keeper, ball) {
       T.set(REST);
       st.rate = 24; st.ikSide = 0; st.lockT = 0; st.legT[0] = st.legT[1] = 0;
+      const rdPrev = st.rdWs; st.rdWs = 0;
       st.rdW = 0; st.touchSide = 0; st.touchW = 0; st.touchSole = false;      // a clip may ask for a foot on the ball: side (+1 right / -1 left), weight 0..1, sole on top instead of instep against it
       if (keeper) return targetKeeper(pv, dt, ball);
       const state = pv.state, kick = pv.kickT > 0, fake = pv.fakeU > 0;
@@ -430,17 +433,26 @@
       } else if (state === 'skill' && pv.skill) { st.rate = 32; Clips.skill(T, pv, st, ball); }
       else if (fake && pv.fakeU < 1) { st.rate = 40; Clips.fake(T, pv, st, ball); }
       else if (kick) { st.rate = 40; Clips.kick(T, pv, st, ball); }
-      else if (pv.charge && pv.charge.ft && Clips.kickReady && ball) {      // a first-time strike is coming: draw the leg back and carry the body to where the sim will strike
-        const bx = fin(ball.x, pv.x) - fin(pv.x, 0), bz = fin(ball.z, pv.z) - fin(pv.z, 0), d = Math.hypot(bx, bz) || 1e-3, vbx = fin(ball.vx, 0) - fin(pv.vx, 0), vbz = fin(ball.vz, 0) - fin(pv.vz, 0);
-        const closing = Math.max(1, -(bx * vbx + bz * vbz) / d), tt = Math.max(0, (d - FT_REACH) / closing);      // sim s until the ball is within the strike distance
-        const w = sm(1 - tt / FT_LEAD), side = Math.abs(st.bL) > 0.05 ? (st.bL < 0 ? 1 : -1) : st.foot;
+      else if (state === 'hdive') { Clips.tackle(T, pv, st, 1); st.rate = 42; W[W_LOCO] = 0; }      // the dive outlasts the kick clip: stay horizontal, not standing
+      else if (state === 'shoulder') { if (!st.sbOn) bargeSide(pv); st.sbOn = true; st.rate = 40; Clips.shoulder(T, pv, st, ball); }
+      else if ((rdPrev > 0.001 || (pv.charge && pv.charge.ft)) && Clips.kickReady && ball) {      // a first-time strike is coming: draw the leg back and carry the body to where the sim will strike
+        let w = 0, side = st.rdSide, lx = st.rdLx, lz = st.rdLz;
+        if (pv.charge && pv.charge.ft) {
+          const bx = fin(ball.x, pv.x) - fin(pv.x, 0), bz = fin(ball.z, pv.z) - fin(pv.z, 0), d = Math.hypot(bx, bz) || 1e-3, vbx = fin(ball.vx, 0) - fin(pv.vx, 0), vbz = fin(ball.vz, 0) - fin(pv.vz, 0);
+          const closing = Math.max(1, -(bx * vbx + bz * vbz) / d), tt = Math.max(0, (d - FT_REACH) / closing);      // sim s until the ball is within the strike distance
+          w = sm(1 - tt / FT_LEAD); side = Math.abs(st.bL) > 0.05 ? (st.bL < 0 ? 1 : -1) : st.foot;
+          lx = fin(ball.x, pv.x) + fin(ball.vx, 0) * Math.min(tt, FT_LEAD); lz = fin(ball.z, pv.z) + fin(ball.vz, 0) * Math.min(tt, FT_LEAD);
+          st.rdX = fin(ball.x, pv.x) + fin(ball.vx, 0) * tt; st.rdY = Math.max(0, fin(ball.y, 0) + fin(ball.vy, 0) * tt); st.rdZ = fin(ball.z, pv.z) + fin(ball.vz, 0) * tt;
+          st.rdLx = lx; st.rdLz = lz;
+        }
+        w = Math.max(w, rdPrev - RD_FALL * dt);      // rises as it likes, but an abandoned approach (the strike never comes) is let go over ~1/RD_FALL s, not in a frame
         if (w > 0.001) {
-          Clips.kickReady(T, pv, st, w, side, fin(ball.x, pv.x) + fin(ball.vx, 0) * Math.min(tt, FT_LEAD), fin(ball.z, pv.z) + fin(ball.vz, 0) * Math.min(tt, FT_LEAD));
+          st.rdWs = w;
+          Clips.kickReady(T, pv, st, w, side, lx, lz);
           const li = side > 0 ? 1 : 0; st.legT[li] = Math.min(st.legT[li], 1 - w);
-          st.rdW = w; st.rdSide = side; st.rdX = fin(ball.x, pv.x) + fin(ball.vx, 0) * tt; st.rdY = Math.max(0, fin(ball.y, 0) + fin(ball.vy, 0) * tt - 4.9 * tt * tt * 0); st.rdZ = fin(ball.z, pv.z) + fin(ball.vz, 0) * tt;
+          st.rdW = w; st.rdSide = side;
         }
       }
-      else if (state === 'shoulder') { if (!st.sbOn) bargeSide(pv); st.sbOn = true; st.rate = 40; Clips.shoulder(T, pv, st, ball); }
       if (state !== 'shoulder') st.sbOn = false;
     }
     // shielding: the opponent is on the near side, the ball on the far foot. The torso turns side-on to him, the near arm is out against him
@@ -536,16 +548,16 @@
     // ---------------------------------------------------------------- per frame
     function update(pv, dt, ball) {
       if (!pv) return;
-      if (pv.hidden) { g.visible = false; st.init = false; return; }
+      if (pv.hidden) { g.visible = false; st.init = false; st.rdWs = 0; return; }
       g.visible = true;
       dt = clamp(fin(dt, 0), 0, 0.1);
       st.clock += dt;
-      st.foot = actor.foot || 1;
+      st.foot = actor.foot || 1; st.celeb = actor.celeb || 'fist';
       const R = actor.rig, h = (st.h = R.h || 1);
       st.rig = R;
       const keeper = !!actor.keeper || pv.runPh === undefined;
       const px = fin(pv.x, 0), pz = fin(pv.z, 0);
-      if (st.init && Math.hypot(px - st.lastX, pz - st.lastZ) > 2.4) st.init = false;     // teleport: snap, never sweep
+      if (st.init && Math.hypot(px - st.lastX, pz - st.lastZ) > 2.4) { st.init = false; st.rdWs = 0; st.rdW = 0; st.rdLx = st.rdLz = st.rdX = st.rdY = st.rdZ = 0; }     // teleport: snap, never sweep
       // ---- yaw
       let yawT = fin(pv.yaw, 0);
       if (pv.state === 'celebrate') yawT = 0;                                   // face the camera
@@ -570,10 +582,11 @@
         if (Math.abs(mdx) + Math.abs(mdz) < 1e-7 && vl > 1e-3) {       // running on the spot (the lab without travel): the clocks give the distance
           let ds;
           if (keeper) ds = Math.abs(fin(pv.animDist, 0) - st.prevAD) * KS;
-          else ds = (Math.abs(fin(pv.runPh, 0) - st.prevPh) / TAU) * STRIDE_M * (1 + 0.3 * clamp(vl / Math.max(0.6, fin(pv.top, 7.5)), 0, 1));
+          else ds = (Math.abs(fin(pv.runPh, 0) - st.prevPh) / TAU) * STRIDE_M * (pv.stride > 0.5 && pv.stride < 2 ? pv.stride : 1) * (1 + 0.3 * clamp(vl / Math.max(0.6, fin(pv.top, 7.5)), 0, 1));
           if (ds < 1) { mdx = (vx / vl) * ds; mdz = (vz / vl) * ds; }
         }
       }
+      st.sf = pv.stride > 0.5 && pv.stride < 2 ? pv.stride : 1;      // the sim's stride factor for this player
       st.mdx = mdx; st.mdz = mdz; st.md = Math.hypot(mdx, mdz);
       st.prevPh = fin(pv.runPh, 0); st.prevAD = fin(pv.animDist, 0); st.lastX = px; st.lastZ = pz;
       const vL = vx * cy - vz * sy, vF = vx * sy + vz * cy;
@@ -607,7 +620,7 @@
           const j = (u + om * o) * dt;
           off[i] = (o + j) * e; ov[i] = (u - om * j) * e;
           pose[i] = T[i] + off[i]; TP[i] = T[i];
-          if (SLEW[i] && kt > 0 && pv.kick && pv.kick.high && !keeper) {      // in a header the root (the lunge, its pitch and turn) moves at a speed a body can have, whatever the clip asks
+          if (SLEW[i] && ((kt > 0 && pv.kick && pv.kick.high) || (st.rdW > 0.001 && st.rdH > 0.85)) && !keeper) {      // in a header the root (the lunge, its pitch and turn) moves at a speed a body can have, whatever the clip asks
             const m = SLEW[i] * dt, d = pose[i] - PP[i];
             if (d > m) { pose[i] = PP[i] + m; off[i] = pose[i] - T[i]; } else if (d < -m) { pose[i] = PP[i] - m; off[i] = pose[i] - T[i]; }
           }
@@ -696,6 +709,10 @@
       // the leg would over-stretch it lets go (the offset to the clip's foot fades out) and is not locked again before it has been lifted
       if (!keeper && !LOCK_OFF[pv.state] && !st.loco && st.init && dt > 0) {
         const Lf = (R.thigh + R.shin) * 0.99;
+        if (st.lkArm) {      // the first frame after the gait: a foot the gait had planted stays where it was planted
+          for (let i = 0; i < 2; i++) if (lkGs[i] && (v4.set(0, 0, 0), (i ? bn.footR : bn.footL).localToWorld(v4), Math.hypot(v4.x - lkG[i * 2], v4.z - lkG[i * 2 + 1]) < LK_NEAR * h)) { lkOn[i] = 1; lkW[i] = 0.3; lkQ[i] = 1; lkS[i] = 0; lkI[i] = 1; lkP[i * 2] = lkG[i * 2]; lkP[i * 2 + 1] = lkG[i * 2 + 1]; }
+          st.lkArm = 0;
+        }
         for (let i = 0; i < 2; i++) {
           const ft = i ? bn.footR : bn.footL, th = i ? bn.thighR : bn.thighL;
           v3.set(0, 0, 0); ft.localToWorld(v3);
@@ -704,9 +721,9 @@
           // how fast the clip moves this foot over the body: a foot sweeping along the turf (a slide, a drag) is not a standing foot
           v4.copy(v3); g.worldToLocal(v4);
           const fsp = Math.hypot(v4.x - lkR[i * 2], v4.z - lkR[i * 2 + 1]) / dt; lkR[i * 2] = v4.x; lkR[i * 2 + 1] = v4.z;
-          const planted = hf < (lkOn[i] ? 0.045 : 0.03) && fsp < (lkOn[i] ? LK_SPD * 2 : LK_SPD);
+          const planted = (lkI[i] && lkOn[i] ? hf < 0.06 : hf < (lkOn[i] ? 0.045 : 0.03)) && fsp < (lkOn[i] ? LK_SPD * 2 : LK_SPD);
           const ty = v3.y, wasOn = lkOn[i];
-          if (!planted || touching) { lkOn[i] = 0; lkS[i] = 0; }
+          if (!planted || touching) { lkOn[i] = 0; lkS[i] = 0; lkI[i] = 0; }
           else if (!lkOn[i] && !lkS[i]) {      // a foot that comes down while the last step is still on its way is locked where it is drawn
             lkOn[i] = 1; lkQ[i] = 1;
             if (lkW[i] > 0.02) { lkP[i * 2] = lkD[i * 2]; lkP[i * 2 + 1] = lkD[i * 2 + 1]; } else { lkP[i * 2] = v3.x; lkP[i * 2 + 1] = v3.z; }
@@ -714,7 +731,7 @@
           if (lkOn[i] === 1) {
             v4.copy(th.position).applyMatrix4(bn.pelvis.matrixWorld);
             const dx = lkP[i * 2] - v4.x, dz = lkP[i * 2 + 1] - v4.z, dy = v4.y - v3.y;
-            if (dx * dx + dz * dz + dy * dy > Lf * Lf * LK_LET * LK_LET) { lkOn[i] = 0; lkS[i] = 1; }      // about to over-stretch: let go until the clip lifts the foot
+            if (dx * dx + dz * dz + dy * dy > Lf * Lf * LK_LET * LK_LET) { lkOn[i] = 0; lkS[i] = 1; lkI[i] = 0; }      // about to over-stretch: let go until the clip lifts the foot
           }
           const tx = lkP[i * 2], tz = lkP[i * 2 + 1];
           ft.localToWorld(v4.set(0, 0, 0)); const cx = v4.x, cz = v4.z;
@@ -725,13 +742,22 @@
           if (lkOn[i]) lkW[i] += (1 - lkW[i]) * damp(30, dt);
           else if (lkQ[i] < 1) { lkQ[i] = Math.min(1, lkQ[i] + dt / lkDur[i]); lkW[i] = lkQ[i] < 1 ? 1 - sm(lkQ[i]) : 0; if (lkQ[i] >= 1) lkS[i] = 0; }      // landed: the clip's foot, if it is still down, is planted again
           else lkW[i] = 0;
+          {      // a lock let go on the frame it was taken (plant leg already straight) has no step to clear it: while the body moves, the clip's plant foot hops through, level, instead of dragging
+            const tgt = !lkOn[i] && lkS[i] && lkQ[i] >= 1 && planted && !touching ? sm(clamp((Math.hypot(pv.vx || 0, pv.vz || 0) - 0.5) / 1.5, 0, 1)) : 0;
+            lkC[i] += (tgt - lkC[i]) * damp(tgt > lkC[i] ? 40 : 14, dt);
+            if (lkC[i] > 0.01 && lkW[i] <= 0.01) { v3.set(cx, ty + 0.07 * h * lkC[i], cz); boneLeg(i, lkC[i], 0, th.rotation.y, true); }
+          }
           if (lkW[i] > 0.01) {      // the offset from the clip's foot fades in position, not in joint angles: a foot the clip swings away does not jump
             const lift = lkOn[i] ? 0 : lkH[i] * Math.pow(Math.sin(PI * lkQ[i]), 0.6);
             v3.set(cx + (tx - cx) * lkW[i], ty + lift, cz + (tz - cz) * lkW[i]); lkD[i * 2] = v3.x; lkD[i * 2 + 1] = v3.z;
             boneLeg(i, lkOn[i] ? lkW[i] : sm(Math.min(1, lkW[i] * 3)), lkOn[i] ? 0 : -0.12 * Math.pow(Math.sin(PI * lkQ[i]), 0.6), th.rotation.y, !lkOn[i]);      // a stepping boot is held level, toe up a little: it does not drag
           }
         }
-      } else { lkOn[0] = lkOn[1] = 0; lkW[0] = lkW[1] = 0; lkQ[0] = lkQ[1] = 1; }
+      } else {
+        if (st.loco && !keeper && dt > 0) { st.lkArm = 1; for (let i = 0; i < 2; i++) { lkG[i * 2] = WT[i * 3]; lkG[i * 2 + 1] = WT[i * 3 + 2]; lkGs[i] = fs[i]; } }
+        else st.lkArm = 0;
+        lkC[0] = lkC[1] = 0; lkOn[0] = lkOn[1] = 0; lkI[0] = lkI[1] = 0; lkW[0] = lkW[1] = 0; lkQ[0] = lkQ[1] = 1;
+      }
       // ---- a clip's foot-on-ball request
       if (!keeper && ball && st.touchSide && st.touchW > 0.01) {
         const i = st.touchSide > 0 ? 1 : 0;

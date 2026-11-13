@@ -4,12 +4,12 @@
   'use strict';
   const ISO = globalThis.ISO, R3D = ISO.R3D, K = R3D.K, C = ISO.C, S = K.S;
   const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
-  const mkPlayer = () => ({ idx: 0, team: 0, hidden: false, x: 0, z: 0, yaw: 0, vx: 0, vz: 0, speed: 0, jog: 0, top: 0, runPh: 0,
+  const mkPlayer = () => ({ stride: 1, idx: 0, team: 0, hidden: false, x: 0, z: 0, yaw: 0, vx: 0, vz: 0, speed: 0, jog: 0, top: 0, runPh: 0,
     state: 'free', u: 0, stT: 0, stDur: 0, kickT: 0, kick: null, charge: null, skill: null, fakeU: 0, fakeSide: 1, fallYaw: 0,
-    owner: false, sprint: false, jock: false, shield: false, focus: false, exhausted: false, wall: false, ballSide: 0, sim: null });
+    owner: false, close: false, stopT: 0, sprint: false, jock: false, shield: false, focus: false, exhausted: false, wall: false, ballSide: 0, sim: null });
   const mkKeeper = () => ({ x: 0, z: 0, yaw: 0, vx: 0, vz: 0, speed: 0, state: 'set', u: 0, diveDir: 1, high: false, slid: false, chip: false,
     holding: false, human: false, save: null, animDist: 0, jump: false, sim: null });
-  const vf = { t: 0, phase: 'play', me: 0, attacker: 0, slowmo: false, walls: false, pen: null, mustClear: -1, myTeam: 0, players: [], keeper: mkKeeper(),
+  const vf = { t: 0, phase: 'play', goalBy: -1, winner: -1, drill: null, me: 0, attacker: 0, slowmo: false, walls: false, pen: null, mustClear: -1, myTeam: 0, players: [], keeper: mkKeeper(),
     ball: { x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, spin: 0, owner: -1, held: false, inNet: false, shot: null, rot: 0 } };
 
   // latched presentation state, resolved to indices immediately (events carry entity objects that must not be kept)
@@ -33,7 +33,9 @@
       const lat = -(b.x - p.x) * Math.sin(p.face) + (b.y - p.y) * Math.cos(p.face);
       let foot = p.def.foot === 'L' || p.def.foot === 'left' ? -1 : 1;
       if (Math.abs(lat * S) > 0.15) foot = lat > 0 ? 1 : -1;
-      latch.kick[i] = { type: e.shot || null, owned: latch.lastOwner === i, foot, high: b.z >= 20, z: b.z, cross: !!(e.shot === 'chip' && (p.y < C.BOXY0 || p.y > C.BOXY1)) };
+      const kind = e.kind || null;      // the sim's resolved strike (volley, header, outside ...): the clip follows it, not a height guess
+      if (kind === 'outside' && e.foot) foot = e.foot === 'L' ? -1 : 1;
+      latch.kick[i] = { type: e.shot || null, kind, owned: latch.lastOwner === i, foot, high: kind ? kind === 'header' || kind === 'diveheader' : b.z >= 20, z: b.z, cross: !!(e.shot === 'chip' && (p.y < C.BOXY0 || p.y > C.BOXY1)) };
     } else if (e.type === 'kick') latch.throwAt = G.t;
     else if (e.type === 'save') latch.save = { kind: e.catch ? 'catch' : e.smother ? 'smother' : e.weak ? 'weak' : e.slide ? 'slide' : 'parry', at: G.t };
     else if (e.type === 'goal') { const lg = G.goals[G.goals.length - 1]; latch.lastGoalBy = lg && lg.by != null ? lg.by : -1; }
@@ -42,13 +44,15 @@
   function snapshot(G, V) {
     if (vf.players.length !== G.players.length) reset(G);
     vf.t = G.t; vf.phase = G.phase; vf.me = (V && V.me) || 0; vf.attacker = G.attacker; vf.slowmo = false;
-    vf.walls = !!G.walls;
+    vf.walls = !!G.walls; vf.celebCam = null;      // the goal camera of the celebration being played (roadmap 2.5)
+    vf.turf = G.turf || 'grass'; vf.surf = ISO.Phys ? ISO.Phys.surf(G) : null;      // pitch type and the surface row in force (never cached across frames)
     vf.pen = G.drill && G.drill.so ? G.drill.so.turn : null;      // penalty shootout: 'shoot' (you take it) or 'save' (you keep)
     vf.mustClear = G.mustClear == null ? -1 : G.mustClear;
+    vf.goalBy = latch.lastGoalBy; vf.winner = G.winner == null ? -1 : G.winner; vf.drill = G.drill ? G.drill.kind || null : null;      // camera rig: the last scorer, the match winner, the drill kind (read-only)
     vf.myTeam = G.players[vf.me] ? G.players[vf.me].team : 0;
     const b = G.ball, B = vf.ball;
     B.x = (b.y - K.GCY) * S; B.z = (C.FW - b.x) * S; B.y = Math.max(0, b.z) * S;
-    B.vx = b.vy * S; B.vz = -b.vx * S; B.vy = b.vz * S; B.spin = b.spin || 0; B.rot = b.rot || 0;
+    B.vx = b.vy * S; B.vz = -b.vx * S; B.vy = b.vz * S; B.spin = b.spin || 0; B.tsp = b.tsp || 0; B.rot = b.rot || 0;
     B.owner = b.owner ? G.players.indexOf(b.owner) : -1; if (!(B.owner < 0 && b.kickT < 0.02)) latch.lastOwner = B.owner;      // who had the ball just before a kick released it (pv.kick.owned)
     B.held = !!b.holder; B.inNet = b.inNet !== null && b.inNet !== undefined; B.shot = b.shot ? b.shot.type || 'normal' : null;
     for (let i = 0; i < G.players.length; i++) {
@@ -56,7 +60,8 @@
       o.idx = i; o.team = p.team; o.hidden = p.state === 'away';
       o.sim = p;      // sim: the live sim player, READ ONLY (an escape hatch for fields not copied below)
       o.x = (p.y - K.GCY) * S; o.z = (C.FW - p.x) * S; o.yaw = Math.PI - p.face;
-      o.vx = p.vy * S; o.vz = -p.vx * S; o.speed = Math.hypot(p.vx, p.vy) * S; o.jog = p.jog * S; o.top = p.top * S; o.runPh = p.runPh;
+      o.vx = p.vy * S; o.vz = -p.vx * S; o.speed = Math.hypot(p.vx, p.vy) * S; o.jog = p.jog * S; o.top = p.top * S; o.runPh = p.runPh; o.stride = ISO.styleOf ? ISO.styleOf(p.def).m.stride : 1;      // the sim's per-player stride factor (read-only): the gait's stride length follows it
+      if (p.state === 'celebrate' && !vf.celebCam && ISO.celebOf) vf.celebCam = ISO.celebById(ISO.celebOf(p.def)).cam;
       o.state = p.state; o.stT = p.stT; o.stDur = p.stDur; o.u = p.stDur > 0 ? clamp(p.stT / p.stDur, 0, 1) : 0;
       o.kickT = p.kickT;
       let k = latch.kick[i];
@@ -68,7 +73,7 @@
       else o.skill = null;
       o.fakeU = p.fakeT > 0 ? 1 - clamp(p.fakeT / C.FAKE_T, 0, 1) : 0; o.fakeSide = p.fakeDrag >= 0 ? 1 : -1;
       o.fallYaw = Math.PI - (p.fallDir !== undefined ? p.fallDir : p.face + Math.PI);
-      o.owner = B.owner === i; o.sprint = !!p.sprinting; o.jock = !!p.jock; o.shield = !!p.shield; o.focus = !!p.focus; o.exhausted = !!p.exhausted;
+      o.owner = B.owner === i; o.sprint = !!p.sprinting; o.jock = !!p.jock; o.shield = !!p.shield; o.close = !!p.close; o.stopT = p.stopT || 0; o.focus = !!p.focus; o.exhausted = !!p.exhausted;
       o.wall = p.noCtrl > 50; o.ballSide = p.ballSd || 0;
     }
     const kp = G.keeper, kv = vf.keeper;

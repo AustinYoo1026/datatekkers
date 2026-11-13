@@ -39,7 +39,7 @@
   const REACH_HI = 2.7;                                        // the highest ball centre the set keeper's hands go to (the sim saves to 2.5 m)
   const LIFT0 = 0.25;                                          // root height the flight arc scales (see fly())
   const TH_LIE = 1.5;                                          // lying on the side: roll
-  const FALL = 1.6;                                              // gravity of the fall after a catch in the air, x the sim's: a gathered body comes down hard and quick
+  const FALL = 1.0;                                              // gravity of the fall after a catch in the air, x the sim's: a gathered body comes down hard and quick
   const LEAD = 0.03;                                           // sim s the animator's pose filter trails a fast target by: contacts are keyed this early
 
   // ---------------------------------------------------------------- per-keeper latch (aim of the current dive, hold clock)
@@ -297,7 +297,7 @@
       g.fromAir = g.state === 'dive' && g.lpOn && g.cl > 0.03 && clock() - g.clT < 0.1;
       if (g.fromAir) { g.fCl = g.cl; g.fV = g.clv; }
       if (g.state !== 'dive' && g.state !== 'slide' && g.state !== 'sground') g.hugW = 0;      // the ball follows the pose only after a dive or a slide
-      g.holdAt = now; g.state = 'hold'; g.hbOn = false;
+      g.holdAt = now; g.hClk = st.clock || 0; g.state = 'hold'; g.hbOn = false;
     }
     const sv = pv && pv.save;
     let age = now >= 0 && g.holdAt >= 0 && now >= g.holdAt ? now - g.holdAt : 9;
@@ -308,7 +308,7 @@
     T.set(REST);
     let fl = 0;
     if (g.fromAir) {                                           // the flight goes on under gravity
-      const te = now >= 0 && g.holdAt >= 0 && now >= g.holdAt ? now - g.holdAt : age;
+      const te = (fin(st.clock, 0) - fin(g.hClk, 0)) * fin(SIM.SPEED, 0.6);      // a smooth clock: the sim time steps
       fl = Math.max(0, g.fCl + g.fV * te - 0.5 * FALL * GRAV * te * te);
       if (fl <= 0 && te > 0.05) g.fromAir = false;
     }

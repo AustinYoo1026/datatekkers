@@ -21,38 +21,33 @@
 
   // ---------------------------------------------------------------- career
   function renderCareer() {
+    PF.careerBegin(Date.now() % 2147483647 + 1);      // an untouched career takes a clock seed once (UI only, never the sim)
     const P = PF.data, C = P.career, me = PF.careerDef(), opp = PF.careerOpponent();
     drawTo('careerFace', me, 184);
     $('careerOvr').textContent = me.ovr;
     { const ni = $('careerName'), nn = $('careerNum'); if (document.activeElement !== ni) ni.value = me.name; if (document.activeElement !== nn) nn.value = me.num; }
+    $('careerFoot').textContent = me.foot === 'L' ? 'LEFT' : 'RIGHT';
     $('careerPts').textContent = C.points;
-    $('careerSub').textContent = 'STAGE ' + Math.min(C.stage + 1, C.ladder.length) + ' / ' + C.ladder.length;
+    $('careerSub').textContent = ISO.SEASONS[C.sn.i].name + ' · ' + (C.sn.md >= ISO.Career.MD ? 'SEASON COMPLETE' : 'MATCHDAY ' + (C.sn.md + 1) + ' / ' + ISO.Career.MD);
     $('careerAttrs').innerHTML = ISO.ATTRS.map(([k, label]) =>
       '<div class="cattr" data-row="' + k + '"><span>' + label + '</span>' +
       '<div class="ctrack"><i class="t-reach"></i><i class="t-val"></i><i class="t-base"></i><input type="range" class="cslide" min="0" max="99" step="1" data-slide="' + k + '" value="' + C.attr[k] + '"></div>' +
       '<b></b><small class="ccost"></small></div>').join('');
     paintSliders();
-    $('careerLadder').innerHTML = C.ladder.map((id, i) => {
-      const d = ISO.playerById(id), st = i < C.stage ? 'beaten' : i === C.stage ? 'next' : 'ahead';
-      return '<div class="lrow ' + st + ' r-' + ISO.rarityOf(d) + '"><span class="ln">' + (i + 1) + '</span><img src="' + face(d) + '" alt="">' +
-        '<span class="lname">' + esc(d.name) + '<small>' + esc(d.club) + (C.ladder.indexOf(id) < i ? ' · REMATCH' : '') + '</small></span><span class="lovr">' + d.ovr + '</span>' +
-        '<span class="lst">' + (st === 'beaten' ? '✓' : st === 'next' ? 'NEXT' : '') + '</span></div>';
-    }).join('');
+    if (ISO.CareerUI) ISO.CareerUI.render();
     if (opp) {
       drawTo('careerOppFace', opp, 184);
       $('careerOppName').textContent = opp.name;
       $('careerOppMeta').textContent = opp.club + ' · OVR ' + opp.ovr;
-      $('careerOppDiff').textContent = 'CPU ' + PF.careerDiff(C.stage).toUpperCase() + ' · FIRST TO 3';
+      $('careerOppDiff').textContent = (PF.data.settings.adaptive !== false ? 'CPU ' + ISO.AI.Adapt.label(PF.careerDiff(), PF.adaptLevel(PF.careerDiff())).replace('ADAPTIVE \u00b7 ', '') : 'CPU ' + PF.careerDiff().toUpperCase()) + ' · ' + ISO.AI.profileOf(opp).name.toUpperCase() + ' · FIRST TO 3';
       $('careerPlay').classList.remove('hidden');
-    } else {
-      $('careerOppName').textContent = 'CAREER COMPLETE';
-      $('careerOppMeta').textContent = 'You beat everyone. The GOAT.';
+    } else if (!(ISO.CareerUI && ISO.CareerUI.bossCard && ISO.CareerUI.bossCard())) {      // 5.5: while the season finale is open the card shows the rival
+      $('careerOppName').textContent = 'SEASON OVER';
+      $('careerOppMeta').textContent = 'Close the season in the table to collect your prize.';
       $('careerOppDiff').textContent = '';
       $('careerPlay').classList.add('hidden');
       $('careerOppFace').getContext('2d').clearRect(0, 0, 184, 184);
     }
-    const nx = $('careerLadder').querySelector('.next');
-    if (nx) nx.scrollIntoView({ block: 'center' });
   }
 
   // fill = current value, faint band = how far your points could take it, dark start = the career's base value
@@ -71,6 +66,15 @@
     });
     $('careerPts').textContent = C.points;
     $('careerOvr').textContent = PF.careerOvr(C.attr);
+    paintTraits();
+  }
+  // each trait's score against what it takes to earn it: score >= 90, or >= max(60, OVR + 1.5) and in the best two slots (three from 85 OVR)
+  function paintTraits() {
+    const me = PF.careerDef(), sty = ISO.styleOf(me);
+    $('careerTraits').innerHTML = ISO.TRAIT_ORDER.map((id) => {
+      const T = ISO.TRAITS[id], s = Math.max(0, Math.round(T.score(me.attr, me) - T.bias)), need = Math.round(Math.min(90, Math.max(60, me.ovr + 1.5))), on = sty.traits.includes(id);
+      return '<div class="ctrait' + (on ? ' on' : '') + '" title="' + esc(T.desc) + '"><span>' + esc(T.name.toUpperCase()) + '</span><div class="ctb"><i style="width:' + Math.min(100, s) + '%"></i><u style="left:' + need + '%"></u></div><b>' + (on ? '✓ ' : '') + s + '</b></div>';
+    }).join('') + '<p class="note">Traits are earned by raising the attributes behind them. The gold tick is the score to beat (' + Math.round(Math.min(90, Math.max(60, me.ovr + 1.5))) + ' at your current overall); the best ' + (me.ovr >= 85 ? 3 : 2) + ' qualifying traits are active.</p>';
   }
   document.addEventListener('input', (e) => {
     const k = e.target.dataset && e.target.dataset.slide;
@@ -166,6 +170,7 @@
       $('revealCard').innerHTML = '<div class="rv-rar">' + RR[res.rarity].name + (res.forced ? ' · PITY' : '') + '</div>' +
         '<img src="' + face(d) + '" alt=""><div class="rv-ovr">' + d.ovr + '</div><div class="rv-name">' + esc(d.name) + '</div>' +
         '<div class="rv-club">' + d.flag + ' ' + esc(d.club) + '</div>' +
+        '<div class="traits">' + traitTags(d) + '</div>' +
         (res.dup ? '<div class="rv-dup">DUPLICATE · +' + res.refund + ' CR</div>' : '<div class="rv-new">NEW · UNLOCKED</div>');
       $('opening').classList.add('revealed');
       $('openStage').className = rank >= 3 ? 'stage-boom' : '';
@@ -229,6 +234,10 @@
     return '';
   }
 
+  // Phase 2: playstyle, weak foot and traits as visible text (nothing is hover-only here).
+  const wfText = (d) => { const n = ISO.styleOf(d).wfStars; return '★'.repeat(n) + '☆'.repeat(5 - n); };
+  const traitTags = (d) => ISO.styleOf(d).traits.map((t) => '<span class="chip trait">' + ISO.TRAITS[t].tag + '</span>').join('');
+  const traitList = (d) => '<div class="traits">' + ISO.styleOf(d).traits.map((t) => '<span class="tr"><b>' + esc(ISO.TRAITS[t].name.toUpperCase()) + '</b>' + esc(ISO.TRAITS[t].desc) + '</span>').join('') + '</div>';
   function storePlayers() {
     const mine = ISO.PLAYERS.filter((d) => PF.owns(d.id)).map((d) => [d, PF.outfit(d).ovr]).sort((a, b) => b[1] - a[1] || a[0].name.localeCompare(b[0].name)).map((x) => x[0]);
     if (!mine.some((d) => d.id === store.pid)) store.pid = (mine.find((d) => d.id === App.pick[0].id) || mine[0]).id;
@@ -243,7 +252,7 @@
       ? '<div class="st-prime on"><div class="pk">★ PRIME ACTIVE</div><div class="pv"><b>' + pr.ovr + '</b> OVR</div><p>Every attribute boosted. Gold boots on. ' + '★'.repeat(ISO.stars(pr.attr.skl)) + ' skill moves.</p></div>'
       : '<div class="st-prime"><div class="pk">PRIME UPGRADE</div><div class="pv">' + base.ovr + ' <i>›</i> <b>' + pr.ovr + '</b> OVR</div>' +
         '<p>+' + ISO.PRIME.boost + ' to ' + ups + ' attributes, permanently' + (ISO.stars(pr.attr.skl) > ISO.stars(base.attr.skl) ? ', ' + ISO.stars(pr.attr.skl) + '★ skill moves' : '') + ' and gold boots.</p>' +
-        buyBtn('prime', base.id, ISO.primeCost(base), 'GO PRIME') + '</div>';
+        buyBtn('prime', base.id, PF.primeCost(base), 'GO PRIME') + '</div>';
     const skins = ISO.SKINS.map((sk) => {
       const own = PF.ownsSkin(base.id, sk.id), eq = PF.skinOf(base.id) === sk.id;
       const act = eq ? '<span class="st-tag on">✓ EQUIPPED</span>' : own ? '<button class="btn small" data-st="equip" data-id="' + sk.id + '">EQUIP</button>' : buyBtn('skin', sk.id, sk.cost);
@@ -252,7 +261,8 @@
     return '<div class="st-players"><div class="st-roster" id="stRoster">' + roster + '</div><div class="st-detail">' +
       '<div class="st-hero r-' + rar + '"><img src="' + face(cur) + '" alt=""><div class="st-id"><div class="st-rar">' + RR[rar].name + '</div><h3>' + esc(base.name) + '</h3>' +
       '<div class="st-meta">' + base.flag + ' ' + esc(base.club) + '</div><div class="st-attrs">' +
-      [['pac', 'PAC'], ['dri', 'DRI'], ['fin', 'FIN'], ['sho', 'SHO'], ['skl', 'SKL'], ['str', 'STR']].map(([k, l]) => '<span>' + l + ' <b>' + cur.attr[k] + '</b></span>').join('') + '</div></div>' + primeBox + '</div>' +
+      [['pac', 'PAC'], ['dri', 'DRI'], ['fin', 'FIN'], ['sho', 'SHO'], ['skl', 'SKL'], ['str', 'STR']].map(([k, l]) => '<span>' + l + ' <b>' + cur.attr[k] + '</b></span>').join('') + '</div>' +
+      '<div class="st-meta">STYLE <b>' + esc(ISO.ROLES[ISO.styleOf(base).role].name.toUpperCase()) + '</b> · WEAK FOOT <b>' + wfText(base) + '</b></div>' + traitList(base) + '<button class="btn small" data-co="card" data-id="' + base.id + '">PLAYER CARD ›</button></div>' + primeBox + '</div>' +
       '<div class="st-sub">SKINS FOR ' + esc(base.short) + '</div><div class="st-skins">' + skins + '</div></div></div>';
   }
   function storeMoves() {
@@ -290,14 +300,24 @@
       return '<div class="st-card ball' + (on ? ' on' : '') + '"><div class="ballpic"><img src="' + ballPic(b.id) + '" alt=""></div><h4>' + b.name + '</h4><p>' + b.desc + '</p>' + act + '</div>';
     }).join('') + '</div><p class="note center">Ball skins are cosmetic and show on your screen in every mode.</p>';
   }
+  const CELEB_ICON = { signature: '★', fist: '✊', arms: '🙌', point: '☝️', salute: '🫡', robot: '🤖', sit: '🧊', knee: '🧎', spin: '🌀' };
+  function storeCelebs() {
+    const cur = PF.celebOf(), card = (id, name, desc, cost) => {
+      const own = PF.ownsCeleb(id), on = cur === id;
+      const act = on ? '<span class="st-tag on">✓ EQUIPPED</span>' : own ? '<button class="btn small" data-st="setceleb" data-id="' + id + '">EQUIP</button>' : buyBtn('celeb', id, cost);
+      return '<div class="st-card celeb' + (on ? ' on' : '') + '"><div class="cicon">' + (CELEB_ICON[id] || '★') + '</div><h4>' + esc(name) + '</h4><p>' + esc(desc) + '</p>' + act + '</div>';
+    };
+    return '<div class="st-maps st-celebs">' + card('signature', ISO.CELEB_SIG.name, ISO.CELEB_SIG.desc, 0) + ISO.CELEBS.map((c) => card(c.id, c.name, c.desc, c.cost)).join('') + '</div>' +
+      '<p class="note center">After you score, your player celebrates: the Signature one, or any celebration you buy. It plays in 2D and 3D, offline and online (your opponents see it), and never changes how the match plays. Sprite-sheet players keep their own pose in 2D.</p>';
+  }
   function renderStore() {
     const ro = $('stRoster'), top = ro ? ro.scrollTop : 0, T = store.tab;
     document.querySelectorAll('#storeTabs .segb').forEach((b) => b.classList.toggle('on', b.dataset.id === T));
-    const own = T === 'players' || T === 'moves' || T === 'maps' || T === 'balls';
+    const own = T === 'players' || T === 'moves' || T === 'maps' || T === 'balls' || T === 'celebs' || T === 'collection';
     $('storeBody').classList.toggle('hidden', !own);
     $('storeBoxes').classList.toggle('hidden', T !== 'boxes');
     $('storeAch').classList.toggle('hidden', T !== 'ach');
-    if (own) $('storeBody').innerHTML = T === 'moves' ? storeMoves() : T === 'maps' ? storeMaps() : T === 'balls' ? storeBalls() : storePlayers();
+    if (own) $('storeBody').innerHTML = T === 'moves' ? storeMoves() : T === 'maps' ? storeMaps() : T === 'balls' ? storeBalls() : T === 'celebs' ? storeCelebs() : T === 'collection' && ISO.CollectionUI ? ISO.CollectionUI.html() : storePlayers();
     else $('storeBody').innerHTML = '';
     $('storeSub').textContent = {
       boxes: 'Pull random players. Rarer boxes unlock as you complete achievements; duplicates refund credits.',
@@ -305,6 +325,8 @@
       moves: 'Unlock skill moves for your matches.',
       maps: 'Pitches to play on.',
       balls: 'Ball skins: spend credits to play with a different ball.',
+      celebs: 'Goal celebrations: pick how your player celebrates.',
+      collection: 'Player cards, favourites, comparison and set rewards. Duplicates add stars that cut a Prime price.',
       ach: '',
     }[T];
     if (T === 'boxes') renderBoxes();      // these two write their own subtitle
@@ -326,8 +348,9 @@
   }
   function renderPlay() {
     const C = PF.data.career, opp = PF.careerOpponent();
-    $('playCareer').textContent = opp ? 'STAGE ' + (C.stage + 1) + ' / ' + C.ladder.length + ' · NEXT: ' + opp.short : 'CAREER COMPLETE';
+    $('playCareer').textContent = opp ? ISO.SEASONS[C.sn.i].name + ' · MD ' + (C.sn.md + 1) + '/' + ISO.Career.MD + ' · NEXT: ' + opp.short : ISO.SEASONS[C.sn.i].name + ' · SEASON COMPLETE';
     $('playQuick').textContent = PF.ownedCount() + ' / ' + ISO.PLAYERS.length + ' PLAYERS OWNED';
+    { const st = PF.data.cup, c = st && ISO.Cup.cupById(st.id); $('playCup').textContent = c ? c.name + ' · ' + ISO.Cup.ROUND_NAMES[st.round] : ISO.CUPS.filter((x) => PF.cupWon(x.id)).length + ' / ' + ISO.CUPS.length + ' CUPS WON'; }
   }
   document.addEventListener('click', (e) => {
     const t = e.target.closest('[data-st]');
@@ -337,19 +360,21 @@
     if (k === 'tab') { store.tab = id; ISO.Audio.play('ui'); }
     else if (k === 'pl') { store.pid = id; ISO.Audio.play('ui'); }
     else if (k === 'equip') { PF.equipSkin(store.pid, id); ISO.Audio.play('ui'); }
+    else if (k === 'setceleb') { PF.equipCeleb(id); ISO.Audio.play('ui'); }
     else if (k === 'setball') { PF.equipBall(id); ISO.Render.setBall(id); ISO.Audio.play('ui'); }
     else if (k === 'setmap') { PF.setMap(id); ISO.Render.setMap(id); ISO.Audio.play('ui'); }
     else {
       const d = ISO.playerById(store.pid);
-      if (k === 'prime' && (PF.infinite() || PF.data.credits >= ISO.primeCost(d)) &&
-        !window.confirm('Upgrade ' + d.name + ' to Prime for ' + cr(ISO.primeCost(d)) + '? This is permanent.')) return;
-      const res = k === 'skin' ? PF.buySkin(store.pid, id) : k === 'prime' ? PF.buyPrime(store.pid) : k === 'move' ? PF.buyMove(id) : k === 'ball' ? PF.buyBall(id) : PF.buyMap(id);
+      if (k === 'prime' && (PF.infinite() || PF.data.credits >= PF.primeCost(d)) &&
+        !window.confirm('Upgrade ' + d.name + ' to Prime for ' + cr(PF.primeCost(d)) + '? This is permanent.')) return;
+      const res = k === 'skin' ? PF.buySkin(store.pid, id) : k === 'prime' ? PF.buyPrime(store.pid) : k === 'move' ? PF.buyMove(id) : k === 'ball' ? PF.buyBall(id) : k === 'celeb' ? PF.buyCeleb(id) : PF.buyMap(id);
       if (res === 'ok') {
         if (k === 'prime') { ISO.Audio.play('reveal', { rank: 4 }); App.toast('★ PRIME ' + d.short, 'Now ' + ISO.primeOf(d).ovr + ' OVR — every attribute boosted', '#ffcf4d'); }
         else {
           ISO.Audio.play('coin');
           if (k === 'skin') App.toast(ISO.skinById(id).name + ' SKIN', 'Bought and equipped on ' + d.short, '#35e08a');
           else if (k === 'move') App.toast(ISO.Game.SKILLS[id].name.toUpperCase() + ' UNLOCKED', 'Use it in your next match', '#35e08a');
+          else if (k === 'celeb') App.toast(ISO.celebById(id).name, 'Celebration bought and equipped', '#35e08a');
           else if (k === 'ball') { ISO.Render.setBall(id); App.toast(ISO.ballById(id).name + ' BALL', 'Bought and equipped', '#35e08a'); }
           else { ISO.Render.setMap(id); App.toast(ISO.mapById(id).name, 'Map bought and selected', '#35e08a'); }
         }
@@ -364,7 +389,7 @@
 
   // ---------------------------------------------------------------- main menu: stats, a rotating featured player, a tip ticker
   const TIPS = ['Hold the shot key longer for a harder strike, but hold too long and it sails over the bar.', 'A skill move at the right moment can break a defender\'s ankles.', 'Futsal courts have walls: the ball bounces back into play.',
-    'Open 5 boxes at once from the Box Draw tab.', 'Achievements now have levels. Some hand you a player.', 'Try the free-kick and one-on-one drills to sharpen your finishing.', 'Rematches in MyCareer get harder: bring upgraded stats.',
+    'Open 5 boxes at once from the Box Draw tab.', 'Achievements now have levels. Some hand you a player.', 'Try the free-kick and one-on-one drills to sharpen your finishing.', 'Each MyCareer season is seven matchdays against stronger rivals: bring upgraded stats.',
     'Try the 3D camera in Settings to play from behind your player.', 'Ball skins are in the Store: pick one that matches your style.', 'Keeper dives early? Chip it over him.'];
   let menuTimer = null, featI = 0, tipI = 0;
   function menuFeature() {
@@ -379,7 +404,7 @@
     $('menuFeature').classList.toggle('hidden', !on); $('menuTip').classList.toggle('hidden', !on);
     if (!on) return;
     const C = PF.data.career, done = PF.ACH.filter((a) => PF.statOf(a) >= a.goal).length, ready = PF.ACH.some((a) => !PF.data.claimed[a.id] && PF.statOf(a) >= a.goal);
-    $('menuStats').innerHTML = [['CREDITS', PF.infinite() ? '∞' : PF.data.credits.toLocaleString()], ['PLAYERS', PF.ownedCount() + ' / ' + ISO.PLAYERS.length], ['CAREER', 'STAGE ' + Math.min(C.stage + 1, C.ladder.length) + ' / ' + C.ladder.length], ['ACHIEVEMENTS', done + ' / ' + PF.ACH.length + (ready ? ' · CLAIM!' : '')]]
+    $('menuStats').innerHTML = [['CREDITS', PF.infinite() ? '∞' : PF.data.credits.toLocaleString()], ['PLAYERS', PF.ownedCount() + ' / ' + ISO.PLAYERS.length], ['CAREER', 'S' + (C.sn.i + 1) + ' · ' + ISO.SEASONS[C.sn.i].name + ' · MD ' + Math.min(C.sn.md + 1, ISO.Career.MD) + '/' + ISO.Career.MD], ['ACHIEVEMENTS', done + ' / ' + PF.ACH.length + (ready ? ' · CLAIM!' : '')]]
       .map(([k, v]) => '<div><span>' + k + '</span><b>' + v + '</b></div>').join('');
     tipI = (Math.random() * TIPS.length) | 0; $('menuTip').textContent = 'TIP · ' + TIPS[tipI];
     menuTimer = setInterval(() => { featI++; if (featI % 2 === 0) { tipI = (tipI + 1) % TIPS.length; $('menuTip').textContent = 'TIP · ' + TIPS[tipI]; } }, 4500);
@@ -415,8 +440,8 @@
   function renderKeys() {
     const IN = ISO.Input, B = IN.bindings;
     const GROUPS = [['MOVEMENT', ['up', 'down', 'left', 'right', 'sprint']], ['ATTACK', ['shoot', 'finesse', 'chip', 'lob', 'pass', 'j', 'k', 'l']], ['DEFENSE', ['jockey', 'tackle', 'slide', 'shoulder', 'focus']]];
-    const nm = Object.fromEntries(IN.ACTIONS);
-    $('keyBinds').innerHTML = GROUPS.map(([g, list]) => '<div class="kb-group">' + g + '</div>' + list.map((a) => [a, nm[a]]).map(([a, name]) => '<div class="kb-row"><span>' + name + '</span>' + [0, 1].map((i) => {
+    const nm = Object.fromEntries(IN.ACTIONS.map(([a, name]) => [a, ISO.I18n.opt('act.' + a, name)]));      // Phase 9.3: labels looked up at render time
+    $('keyBinds').innerHTML = GROUPS.map(([g, list]) => '<div class="kb-group">' + esc(ISO.I18n.opt('kbg.' + g.toLowerCase(), g)) + '</div>' + list.map((a) => [a, nm[a]]).map(([a, name]) => '<div class="kb-row"><span>' + name + '</span>' + [0, 1].map((i) => {
       const wait = rebind && rebind.a === a && rebind.i === i;
       return '<button class="kb' + (wait ? ' wait' : '') + (B[a][i] ? '' : ' empty') + '" data-bind="' + a + '" data-slot="' + i + '">' + (wait ? (combo.length ? esc(combo.map(IN.label).join('+')) + '+…' : 'PRESS KEYS…') : esc(IN.label(B[a][i]))) + '</button>';
     }).join('') + '</div>').join('')).join('');
@@ -427,8 +452,8 @@
     const both = (a) => B[a].filter(Boolean).map(k).join(' / ') || '<i>unbound</i>';
     const tbl = (rows) => '<tr><th>Action</th><th>Keys</th></tr>' + rows.map((r) => '<tr><td>' + r[0] + '</td><td>' + r[1] + '</td></tr>').join('');
     $('keysMove').innerHTML = tbl([['Up', both('up')], ['Down', both('down')], ['Left', both('left')], ['Right', both('right')], ['Sprint', both('sprint')], ['Aim', 'Mouse (optional, Settings)'], ['Pause', '<kbd>Esc</kbd>']]);
-    $('keysAtk').innerHTML = tbl([['Shoot', both('shoot')], ['Finesse shot', both('finesse')], ['Power shot', both('chip')], ['Chip shot', both('lob')], ['Pass (2v2)', both('pass')], ['Skill keys', ['j', 'k', 'l'].map((a) => k(B[a].find(Boolean))).join(' ')]]);
-    $('keysDef').innerHTML = tbl([['Jockey · Shield', both('jockey')], ['Tackle', both('tackle')], ['Slide tackle', both('slide')], ['Shoulder barge', both('shoulder')], ['Focus stance', both('focus')]]);
+    $('keysAtk').innerHTML = tbl([['Shoot (volleys, half-volleys, headers, driven and outside-foot shots are picked automatically)', both('shoot')], ['Finesse shot', both('finesse')], ['Power shot', both('chip')], ['Chip shot', both('lob')], ['Pass (2v2)', both('pass')], ['Skill keys', ['j', 'k', 'l'].map((a) => k(B[a].find(Boolean))).join(' ')], ['Close control + shield (hold on the ball)', both('jockey')], ['Stop-and-go (tap at speed, then sprint + direction)', both('jockey') + ' then ' + both('sprint')], ['Ball roll in close control', both('jockey') + ' + ' + k(B.l.find(Boolean))]]);
+    $('keysDef').innerHTML = tbl([['Jockey · Close control · Shield', both('jockey')], ['Tackle', both('tackle')], ['Slide tackle', both('slide')], ['Shoulder barge', both('shoulder')], ['Focus stance', both('focus')]]);
     document.querySelectorAll('kbd[data-k]').forEach((el) => { el.textContent = IN.keyLabel(el.dataset.k); });
     App.setMouse(PF.data.settings.mouseAim);       // refreshes the match hint
   }
@@ -484,10 +509,28 @@
     $('setSound').checked = !ST.muted; $('setCrowd').checked = ST.crowd;
     $('setDiff').value = ST.diff || 'normal';
     $('setCamera').value = ST.camera === 'cinematic' ? 'classic' : (ST.camera || 'classic');
-    $('setMouse').checked = ST.mouseAim; $('setReticle').checked = ST.reticle; $('setHint').checked = ST.hint;
+    $('setCam3d').value = ST.cam3d || 'chase'; $('setCamGoal').value = ST.camGoal || 'celeb';
+    for (const [id, k] of [['setCamZoom', 'camZoom'], ['setCamSens', 'camSens'], ['setCamShake', 'camShake']]) { const v = Math.round((ST[k] == null ? 1 : ST[k]) * 100); $(id).value = v; $(id + 'Val').textContent = v + '%'; }
+    $('setMouse').checked = ST.mouseAim; $('setReticle').checked = ST.reticle; $('setPres').checked = ST.pres !== false; $('setSlowmo').checked = ST.slowmo !== false; $('setHint').checked = ST.hint; $('setAdaptive').checked = ST.adaptive !== false;
+    $('adaptInfo').textContent = ['easy', 'normal', 'hard'].map((d) => d.toUpperCase() + ' ' + PF.adaptLevel(d).toFixed(2)).join(' · ');
     $('adminLogin').classList.toggle('hidden', A.unlocked); $('adminPanel').classList.toggle('hidden', !A.unlocked);
     document.querySelectorAll('[data-admin]').forEach((el) => { el.checked = !!A[el.dataset.admin]; });
+    $('setUiScale').value = Math.round(ST.uiScale * 100); $('setUiScaleVal').textContent = Math.round(ST.uiScale * 100) + '%';
+    $('setPalette').value = ST.palette; $('setHc').checked = !!ST.hcHud; $('setMotion').value = ST.motion === true ? 'on' : ST.motion === false ? 'off' : 'auto'; $('setFlash').checked = ST.flash !== false;
+    $('setHudLabels').checked = ST.hudLabels !== false; $('setHudFx').checked = ST.hudFxText !== false; $('setHudStam').checked = ST.hudStam !== false;
+    $('setLang').innerHTML = ISO.I18n.LANGS().map((l) => '<option value="' + l.code + '">' + esc(l.name) + (l.review ? ' (beta)' : '') + '</option>').join(''); $('setLang').value = ST.lang || 'en';
+    $('setQuality').value = ST.quality; $('setPadLayout').value = ST.padLayout; $('setPadDz').value = Math.round(ST.padDz * 100); $('setPadDzVal').textContent = Math.round(ST.padDz * 100) + '%';
     rebind = null; renderKeys();
+  }
+  // Phase 9.1 / 9.3: write a setting, then let ISO.Access push it to the renderers and CSS
+  function setAcc(k, v) { PF.setSetting(k, v); if (ISO.Access) ISO.Access.apply(PF.data.settings); }
+  function setLanguage(code) {
+    ISO.I18n.set(code, (ok) => {
+      if (!ok) { App.toast(ISO.I18n.t('toast.lang_fail'), '', '#f1735f'); renderSettings(); return; }
+      PF.setSetting('lang', code); keyLabels(); if (App.setMouse) App.setMouse(PF.data.settings.mouseAim);
+      ISO.Meta.onShow(App.screen); renderSettings();      // the current screen is rebuilt in the new language
+      if (App.refreshLang) App.refreshLang();
+    });
   }
   function onSetting(e) {
     const t = e.target;
@@ -497,10 +540,28 @@
     else if (t.id === 'setSound') { PF.setSetting('muted', !t.checked); ISO.Audio.setMuted(!t.checked); }
     else if (t.id === 'setCrowd') { PF.setSetting('crowd', t.checked); ISO.Audio.setCrowd(t.checked); }
     else if (t.id === 'setCamera') PF.setSetting('camera', t.value);
+    else if (t.id === 'setCam3d') PF.setSetting('cam3d', t.value);
+    else if (t.id === 'setCamGoal') PF.setSetting('camGoal', t.value);
+    else if (t.id === 'setCamZoom' || t.id === 'setCamSens' || t.id === 'setCamShake') { const k = { setCamZoom: 'camZoom', setCamSens: 'camSens', setCamShake: 'camShake' }[t.id]; PF.setSetting(k, t.value / 100); $(t.id + 'Val').textContent = t.value + '%'; }
     else if (t.id === 'setDiff') { PF.setSetting('diff', t.value); App.diff = t.value; }
     else if (t.id === 'setMouse') App.setMouse(t.checked);
     else if (t.id === 'setReticle') PF.setSetting('reticle', t.checked);
     else if (t.id === 'setHint') PF.setSetting('hint', t.checked);
+    else if (t.id === 'setPres') PF.setSetting('pres', t.checked);
+    else if (t.id === 'setSlowmo') PF.setSetting('slowmo', t.checked);
+    else if (t.id === 'setAdaptive') PF.setSetting('adaptive', t.checked);
+    else if (t.id === 'setUiScale') { setAcc('uiScale', t.value / 100); $('setUiScaleVal').textContent = t.value + '%'; }
+    else if (t.id === 'setPalette') setAcc('palette', t.value);
+    else if (t.id === 'setHc') setAcc('hcHud', t.checked);
+    else if (t.id === 'setMotion') setAcc('motion', t.value === 'on' ? true : t.value === 'off' ? false : null);
+    else if (t.id === 'setFlash') setAcc('flash', t.checked);
+    else if (t.id === 'setHudLabels') setAcc('hudLabels', t.checked);
+    else if (t.id === 'setHudFx') setAcc('hudFxText', t.checked);
+    else if (t.id === 'setHudStam') setAcc('hudStam', t.checked);
+    else if (t.id === 'setQuality') setAcc('quality', t.value);
+    else if (t.id === 'setPadLayout') setAcc('padLayout', t.value);
+    else if (t.id === 'setPadDz') { setAcc('padDz', t.value / 100); $('setPadDzVal').textContent = t.value + '%'; }
+    else if (t.id === 'setLang') setLanguage(t.value);
     else if (t.dataset.admin) { PF.setAdmin(t.dataset.admin, t.checked); App.updateCredits(); App.toast('ADMIN', t.closest('.set-row').textContent.trim() + (t.checked ? ' — ON' : ' — OFF'), '#f1735f'); }
     void ST;
   }
@@ -520,18 +581,26 @@
     else if (t.dataset.claim) { const cr = PF.claim(t.dataset.claim); if (cr) { ISO.Audio.play('coin'); const ci = PF.claimInfo(); App.toast('+' + cr + ' CREDITS', ci.player ? 'PLAYER UNLOCKED: ' + ci.player.name : ci.dup ? 'Player already owned: +' + ci.dup + ' CR refund' : 'Achievement reward claimed', '#ffcf4d'); App.updateCredits(); renderAch(); updateBadge(); } }
     else if (t.dataset.meta === 'look-prev') { PF.cycleLook(-1); renderCareer(); }
     else if (t.dataset.meta === 'look-next') { PF.cycleLook(1); renderCareer(); }
+    else if (t.dataset.meta === 'foot-toggle') { PF.toggleFoot(); renderCareer(); }
     else if (t.dataset.meta === 'kit-prev') { PF.cycleKit(-1); renderCareer(); }
     else if (t.dataset.meta === 'kit-next') { PF.cycleKit(1); renderCareer(); }
-    else if (t.dataset.meta === 'career-reset') { if (window.confirm('Start a new career? Your stats and ladder progress reset (credits and players are kept).')) { PF.resetCareer(); renderCareer(); } }
+    else if (t.dataset.meta === 'career-reset') { if (window.confirm('Start a new career? Your stats and seasons reset (credits and players are kept).')) { PF.resetCareer(Date.now() % 2147483647 + 1); renderCareer(); } }
     else if (t.dataset.meta === 'admin-login') {
-      const ok = PF.adminLogin($('adminPw').value); $('adminPw').value = '';
-      $('adminErr').classList.toggle('hidden', ok); ISO.Audio.play(ok ? 'coin' : 'deny');
-      if (ok) App.toast('ADMIN UNLOCKED', 'Developer switches are available', '#f1735f');
-      renderSettings();
+      const code = $('adminPw').value; $('adminPw').value = '';
+      const done = (ok) => {
+        $('adminErr').textContent = 'Wrong code or server unreachable';
+        $('adminErr').classList.toggle('hidden', ok); ISO.Audio.play(ok ? 'coin' : 'deny');
+        if (ok) { PF.adminGrant(); App.toast('ADMIN UNLOCKED', 'Developer switches are available', '#f1735f'); }
+        renderSettings();
+      };
+      if (ISO.Online) ISO.Online.adminLogin(code, done); else done(false);
     }
+    else if (t.dataset.meta === 'keys-preset') { const pr = ISO.Input.PRESETS[t.dataset.preset]; if (pr) { const B = JSON.parse(JSON.stringify(pr)); saveKeys(B); renderKeys(); App.toast(ISO.I18n.t('toast.preset'), t.textContent.trim(), '#35e08a'); } }
+    else if (t.dataset.meta === 'debug-toggle') { if (ISO.Dbg_toggle) ISO.Dbg_toggle(); }
     else if (t.dataset.meta === 'keys-reset') { saveKeys(null); PF.setSetting('keys', null); renderKeys(); App.toast('CONTROLS RESET', 'Default keys restored', '#35e08a'); }
     else if (t.dataset.meta === 'admin-max') { PF.maxAll(); ISO.Audio.play('reveal', { rank: 4 }); App.updateCredits(); App.toast('MAXED OUT', 'Every character, Prime, skin and ball skin unlocked', '#ffcf4d'); }
     else if (t.dataset.meta === 'admin-logout') { PF.adminLogout(); App.updateCredits(); renderSettings(); }
+    else if (t.dataset.meta === 'adapt-reset') { PF.resetAdapt(); App.toast('ADAPTIVE RESET', 'CPU levels are back to Easy 0 / Normal 1 / Hard 2', '#4fa3ff'); renderSettings(); }
     else if (t.dataset.meta === 'reset-all') { if (window.confirm('Reset ALL progress?\n\nCredits, unlocked players, skins, Prime upgrades, skill moves, maps, achievements and your MyCareer will be wiped. Settings and key bindings are kept.\n\nThis cannot be undone.')) { PF.reset(); ISO.Render.setMap(PF.data.map); App.updateCredits(); App.toast('PROGRESS RESET', 'Fresh start — everything is back to day one', '#f1735f'); updateBadge(); renderSettings(); } }
     else if (t.dataset.meta === 'close-multi') { $('multi').classList.add('hidden'); renderBoxes(); }
     else if (t.dataset.meta === 'skip') { if (spin && !spin.done) finish(); }
@@ -542,16 +611,17 @@
   ISO.Meta = {
     onShow(screen) {
       menuLive(screen === 'menu');
-      if (screen === 'career') renderCareer();
+      if (screen === 'career') { ISO.CareerUI && ISO.CareerUI.onShow(); renderCareer(); }
       else if (screen === 'store') renderStore();
       else if (screen === 'play') renderPlay();
       else if (screen === 'drills') renderDrills();
       else if (screen === 'settings') renderSettings();
       else if (screen === 'online') ISO.Online && ISO.Online.onShow();
+      else if (screen === 'cup') ISO.CupUI && ISO.CupUI.onShow();
       else $('opening').classList.add('hidden');
       updateBadge();
     },
     storeTab(t) { store.tab = t; },
-    keyLabels,
+    keyLabels, refreshCareer: renderCareer,
   };
 })();

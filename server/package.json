@@ -4,7 +4,7 @@
   "private": true,
   "description": "Authoritative multiplayer server for ISO Football: rooms, matchmaking and static hosting",
   "main": "server.js",
-  "scripts": { "start": "node server.js", "test": "node test.js" },
+  "scripts": { "start": "node server.js", "test": "node test.js && node test-determinism.js && node test-delta.js && node test-integrity.js", "bench": "node bench-bandwidth.js" },
   "engines": { "node": ">=18" },
   "dependencies": { "ws": "^8.18.0" }
 }

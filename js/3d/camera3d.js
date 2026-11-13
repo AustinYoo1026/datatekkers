@@ -52,33 +52,100 @@
     }
 
 
-    function reset() { st.init = false; st.mode = 'follow'; st.kickoff = 1; st.lookBlend = 0; st.shake = 0; st.goalT = 0; st.cutT = 0; st.tilt = 0; st.pull = 0; st.squeeze = 0; }
+    const GOAL_CAM = { D: 6.5, H: 2.6, yaw: 0.35 };
+    const CR = R3D.CamRig, SIT = CR.SIT;
+    let P = CR.PRESETS.chase;                   // the preset in force (CamRig.PRESETS)
+    const mkPose = () => ({ px: 0, py: 0, pz: 0, lx: 0, ly: 0, lz: 0, fov: 50 });
+    const from = mkPose(), fin = mkPose(), cur = mkPose(), fr = mkPose(), gr = mkPose(), ctx = { ax: 0, az: 0, lim: null, walls: false, zoom: 1, half: K.half, depthAll: K.depthAll || K.depth };
+    const gpts = [{ x: 0, y: 0.9, z: 0 }, { x: 0, y: 0, z: 0 }];
+    st.preset = 'chase'; st.zoom = 1; st.sens = 1; st.shakeK = 1; st.goalMode = 'celeb'; st.blendT = 1; st.blendDur = 0.6; st.punch = 0; st.guardK = 0; st.fam = ''; st.hasFin = false;
+    st.finalT = 0; st.fy0 = 0; st.dyn = 1; st.boxF = 0; st.subjIdx = -2; st.lim = CR.limits(null, 'crowd', K); st.PE = P;
+    function reset() { st.init = false; st.mode = 'follow'; st.kickoff = 1; st.lookBlend = 0; st.shake = 0; st.goalT = 0; st.cutT = 0; st.tilt = 0; st.pull = 0; st.squeeze = 0; st.fam = ''; st.blendT = 1; st.punch = 0; st.guardK = 0; st.hasFin = false; st.finalT = 0; st.dyn = 1; st.boxF = 0; st.subjIdx = -2; }
+    const copyPose = (a, b) => { a.px = b.px; a.py = b.py; a.pz = b.pz; a.lx = b.lx; a.ly = b.ly; a.lz = b.lz; a.fov = b.fov; };
+    function startBlend(dur) { if (!st.hasFin) return; copyPose(from, fin); st.blendT = 0; st.blendDur = dur; st.blendFresh = true; }
+    // switch preset: the pose in force blends into the new one, the keys are read again in the new frame
+    function setPreset(id) {
+      const np = CR.PRESETS[id]; if (!np || np === P) return;
+      startBlend(0.6); P = np; st.preset = id; st.PE = P; lastKeys.fwd = NaN;
+    }
+    function setOptions(o) {
+      if (!o) return;
+      if (o.zoom != null && o.zoom === o.zoom) st.zoom = clamp(+o.zoom, 0.7, 1.4);
+      if (o.sens != null && o.sens === o.sens) st.sens = clamp(+o.sens, 0.4, 1.6);
+      if (o.shakeK != null && o.shakeK === o.shakeK) st.shakeK = clamp(+o.shakeK, 0, 1);
+      if (o.goalMode === 'celeb' || o.goalMode === 'wide' || o.goalMode === 'off') st.goalMode = o.goalMode;
+    }
+    function setLimits(l) { if (l) st.lim = l; }
 
     function onEvent(e, vf) {
+      const sk = CR.shakeOf(e);
       if (e.type === 'kick' && e.shot) { st.mode = 'shot'; st.modeT = 0; st.trackT = 0; }
       else if (e.type === 'kick' && e.p) { if (st.mode === 'follow') { st.mode = 'pass'; st.modeT = 0; } }
-      else if (e.type === 'post') st.shake = Math.max(st.shake, 0.06 * (e.power || 0.5) * 2);
-      else if (e.type === 'save') st.shake = Math.max(st.shake, 0.04);
-      else if (e.type === 'goal') { st.shake = 0.12; st.mode = 'goal'; st.modeT = 0; }
+      else if (e.type === 'goal') { st.shake = sk; if (st.goalMode === 'celeb') { st.mode = 'goal'; st.modeT = 0; } }
       else if ((e.type === 'out' || e.type === 'clear') && st.mode !== 'goal') st.modeT = Math.max(st.modeT, 99);
+      if (e.type === 'post') st.shake = Math.max(st.shake, 0.06 * (e.power || 0.5) * 2);
+      else if (sk > 0 && e.type !== 'goal') st.shake = Math.max(st.shake, sk);
+      if (P.dyn && (e.type === 'goal' || (e.type === 'kick' && e.power > 0.85))) st.punch = 2.5;
     }
 
     function update(vf, dt, time, bv) {
       dt = Math.min(dt, 0.05);
       const me = vf.players[vf.me] || vf.players[0];
       const b = vf.ball;
-      const own = vf.players[b.owner];
-      const subj = me && !me.hidden ? me : own || { x: b.x, z: b.z, vx: 0, vz: 0, speed: 0, sprint: false };
-      // cut: a teleport (kick-off, new rep) snaps everything instead of sweeping across the pitch
       const pen = vf.pen || null; st.pen = !!pen;
-      if (!pen && st.init && Math.hypot(subj.x - st.sx, subj.z - st.sz) > 2.4) st.init = false;
+      const sens = pen ? 1 : st.sens;
+      // who the picture is about: you; the scorer during a goal celebration; the winner at the end of a match
+      let who = me;
+      const finalNow = !pen && vf.phase === 'end' && vf.winner >= 0;
+      if (finalNow) { who = null; if (me && me.team === vf.winner && !me.hidden) who = me; else for (let i = 0; i < vf.players.length; i++) { const q = vf.players[i]; if (q.team === vf.winner && !q.hidden) { who = q; break; } } if (!who) who = me; }
+      else if (st.mode === 'goal' && !pen && vf.goalBy >= 0 && vf.players[vf.goalBy] && !vf.players[vf.goalBy].hidden) who = vf.players[vf.goalBy];
+      const own = vf.players[b.owner];
+      const subj = who && !who.hidden ? who : own || { x: b.x, z: b.z, vx: 0, vz: 0, speed: 0, sprint: false };
+      const subjIdx = who ? who.idx : -1, subjChanged = subjIdx !== st.subjIdx; st.subjIdx = subjIdx;
+      if (finalNow) st.finalT += dt; else st.finalT = 0;
+      // the family of the picture: chase body (also the penalty, goal celebration and final), side rig, or fixed end-on
+      const chaseFam = P.fam === 'chase' || pen || st.mode === 'goal' || finalNow;
+      const famId = chaseFam ? 'c' : P.fam;
+      const PC = P.fam === 'chase' ? P : CR.PRESETS.chase;       // the chase body's numbers
+      st.PE = chaseFam ? PC : P;
+      // cut: a teleport (kick-off, new rep) snaps everything instead of sweeping across the pitch (not while the subject changes: goal / final)
+      let teleported = false;
+      if (!pen && !(st.mode === 'goal' && who !== me) && !finalNow && !subjChanged && st.init && Math.hypot(subj.x - st.sx, subj.z - st.sz) > 2.4) { st.init = false; teleported = true; st.blendT = 1; }
       st.sx = subj.x; st.sz = subj.z;
+      if (st.fam !== famId) {
+        if (st.fam !== '' && !teleported) startBlend(st.mode === 'goal' || finalNow ? 0.5 : 0.6);
+        st.fam = famId; st.init = false; lastKeys.fwd = NaN;
+        if (st.mode === 'goal' || finalNow) st.guardK = 0;
+      }
+      const bpx = bv ? bv.x : b.x, bpz = bv ? bv.z : b.z, bpy = bv ? bv.y : b.y;
+      const aspect = cam.aspect;
+      let cx, cy, cz, lx, ly, lz, fovT;
+      st.modeT += dt;
+      if (!chaseFam) {
+        // ---- side rig / fixed end-on: a frame from CamRig around an anchor (ball-weighted), kept on screen by the guard
+        const snapS = !st.init;
+        const ab = P.anchorBall, tx = ab * b.x + (1 - ab) * subj.x, tz = ab * b.z + (1 - ab) * subj.z;
+        if (snapS) { st.ax = tx; st.az = tz; st.init = true; st.cutT = 0.15; }
+        const kA = damp(4.5 * sens, dt); st.ax += (tx - st.ax) * kA; st.az += (tz - st.az) * kA;
+        ctx.ax = st.ax; ctx.az = st.az; ctx.lim = st.lim; ctx.walls = !!vf.walls; ctx.zoom = st.zoom * (st.goalMode === 'wide' && vf.phase === 'goal' ? 1 / 0.88 : 1);
+        if (P.fam === 'side') CR.sideFrame(P, ctx, fr); else CR.fixedFrame(P, ctx, fr);
+        if (vf.phase === 'countdown' || vf.phase === 'ready') st.kickoff = Math.min(1, st.kickoff + dt * 2); else st.kickoff = Math.max(0, st.kickoff - dt * 1.2);
+        fr.fov = Math.min(P.fovMax, fr.fov + st.kickoff * SIT.kickoff.dFov);
+        copyPose(gr, fr);
+        gpts[0].x = subj.x; gpts[0].y = 0.9; gpts[0].z = subj.z; gpts[1].x = bpx; gpts[1].y = (bv ? bpy : bpy) + K.ballR; gpts[1].z = bpz;
+        const needed = !CR.guard(gr, gpts, aspect, P.fovMax) || gr.fov !== fr.fov || gr.lx !== fr.lx || gr.lz !== fr.lz || gr.ly !== fr.ly;
+        if (snapS) st.guardK = needed ? 1 : 0; else st.guardK += ((needed ? 1 : 0) - st.guardK) * damp(4, dt);
+        CR.blend(fr, gr, st.guardK, cur);
+        cx = cur.px; cy = cur.py; cz = cur.pz; lx = cur.lx; ly = cur.ly; lz = cur.lz; fovT = cur.fov;
+        st.yaw = Math.atan2(lx - cx, -(lz - cz)); st.tilt = st.pull = st.squeeze = 0;
+        st.cutT = Math.max(0, st.cutT - dt);
+      } else {
       const fwdx = Math.sin(st.yaw), fwdz = -Math.cos(st.yaw);
       // anchor follow with a little velocity look-ahead
       const lax = clamp(subj.vx * 0.25, -1.5, 1.5), laz = clamp(subj.vz * 0.25, -1.5, 1.5);
       let tx = subj.x + lax, tz = subj.z + laz;
       let wide = 0;
-      if (own !== me) {
+      if (own !== who) {
         // without the ball (defending, a team-mate has it, or it is loose) you and the ball both stay in the picture, as they
         // always are on the 2D view: the anchor moves toward the ball, never lets it fall behind the bottom edge (the
         // camera sees the ground from about 3.7 m behind the anchor), and the camera pulls back as the gap grows
@@ -88,16 +155,32 @@
         wide = clamp((Math.hypot(gx, gz) - 6) * 0.3, 0, 4);
       }
       // goal-anchored yaw: half the bearing to the goal centre, hard-capped
-      let ty = pen ? 0 : clamp(0.5 * Math.atan2(-subj.x, subj.z + 3), -MAXYAW, MAXYAW);
-      let D = 8.0 + (subj.sprint ? 0.8 : 0) + wide, H = 3.4 + wide * 0.45, fov = subj.sprint ? 54 : 50;
+      let ty = pen ? 0 : clamp(0.5 * Math.atan2(-subj.x, subj.z + 3), -PC.maxYaw, PC.maxYaw);
+      const zoomE = st.zoom * (st.goalMode === 'wide' && vf.phase === 'goal' ? 1 / 0.88 : 1);
+      const fk = vf.drill === 'freekick' && vf.phase !== 'play';
+      let D = (fk ? SIT.freekick.D : PC.D) * zoomE + (subj.sprint ? PC.sprintD : 0) + wide, H = (fk ? SIT.freekick.H : PC.H) * zoomE + wide * 0.45 * PC.wideGain, fov = (fk ? SIT.freekick.fov : PC.fov) + (subj.sprint ? PC.sprintFov : 0);
+      if (PC.wideGain !== 1) D += wide * (PC.wideGain - 1);
+      if (PC.dyn) {
+        // dynamic: farther back when the ball is away from you or you are fast, closer when it is at your feet; a touch tighter in the box with the ball
+        const gap = Math.hypot(b.x - subj.x, b.z - subj.z), k = clamp(gap / 14, 0, 1) * 0.65 + clamp((subj.speed || 0) / 7, 0, 1) * 0.35;
+        st.dyn += (0.85 + 0.4 * k - st.dyn) * damp(1.8, dt);
+        D *= st.dyn; H *= 1 + (st.dyn - 1) * 0.5;
+        const inBox = own === who && b.z < K.boxD && Math.abs(b.x) < K.boxHalf ? 1 : 0;
+        st.boxF += (inBox - st.boxF) * damp(3, dt); fov -= 3 * st.boxF;
+        if (!pen) { st.punch = Math.max(0, st.punch * Math.exp(-6 * dt)); fov -= st.punch; }
+      }
       if (vf.phase === 'countdown' || vf.phase === 'ready') { st.kickoff = Math.min(1, st.kickoff + dt * 2); } else st.kickoff = Math.max(0, st.kickoff - dt * 1.2);
-      D += st.kickoff * 3; H += st.kickoff * 1.6;
+      D += st.kickoff * SIT.kickoff.dD; H += st.kickoff * SIT.kickoff.dH;
       let lookBlendT = 0, lookH = 0.9;
-      st.modeT += dt;
       if (pen) {
         // penalty shootout, both halves: one camera behind the spot looking at the goal (the taker in the bottom of the frame,
         // the keeper and both posts above him). It drifts only a little with the ball and pushes in after the countdown.
         tx = clamp(b.x * 0.15, -1.5, 1.5); tz = K.penD; D = 5.4 + st.kickoff * 3; H = 2.6 + st.kickoff * 1.4; fov = 50; ty = 0; wide = 0;
+        if (st.mode !== 'follow') st.mode = 'follow';
+      } else if (finalNow) {
+        // the winners: close and low on the winner, drifting slowly round him
+        if (st.finalT <= dt) st.fy0 = st.yaw;
+        D = SIT.final.D; H = SIT.final.H; fov = 50; ty = clamp(st.fy0 + SIT.final.drift * st.finalT, -0.8, 0.8); lookBlendT = 0;
         if (st.mode !== 'follow') st.mode = 'follow';
       } else if (st.mode === 'shot') {
         ty = st.yaw; fov = 46; lookBlendT = 0.7;
@@ -105,23 +188,24 @@
         if (st.modeT > 3) st.mode = 'follow';
       } else if (st.mode === 'pass') { lookBlendT = 0.45; if (st.modeT > 0.8) st.mode = 'follow'; }
       else if (st.mode === 'goal') {
-        D = 6.5; H = 2.6; ty = clamp(st.yaw + 0.35 * Math.min(1, st.modeT / 1.2), -0.8, 0.8); lookBlendT = 0.5;
+        const cc = vf.celebCam || GOAL_CAM;      // per-celebration framing (ISO.CELEBS[].cam)
+        D = cc.D; H = cc.H; ty = clamp(st.yaw + cc.yaw * Math.min(1, st.modeT / 1.2), -0.8, 0.8); lookBlendT = 0.5;
         if (vf.phase !== 'goal') st.mode = 'follow';
       } else if (st.mode === 'follow' && st.modeT > 99) st.modeT = 0;
       const snap = !st.init;
       // (a cut also re-reads the key frame: the direction held through a kick-off belongs to the new picture)
       if (snap) { st.ax = tx; st.az = tz; st.yaw = ty; st.D = D; st.H = H; st.fov = fov; st.lookBlend = lookBlendT; st.init = true; st.cutT = 0.15; lastKeys.fwd = NaN; }
       if (pen) st.yaw = ty = 0;      // the keys are read in the picture's own frame: left / right is across the goal
-      const kA = damp(st.mode === 'shot' ? 3 : 5.5, dt);
+      const kA = damp((st.mode === 'shot' ? 3 : 5.5) * sens, dt);
       st.ax += (tx - st.ax) * kA; st.az += (tz - st.az) * kA;
       // yaw: smooth, speed-limited (40 deg/s) so it never whips
-      const dy = clamp((ty - st.yaw) * damp(2.5, dt), -0.7 * dt, 0.7 * dt);
+      const dy = clamp((ty - st.yaw) * damp(2.5 * sens, dt), -0.7 * dt, 0.7 * dt);
       st.yaw += dy;
       st.D += (D - st.D) * damp(3, dt); st.H += (H - st.H) * damp(3, dt); st.fov += (fov - st.fov) * damp(3, dt);
       st.lookBlend += (lookBlendT - st.lookBlend) * damp(6, dt);
       const fx = Math.sin(st.yaw), fz = -Math.cos(st.yaw);
       // look target: ahead of the anchor, blended toward the ball while it matters
-      let lx = st.ax + fx * 2.5, lz = st.az + fz * 2.5, ly = 0.9;
+      lx = st.ax + fx * 2.5; lz = st.az + fz * 2.5; ly = 0.9;
       if (pen) { lx = st.ax * 0.5; lz = 2; }
       else if (st.lookBlend > 0.001) { lx += (b.x - lx) * st.lookBlend; lz += (b.z - lz) * st.lookBlend; ly += (Math.min(b.y, 2.5) + 0.2 - ly) * st.lookBlend; }
       // camera position: behind the anchor along -forward, above
@@ -129,7 +213,7 @@
       const cx0 = st.ax - fx * st.D, cz0 = st.az - fz * st.D, cy0 = st.H, walls = !!vf.walls;
       // a high ball (or one about to be): tilt up, and pull back / widen if tilting alone would lose the player at the bottom
       let tiltT = 0, pullT = 0;
-      if (pen || R3D.noHighTrack) st.pull = st.tilt = 0;      // (R3D.noHighTrack: a switch for comparing against the plain chase camera)
+      if (pen || R3D.noHighTrack || !PC.high) st.pull = st.tilt = 0;      // (R3D.noHighTrack: a switch for comparing against the plain chase camera)
       else {
         const bx = bv ? bv.x : b.x, bz = bv ? bv.z : b.z, hr = b.y, vy = b.vy || 0;
         let hf = hr;      // the raw height it reaches within the look-ahead (apex if it peaks sooner), drawn height of that
@@ -162,11 +246,8 @@
       st.squeeze += (squeeze - st.squeeze) * damp(3, dt); if (snap) st.squeeze = squeeze;
       const fovAdd = pen ? 0 : PULL_FOV * st.pull + BACK_FOV * st.squeeze;
       place(cx0 - fx * st.pull, cy0 + PULL_UP * st.pull, cz0 - fz * st.pull, walls);
-      const cx = cp.x, cy = cp.y, cz = cp.z;
-      st.shake *= Math.exp(-8 * dt);
-      const sh = st.shake, n1 = Math.sin(time * 71), n2 = Math.cos(time * 53);
-      cam.position.set(cx + n1 * sh, cy + n2 * sh * 0.7, cz + n2 * sh);
-      const fovT = Math.min(MAXFOV, st.fov + fovAdd);
+      cx = cp.x; cy = cp.y; cz = cp.z;
+      fovT = Math.min(MAXFOV, st.fov + fovAdd);
       if (!pen) {      // the player's feet stay inside the bottom of the frame: when the position was pushed in (back edge) the view moves in on him
         const hfv = fovT * Math.PI / 360, ep = Math.atan2(0.05 - cy, Math.max(0.5, Math.hypot(subj.x - cx, subj.z - cz)));
         for (let i = 0; i < 4 && ep < Math.atan2(ly - cy, Math.max(0.5, Math.hypot(lx - cx, lz - cz))) - 0.8 * hfv; i++) { lx += (subj.x - lx) * 0.5; lz += (subj.z - lz) * 0.5; ly += (0.9 - ly) * 0.5; }
@@ -177,10 +258,29 @@
         lx += (subj.x - lx) * t * 0.85; lz += (subj.z - lz) * t * 0.85;
       }
       if (st.tilt > 0.0005) { const hd = Math.max(0.5, Math.hypot(lx - cx, lz - cz)); ly = cy + Math.tan(Math.min(1.2, Math.atan2(ly - cy, hd) + st.tilt)) * hd; }
+      st.cutT = Math.max(0, st.cutT - dt);
+      }
+      // ---- shared tail: blend from the previous pose (preset switch, goal / final entry), shake, look
+      if (teleported) st.blendT = 1;
+      cur.px = cx; cur.py = cy; cur.pz = cz; cur.lx = lx; cur.ly = ly; cur.lz = lz; cur.fov = fovT;
+      if (st.blendT < 1 && st.blendFresh) {
+        // a long way (or a big turn) takes longer, so a blend never moves faster than about 1 m or 5 degrees a frame
+        st.blendFresh = false;
+        const dd = Math.hypot(from.px - cur.px, from.py - cur.py, from.pz - cur.pz);
+        const ax0 = from.lx - from.px, ay0 = from.ly - from.py, az0 = from.lz - from.pz, ax1 = cur.lx - cur.px, ay1 = cur.ly - cur.py, az1 = cur.lz - cur.pz;
+        const cs = (ax0 * ax1 + ay0 * ay1 + az0 * az1) / ((Math.hypot(ax0, ay0, az0) * Math.hypot(ax1, ay1, az1)) || 1), ang = Math.acos(clamp(cs, -1, 1)) * 57.2958;
+        st.blendDur = Math.max(st.blendDur, 0.032 * dd, ang / 80);
+      }
+      if (st.blendT < 1) { st.blendT = Math.min(1, st.blendT + dt / st.blendDur); CR.blend(from, cur, st.blendT, cur); cx = cur.px; cy = cur.py; cz = cur.pz; lx = cur.lx; ly = cur.ly; lz = cur.lz; fovT = cur.fov; }
+      copyPose(fin, cur); st.hasFin = true;
+      // Phase 6.4 intro sweep (R3D.introP 0..1, set by js/pres-ui.js while the match intro holds the sim): the lens starts swung round the look point and higher, and eases onto the real pose. Never set in play, so the rig is unchanged.
+      if (R3D.introP != null && R3D.introP < 1) { const k = 1 - CR.smooth(clamp(R3D.introP, 0, 1)), an = 1.05 * k, c = Math.cos(an), sn = Math.sin(an), dx = cx - lx, dz = cz - lz; cx = lx + dx * c - dz * sn; cz = lz + dx * sn + dz * c; cy += 3.2 * k; }
+      st.shake *= Math.exp(-8 * dt);
+      const sh = st.shake * st.shakeK, n1 = Math.sin(time * 71), n2 = Math.cos(time * 53);
+      cam.position.set(cx + n1 * sh, cy + n2 * sh * 0.7, cz + n2 * sh);
       cam.up.set(0, 1, 0);
       cam.lookAt(lx, ly, lz);
       if (Math.abs(cam.fov - fovT) > 0.01) { cam.fov = fovT; cam.updateProjectionMatrix(); }
-      st.cutT = Math.max(0, st.cutT - dt);
       return st;
     }
 
@@ -219,7 +319,7 @@
       const fwd = -k.my || 0, rgt = k.mx || 0;
       if (fwd !== lastKeys.fwd || rgt !== lastKeys.rgt) {
         lastKeys.fwd = fwd; lastKeys.rgt = rgt;
-        const psi = (st.inputYaw = clamp(st.yaw, -INYAW, INYAW)), c = Math.cos(psi), s = Math.sin(psi);
+        const psi = (st.inputYaw = R3D.CamRig.inputPsi(st.yaw, st.PE)), c = Math.cos(psi), s = Math.sin(psi);
         // sim forward at yaw psi = (cos psi, sin psi) in (x = depth toward goal, y = across)
         let x = fwd * c - rgt * s, y = fwd * s + rgt * c;
         const top = Math.max(Math.abs(x), Math.abs(y));
@@ -228,7 +328,7 @@
       }
       return { ...k, mx: lastKeys.mx, my: lastKeys.my };
     }
-    return { cam, st, reset, update, onEvent, project, unproject, mapInput, get mode() { return st.mode; } };
+    return { cam, st, reset, update, onEvent, setPreset, setOptions, setLimits, project, unproject, mapInput, get mode() { return st.mode; } };
   }
   R3D.Camera = { create };
 })();

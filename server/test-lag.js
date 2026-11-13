@@ -15,6 +15,19 @@ const servers = [];
 const fail = (m) => { console.error('FAIL', m); for (const s of servers) s.kill(); process.exit(1); };
 setTimeout(() => fail('timeout'), 90000);
 
+// PROTO=2 makes this client speak protocol 2 (deltas). expand() rebuilds the full snapshot into m.n (a private copy) and fills a missing
+// m.inp from the previous one, so the checks below are the same as for protocol 1; the Predictor gets the untouched delta message.
+const PROTO = +process.env.PROTO >= 2 ? +process.env.PROTO : 1;
+function expand(c, m) {
+  if (PROTO < 2) return m;
+  const raw = JSON.parse(JSON.stringify(m));
+  if (!c.follow) c.follow = ISO.Net.follower();
+  if (!c.follow(m)) fail('a delta arrived without its base');
+  m.n = JSON.parse(JSON.stringify(m.n));
+  if (m.inp) c.lastInp = m.inp; else m.inp = c.lastInp;
+  return raw;
+}
+
 function server(env) {
   const port = 18600 + ((Math.random() * 800) | 0);
   const srv = spawn('node', [path.join(__dirname, 'server.js')], { env: { ...process.env, PORT: port, HOST: '127.0.0.1', ...env }, stdio: ['ignore', 'pipe', 'inherit'] });
@@ -42,11 +55,11 @@ function client(port, name, pick) {
   const down = delayed((m) => {
     if (m.t === 'room') c.me = m.you;
     if (m.t === 'start') {
-      c.G = ISO.Game.create({ roster: m.picks.map((p) => ISO.outfit(ISO.playerById(p.id), p.prime, p.skin)) });
+      c.G = ISO.Game.create({ roster: m.picks.map((p) => ISO.outfit(ISO.playerById(p.id), p.prime, p.skin, p.celeb)) });
       c.G.players.forEach((p, i) => { p.moves = m.moves[i] ? new Set(m.moves[i]) : null; });
-      c.P = ISO.Net.Predictor({ me: c.me, send: c.send });
+      c.P = ISO.Net.Predictor({ me: c.me, send: c.send, resync: () => c.send({ t: 'key' }) });
     }
-    if (m.t === 's' && c.P) { if (c.onSnap) c.onSnap(m); c.P.onSnapshot(m); }
+    if (m.t === 's' && c.P) { const raw = expand(c, m); if (c.onSnap) c.onSnap(m); c.P.onSnapshot(raw); }
     if (c.on) c.on(m);
   });
   c.ws.on('message', (raw) => down(JSON.parse(raw)));
@@ -59,7 +72,7 @@ function client(port, name, pick) {
     c.G.events.length = 0;
   }, 16);
   c.open = new Promise((r) => c.ws.on('open', r));
-  c.join = (m) => c.send({ name, pick, ...m });
+  c.join = (m) => c.send({ name, pick, ...(PROTO >= 2 ? { v: PROTO } : {}), ...m });
   c.close = () => { clearInterval(c.timer); c.ws.close(); };
   return c;
 }
@@ -70,7 +83,7 @@ const report = (label, P) => {
     '| others mean', (s.othSum / s.errN).toFixed(2), 'max', s.othMax.toFixed(1), 'px',
     '| predicted', (s.lag / s.snaps).toFixed(1), 'steps =', (s.lag / s.snaps * STEP_MS).toFixed(0), 'ms',
     '| server queue mean', (s.qSum / Math.max(1, s.qN)).toFixed(2), 'steps, dry', s.starved + '/' + s.snaps, 'snaps (' + (s.starved / secs).toFixed(1) + '/s)',
-    '| stalls', s.stalls, '| rate', P.rate.toFixed(3));
+    '| stalls', s.stalls, '| resyncs', s.resyncs || 0, '| rate', P.rate.toFixed(3));
 };
 // a human-ish pattern: a new direction every 0.3 - 0.8 s, sometimes sprinting, sometimes standing
 function wander(seed, buttons, pr) {
@@ -112,7 +125,7 @@ async function pair(port) {
     // (2) both move and press buttons: the others are guessed from their last known input
     b.sample = wander(99, true); a.sample = wander(21, true, 0.05);
     await sleep(500); zero(a.P); zero(b.P);
-    const OWN = { kick: 1, skill: 1, lunge: 1, fake: 1 }, srvOwn = {}, h0 = a.events.length;
+    const OWN = { kick: 1, skill: 1, lunge: 1, fake: 1, stop: 1, burst: 1 }, srvOwn = {}, h0 = a.events.length;
     a.onSnap = (m) => { for (const e of m.n.ev) if (OWN[e.type] && e.p && e.p.$p === a.me) srvOwn[e.type] = (srvOwn[e.type] || 0) + 1; };
     await sleep(8000);
     report('both move: A', a.P); report('both move: B', b.P);

@@ -1,65 +1,14 @@
-# ISO Football
+# DataTekkers: ISO Football
 
 **Beta 2.81** — rain weather, a 3D mode with moving kits and hair, MyCareer names and numbers
 
 A 2D, top-down, 1v1 football game for the browser (online 2v2 too). Every rep is a rebound drill with the goal at the top of the screen: the attacker starts 10 yards outside the 18-yard box, in the centre, with the defender in front. Score, win the rebound, clear it outside the box, repeat. First to three wins a match (five in the rebound drill). No build step and no dependencies: open `index.html`.
 
-- [What's new](#whats-new-in-beta-24) · [Playing](#playing) · [Attacking and defending](#attacking-and-defending) · [Menus](#menus) · [Gameplay notes](#gameplay-notes) · [Online](#online-1v1-and-2v2) · [Credits](#credits) · [Development](#development)
+- [What's new](#whats-new) · [Playing](#playing) · [Attacking and defending](#attacking-and-defending) · [Menus](#menus) · [Gameplay notes](#gameplay-notes) · [Online](#online-1v1-and-2v2) · [Credits](#credits) · [Development](#development)
 
-## What's new in Beta 2.81
+## What's new
 
-- **Weather.** Pick CLEAR or RAIN on the player-select screen. In the rain every player, attackers and defenders on both teams, can slip, and ground shots and passes skid faster and skip along the pitch. Rain is drawn in both the Classic and 3D views. Drills, online matches and MyCareer stay clear.
-- **3D kits.** Shirts are looser, shorts are real flared shorts on each leg, and sleeves are baggier. The shirt hem, shorts and sleeves move with cloth physics, and long hair, braids and buns swing.
-- **3D players.** Socks are shorter, torsos and hips are slimmer, and Vinícius Júnior has a sharper, longer chin.
-- **MyCareer.** You can change your player's name and shirt number.
-- **One on One.** You can now dribble before you shoot.
-- **Camera.** The Cinematic option is gone from the Match camera setting; drills that default to it still use it.
-
-## Beta 2.63
-
-- Every drill card now has its own illustrated player; MyCareer and Long Shots swapped artwork, and the Quick Match shirt reads MESSI.
-
-## Beta 2.62
-
-- **Drills** menu scrolls left to right instead of fitting all cards on one page.
-- Chip, Free Kick, One on One, Long Shots and Finesse always use the cinematic camera, which is now higher and zoomed in.
-- Long shots start closer so the player and ball stay in bounds; fixed the Free Kicks start screen not closing.
-
-## Beta 2.61
-
-- **Free kicks** now have a wall of four defenders, and always play in the cinematic camera.
-- **Cinematic camera** is zoomed in and limited to part of the pitch width, following the ball sideways; the goal replay uses the same angle.
-- The main-menu featured-player panel is removed.
-
-## What's new in Beta 2.4
-
-**Roles.** You are an *attacker* while your team last had the ball (you or a teammate holds it, or your side touched it last) and a *defender* once the other side gets it. Attacking keys do nothing while defending, and defending keys do nothing while attacking, so the two sets can share physical keys. A key held through a change of role is not treated as a fresh press.
-
-**Defensive moves** (new, rebindable, off while you attack):
-
-- **Tackle** and **Slide tackle** have their own keys. A slide no longer needs a sprint.
-- **Shoulder** — a short barge at the nearest opponent. A strong defender can knock the ball loose; it is much weaker against a dribbler mid-move or one shielding the ball. It cannot be dodged for an ankle break.
-- **Focus** (hold) — a low, side-on defensive stance. While focused you
-  - get steered onto the line between the dribbler and the goal (and onto the path of a shot in flight), travelling with them rather than chasing where they were, and swinging round the side rather than through them if you end up level or behind;
-  - ignore the protection a skill move gives the ball, and have a chance to read the move and steal the ball mid-skill;
-  - slow a close dribbler (sprint and burst are dampened, and driving straight into you is slow);
-  - sometimes slide to block a shot on their own, and lunge in with a tackle if the dribbler gets past you;
-  - drain stamina while held.
-
-**Shooting.**
-
-- Wind-ups are about a third quicker for every shot type.
-- A quick tap on the **normal** shot key is a **fake shot**: a faster swing, then a burst of speed. Tapping finesse, power or chip fires a quick, weak shot instead.
-- Long-range shots come in harder and no longer lose accuracy with distance.
-
-**Goalkeepers.**
-
-- The keeper dives at every shot on target. Its ratings (nerfed on lower difficulties, boosted on Hard) decide how well it aims, how far it reaches and how often it gets a hand to it.
-- Most saves from a dive are deflections, not catches. Shots from outside the box are easier to save.
-- A scooped chip is the one shot the keeper stands tall for.
-- The keeper runs out and slides more slowly than before, and a keeper on Normal now has its full ratings.
-
-**Controls.** Tackle, Slide, Shoulder and Focus join the key list, with overlap-friendly rebinding and gamepad buttons.
+See [CHANGELOG.md](CHANGELOG.md) for every release, including Beta 2.81 (rain weather, looser 3D kits, MyCareer names and numbers) and the Phase 0 foundation work in progress. Match presentation (intro card, goal card, player of the match) can be switched off in Settings.
 
 ## Playing
 
@@ -116,7 +65,7 @@ The main menu has four buttons: **Play**, **Store**, **Settings** and **Controls
 
 - **MyCareer** — build your own player (look + kit) and climb a 12-opponent ladder from the weakest squad players to the greatest icons (first to 3, CPU difficulty rises as you climb). Wins earn upgrade points to spend on your attributes; losses still earn one. Any stat can be dropped as low as 30 to refund points into others.
 - **Quick Match** — any footballer you own, Prime upgrade and skin included, against the CPU on easy, normal or hard.
-- **Drills** — **Penalty Shootout** (take your kick, then keep goal for theirs; five each, then sudden death), and one player against the keeper in **Target Practice** (hit the lit corner for 3 points), **Chip Challenge** (lob a keeper who has come off his line) and the free **Testing Arena** (every skill move unlocked, no score limit). Drills pay credits by score and keep your best.
+- **Drills** — **Penalty Shootout** (take your kick, then keep goal for theirs; five each, then sudden death), and one player against the keeper in **Target Practice** (hit the lit corner for 3 points), **Chip Challenge** (lob a keeper who has come off his line), **Free Kick** (a wall of four), **One on One** (dribble, then shoot), **Long Shots**, **Finesse** (curlers), **Power** (power blasts) and the free **Testing Arena** (every skill move unlocked, no score limit; a side panel adds defenders, a keeper you choose, start spots, unlimited stamina, rain, slow motion and an accuracy tally). The **Drill Creator** lets you build your own drill (cones, walls, defenders, a keeper, target zones), test it at once, keep 20 and share them as a code. Drills pay credits by score and keep your best.
 - **Online** — see below.
 
 ### Store
@@ -124,12 +73,15 @@ The main menu has four buttons: **Play**, **Store**, **Settings** and **Controls
 - **Players** — for every player you own: **Skins** (Away, National, Third, Blackout, Gold; every purchasable jersey is unique) and **Prime** (+4 to every attribute, cap 99, gold boots; rarer players cost more, 800 – 8,000 CR).
 - **Box Draw** — most players are locked. Spend credits on Bronze / Silver / Gold / Icon boxes (each tier unlocks by completing an achievement). Rarer tiers have better odds, duplicates refund credits, and a pity counter guarantees a Legendary or better every 10 boxes.
 - **Skill Moves** — the basic moves (body feint, stepovers, knock on) are free. Ball roll, drag back, La Croqueta, roulette, heel-to-heel, nutmeg, elastico and rainbow flick are unlocked here (300 – 1,600 CR). A move also needs the player's skill stars.
+- **Celebrations** — your goal celebration: every player has a signature one; buy and equip others (300 – 1,500 CR, cosmetic, global like the ball skin).
 - **Maps** — cosmetic pitches: The Stadium (free), Street Cage, Copa Beach, Winter Cup, Neon Night.
 - **Achievements** — 25 goals that pay out credits and unlock box tiers.
 
 ### Settings
 
 - Audio and default CPU difficulty. Game speed is fixed (see Gameplay notes).
+- **3D camera** — Player chase (default), Close action, Dynamic, Broadcast (side), Low sideline or Tactical (end-on), plus camera distance, follow speed, camera shake and goal camera (Celebration / Wide / Off). The pause menu has a CAMERA button that cycles the preset in 3D. Movement is relative to the camera; sideline cameras turn the controls a quarter turn.
+- **3D stadiums** — every map has its own sun and shadows (long at dusk), crowd, flags in your colours, camera flashes at night and, with the Pitch type setting, a firm, lush or astro-turf look.
 - **Mouse aiming & click to shoot** — on: the cursor aims, left click shoots, right click is the power shot. Off: keyboard only. Also in the pause menu.
 - **Keyboard** — every action has two rebindable slots, and a slot can hold a combination such as Shift+Q. Click a slot and press keys; `Esc` cancels, `Backspace` clears. A key already in use swaps places, **except** between an attacking and a defending action, which may share a key. **Reset to default** restores the layout.
 - **Reset all progress** — wipes credits, players, skins, Primes, skill moves, maps, achievements and MyCareer. Settings and key bindings are kept.
@@ -147,7 +99,7 @@ The main menu has four buttons: **Play**, **Store**, **Settings** and **Controls
 
 ## Online 1v1 and 2v2
 
-**Play → Online** needs the Node server in `server/`. The match runs there so neither player can cheat; browsers send their keys and draw the result. Your client predicts locally (same simulation, same dice) and re-simulates from each server snapshot, so your own player answers at once whatever the ping. Client and server must run the same version: redeploy the server after pulling.
+**Play → Online** needs the Node server in `server/`. The match runs there: the server is authoritative for the simulation, and browsers send their keys and draw the result. Validation of what a player brings is limited: the profile (owned players, Primes, skins, skill moves) lives in the browser's localStorage and the server trusts the loadout it is sent. Online matches are unranked and pay no credits, so there is nothing to win by editing it. Your client predicts locally (same simulation, same dice) and re-simulates from each server snapshot, so your own player answers at once whatever the ping. Client and server must run the same version: redeploy the server after pulling.
 
 - **Create room** gives a four-letter code and an invite link (`/?room=ABCD`); **Join room** takes the code; **Quick match** pairs you with whoever else is searching. Pick **1V1** or **2V2** at the top of the lobby.
 - **2V2** needs four players. Seats alternate between teams; new arrivals fill the smaller team, and **Switch Team** moves you across if there is a free seat. **Pass** (default `R`) sends a ground pass to the closest teammate in the direction you face. The ball carrier alternates at each restart.
@@ -172,7 +124,7 @@ To play over the internet, the server must be reachable: a small Node host (Rend
 
 The free Render plan sleeps when idle: the first player waits about 30 s.
 
-In short: the server steps the same 120 Hz simulation as single-player and broadcasts a snapshot 40 times a second (about 100 KB/s per player). Inputs are sanitised and rate-limited; rooms are cleaned up when players leave.
+In short: the server steps the same 120 Hz simulation as single-player and broadcasts a snapshot every 2 steps (36 per second). Delta snapshots (protocol 2) are in: offline the snapshot stream went from 130.7 KB/s (1v1) and 209.3 KB/s (2v2) to about 22 and 44 KB/s; live over a socket, 135 and 216 KB/s fell to about 28 and 33 KB/s (permessage-deflate, off by default and enabled with `WS_DEFLATE=1`, takes it to about 13 and 16 KB/s). Older clients still get full snapshots. Details in `server/NETCODE_NOTES.md`. Inputs are sanitised and rate-limited; rooms are cleaned up when players leave.
 
 ## Credits
 
@@ -196,6 +148,7 @@ In short: the server steps the same 120 Hz simulation as single-player and broad
 | `js/smooth.js` | Render interpolation between simulation steps |
 | `js/audio.js` | Synthesized sound effects |
 | `js/profile.js` | Saved profile: credits, collection, purchases, achievements, boxes, MyCareer |
+| `js/3d/*.js` | 3D mode: `r3d` renderer, player rigs, `anim3d.js` animation pipeline, clip libraries (`clips-*.js`, `animkit.js`), the Smooth to Adapter bridge. No gameplay. |
 | `js/main.js` | Screens, HUD, main loop |
 | `js/meta-ui.js` | Play, MyCareer, Store, Settings and key-binding screens |
 | `js/config.js` | Deployment settings: where the online server is |
@@ -209,9 +162,15 @@ The simulation is independent of rendering. The helpers need Node:
 
 ```sh
 node tools/sim.js 40 normal      # 40 CPU-vs-CPU matches, prints aggregate stats
+node tools/drill-test.js         # custom drills: validate fuzz, 200-drill soak, cone / wall collisions, share codes, slots
 node tools/check.js 60           # invariant checks (NaNs, players inside goals, stuck balls, ...)
-cd server && node test.js && node test-determinism.js && node test-lag.js 50 10
+node tools/anim-check.js         # 3D animation quality limits (currently FAILS; see HANDOFF.md)
+node tools/stadium-test.js       # 3D stadium budgets (draw calls, triangles, lights) against tools/stadium-baseline.json
+node tools/anim-gate.js          # the ratchet: fails only if the animation numbers get worse than tools/anim-baseline.json
+cd server && npm ci && for t in test*.js; do node $t; done   # includes test-crossplay.js (2D and 3D clients, same match)
 ```
+
+CI (`.github/workflows/ci.yml`) runs all of this on every pull request and push to main, plus a check that the README, `index.html` and `ISO.VERSION` in `js/data.js` name the same version. More documents: [ROADMAP.md](ROADMAP.md), [HANDOFF.md](HANDOFF.md), [TECHNICAL_ARCHITECTURE.md](TECHNICAL_ARCHITECTURE.md).
 
 The determinism test checks that a snapshot sent as JSON and applied to another game re-simulates exactly; run it after touching anything in `js/game.js`. Any new button the simulation reads must be added to `ZERO` in `js/game.js`, which is also what the online input packing uses.
 

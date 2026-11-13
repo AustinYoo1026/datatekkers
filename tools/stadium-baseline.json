@@ -1,0 +1,470 @@
+{
+ "stadium|q0|w0": {
+  "calls": 17,
+  "tris": 5998,
+  "inst": 581,
+  "points": 604,
+  "lights": 6,
+  "casters": 1,
+  "meshes": 15
+ },
+ "stadium|q0|w1": {
+  "calls": 11,
+  "tris": 2942,
+  "inst": 308,
+  "points": 0,
+  "lights": 2,
+  "casters": 1,
+  "meshes": 11
+ },
+ "stadium|q2|w0": {
+  "calls": 17,
+  "tris": 5250,
+  "inst": 207,
+  "points": 604,
+  "lights": 2,
+  "casters": 1,
+  "meshes": 15
+ },
+ "stadium|q2|w1": {
+  "calls": 11,
+  "tris": 2510,
+  "inst": 92,
+  "points": 0,
+  "lights": 2,
+  "casters": 1,
+  "meshes": 11
+ },
+ "street|q0|w0": {
+  "calls": 19,
+  "tris": 7752,
+  "inst": 119,
+  "points": 604,
+  "lights": 6,
+  "casters": 1,
+  "meshes": 17
+ },
+ "street|q2|w0": {
+  "calls": 19,
+  "tris": 7652,
+  "inst": 69,
+  "points": 604,
+  "lights": 2,
+  "casters": 1,
+  "meshes": 17
+ },
+ "beach|q0|w0": {
+  "calls": 18,
+  "tris": 6338,
+  "inst": 225,
+  "points": 26,
+  "lights": 2,
+  "casters": 1,
+  "meshes": 17
+ },
+ "beach|q2|w0": {
+  "calls": 18,
+  "tris": 6090,
+  "inst": 101,
+  "points": 26,
+  "lights": 2,
+  "casters": 1,
+  "meshes": 17
+ },
+ "snow|q0|w0": {
+  "calls": 18,
+  "tris": 5998,
+  "inst": 581,
+  "points": 2204,
+  "lights": 6,
+  "casters": 1,
+  "meshes": 15
+ },
+ "snow|q2|w0": {
+  "calls": 18,
+  "tris": 5250,
+  "inst": 207,
+  "points": 1004,
+  "lights": 2,
+  "casters": 1,
+  "meshes": 15
+ },
+ "neon|q0|w0": {
+  "calls": 18,
+  "tris": 6308,
+  "inst": 581,
+  "points": 604,
+  "lights": 6,
+  "casters": 1,
+  "meshes": 16
+ },
+ "neon|q2|w0": {
+  "calls": 18,
+  "tris": 5560,
+  "inst": 207,
+  "points": 604,
+  "lights": 2,
+  "casters": 1,
+  "meshes": 16
+ },
+ "sunset|q0|w0": {
+  "calls": 16,
+  "tris": 8542,
+  "inst": 581,
+  "points": 26,
+  "lights": 2,
+  "casters": 1,
+  "meshes": 15
+ },
+ "sunset|q2|w0": {
+  "calls": 16,
+  "tris": 7794,
+  "inst": 207,
+  "points": 26,
+  "lights": 2,
+  "casters": 1,
+  "meshes": 15
+ },
+ "monsoon|q0|w0": {
+  "calls": 18,
+  "tris": 8542,
+  "inst": 581,
+  "points": 2804,
+  "lights": 6,
+  "casters": 1,
+  "meshes": 15
+ },
+ "monsoon|q2|w0": {
+  "calls": 18,
+  "tris": 7794,
+  "inst": 207,
+  "points": 1204,
+  "lights": 2,
+  "casters": 1,
+  "meshes": 15
+ },
+ "jungle|q0|w0": {
+  "calls": 18,
+  "tris": 6338,
+  "inst": 225,
+  "points": 26,
+  "lights": 2,
+  "casters": 1,
+  "meshes": 17
+ },
+ "jungle|q2|w0": {
+  "calls": 18,
+  "tris": 6090,
+  "inst": 101,
+  "points": 26,
+  "lights": 2,
+  "casters": 1,
+  "meshes": 17
+ },
+ "moon|q0|w0": {
+  "calls": 17,
+  "tris": 6862,
+  "inst": 557,
+  "points": 604,
+  "lights": 6,
+  "casters": 1,
+  "meshes": 15
+ },
+ "moon|q2|w0": {
+  "calls": 17,
+  "tris": 6114,
+  "inst": 183,
+  "points": 604,
+  "lights": 2,
+  "casters": 1,
+  "meshes": 15
+ },
+ "desert|q0|w0": {
+  "calls": 15,
+  "tris": 8094,
+  "inst": 225,
+  "points": 0,
+  "lights": 2,
+  "casters": 1,
+  "meshes": 15
+ },
+ "desert|q2|w0": {
+  "calls": 15,
+  "tris": 7846,
+  "inst": 101,
+  "points": 0,
+  "lights": 2,
+  "casters": 1,
+  "meshes": 15
+ },
+ "retro|q0|w0": {
+  "calls": 17,
+  "tris": 5998,
+  "inst": 581,
+  "points": 604,
+  "lights": 6,
+  "casters": 1,
+  "meshes": 15
+ },
+ "retro|q2|w0": {
+  "calls": 17,
+  "tris": 5250,
+  "inst": 207,
+  "points": 604,
+  "lights": 2,
+  "casters": 1,
+  "meshes": 15
+ },
+ "sakura|q0|w0": {
+  "calls": 17,
+  "tris": 8542,
+  "inst": 581,
+  "points": 1626,
+  "lights": 2,
+  "casters": 1,
+  "meshes": 15
+ },
+ "sakura|q2|w0": {
+  "calls": 17,
+  "tris": 7794,
+  "inst": 207,
+  "points": 426,
+  "lights": 2,
+  "casters": 1,
+  "meshes": 15
+ },
+ "dock|q0|w0": {
+  "calls": 17,
+  "tris": 4124,
+  "inst": 71,
+  "points": 604,
+  "lights": 6,
+  "casters": 1,
+  "meshes": 15
+ },
+ "dock|q2|w0": {
+  "calls": 17,
+  "tris": 4024,
+  "inst": 21,
+  "points": 604,
+  "lights": 2,
+  "casters": 1,
+  "meshes": 15
+ },
+ "gold|q0|w0": {
+  "calls": 17,
+  "tris": 5998,
+  "inst": 581,
+  "points": 604,
+  "lights": 6,
+  "casters": 1,
+  "meshes": 15
+ },
+ "gold|q2|w0": {
+  "calls": 17,
+  "tris": 5250,
+  "inst": 207,
+  "points": 604,
+  "lights": 2,
+  "casters": 1,
+  "meshes": 15
+ },
+ "mud|q0|w0": {
+  "calls": 16,
+  "tris": 8542,
+  "inst": 581,
+  "points": 26,
+  "lights": 2,
+  "casters": 1,
+  "meshes": 15
+ },
+ "mud|q2|w0": {
+  "calls": 16,
+  "tris": 7794,
+  "inst": 207,
+  "points": 26,
+  "lights": 2,
+  "casters": 1,
+  "meshes": 15
+ },
+ "fs_wood|q0|w0": {
+  "calls": 11,
+  "tris": 2942,
+  "inst": 308,
+  "points": 0,
+  "lights": 2,
+  "casters": 1,
+  "meshes": 11
+ },
+ "fs_wood|q0|w1": {
+  "calls": 11,
+  "tris": 2942,
+  "inst": 308,
+  "points": 0,
+  "lights": 2,
+  "casters": 1,
+  "meshes": 11
+ },
+ "fs_wood|q2|w0": {
+  "calls": 11,
+  "tris": 2510,
+  "inst": 92,
+  "points": 0,
+  "lights": 2,
+  "casters": 1,
+  "meshes": 11
+ },
+ "fs_wood|q2|w1": {
+  "calls": 11,
+  "tris": 2510,
+  "inst": 92,
+  "points": 0,
+  "lights": 2,
+  "casters": 1,
+  "meshes": 11
+ },
+ "fs_blue|q0|w0": {
+  "calls": 11,
+  "tris": 2942,
+  "inst": 308,
+  "points": 0,
+  "lights": 2,
+  "casters": 1,
+  "meshes": 11
+ },
+ "fs_blue|q0|w1": {
+  "calls": 11,
+  "tris": 2942,
+  "inst": 308,
+  "points": 0,
+  "lights": 2,
+  "casters": 1,
+  "meshes": 11
+ },
+ "fs_blue|q2|w0": {
+  "calls": 11,
+  "tris": 2510,
+  "inst": 92,
+  "points": 0,
+  "lights": 2,
+  "casters": 1,
+  "meshes": 11
+ },
+ "fs_blue|q2|w1": {
+  "calls": 11,
+  "tris": 2510,
+  "inst": 92,
+  "points": 0,
+  "lights": 2,
+  "casters": 1,
+  "meshes": 11
+ },
+ "fs_red|q0|w0": {
+  "calls": 11,
+  "tris": 2942,
+  "inst": 308,
+  "points": 0,
+  "lights": 2,
+  "casters": 1,
+  "meshes": 11
+ },
+ "fs_red|q0|w1": {
+  "calls": 11,
+  "tris": 2942,
+  "inst": 308,
+  "points": 0,
+  "lights": 2,
+  "casters": 1,
+  "meshes": 11
+ },
+ "fs_red|q2|w0": {
+  "calls": 11,
+  "tris": 2510,
+  "inst": 92,
+  "points": 0,
+  "lights": 2,
+  "casters": 1,
+  "meshes": 11
+ },
+ "fs_red|q2|w1": {
+  "calls": 11,
+  "tris": 2510,
+  "inst": 92,
+  "points": 0,
+  "lights": 2,
+  "casters": 1,
+  "meshes": 11
+ },
+ "fs_roof|q0|w0": {
+  "calls": 16,
+  "tris": 4266,
+  "inst": 50,
+  "points": 604,
+  "lights": 6,
+  "casters": 1,
+  "meshes": 14
+ },
+ "fs_roof|q0|w1": {
+  "calls": 16,
+  "tris": 4266,
+  "inst": 50,
+  "points": 604,
+  "lights": 6,
+  "casters": 1,
+  "meshes": 14
+ },
+ "fs_roof|q2|w0": {
+  "calls": 16,
+  "tris": 4196,
+  "inst": 15,
+  "points": 604,
+  "lights": 2,
+  "casters": 1,
+  "meshes": 14
+ },
+ "fs_roof|q2|w1": {
+  "calls": 16,
+  "tris": 4196,
+  "inst": 15,
+  "points": 604,
+  "lights": 2,
+  "casters": 1,
+  "meshes": 14
+ },
+ "fs_glass|q0|w0": {
+  "calls": 13,
+  "tris": 2870,
+  "inst": 308,
+  "points": 0,
+  "lights": 2,
+  "casters": 1,
+  "meshes": 13
+ },
+ "fs_glass|q0|w1": {
+  "calls": 13,
+  "tris": 2870,
+  "inst": 308,
+  "points": 0,
+  "lights": 2,
+  "casters": 1,
+  "meshes": 13
+ },
+ "fs_glass|q2|w0": {
+  "calls": 13,
+  "tris": 2438,
+  "inst": 92,
+  "points": 0,
+  "lights": 2,
+  "casters": 1,
+  "meshes": 13
+ },
+ "fs_glass|q2|w1": {
+  "calls": 13,
+  "tris": 2438,
+  "inst": 92,
+  "points": 0,
+  "lights": 2,
+  "casters": 1,
+  "meshes": 13
+ }
+}

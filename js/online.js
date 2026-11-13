@@ -11,7 +11,7 @@
 
   let ws = null, connecting = false, lobby = null, queued = false, qinfo = null, rematching = false, mode = '1v1';
   let pingMs = null, pingTimer = 0, retry = 0;
-  let pred = null, pending = null;
+  let pred = null, pending = null, adminCb = null, adminTimer = 0;
 
   // ?server=host[:port] overrides (add &secure=1 for wss), then js/config.js, then the host that served the page
   const serverUrl = () => {
@@ -62,12 +62,15 @@
       rematching = false;
       const me = lobby ? lobby.you : 0;
       App.startOnline(m.picks, m.names, m.kickoff, me);
+      // the sim revision: a server on another sim would make this client predict wrongly, so say so instead of silently drifting
+      if (m.rev !== undefined && m.rev !== ISO.SIM_REV) App.toast('VERSION MISMATCH', 'This game (' + ISO.SIM_REV + ') and the server (' + m.rev + ') run different match code. Refresh the page; until then the match may look jumpy.', '#f1735f');
       // everybody is re-simulated here, so every player needs the skill moves the server lets that seat use
       if (m.moves) App.G.players.forEach((p, i) => { p.moves = m.moves[i] ? new Set(m.moves[i]) : null; });
-      pred = ISO.Net.Predictor({ me, send, smooth: ISO.Smooth });
+      pred = ISO.Net.Predictor({ me, send, smooth: ISO.Smooth, resync: () => send({ t: 'key' }) });
       ISO.Smooth.reset(); api.alpha = 0;
     }
     else if (m.t === 's') { if (pred && App.mode === 'online' && App.G && (App.screen === 'match' || App.screen === 'end')) pred.onSnapshot(m); }
+    else if (m.t === 'admin') { if (adminCb) { const f = adminCb; adminCb = null; clearTimeout(adminTimer); f(!!m.ok); } }
     else if (m.t === 'rematch') {
       if (lobby && !rematching) { const n = m.who.filter(Boolean).length; if (n) $('endRematch').textContent = n + ' / ' + m.who.length + ' WANT A REMATCH'; }
     }
@@ -93,10 +96,10 @@
   // ----------------------------------------------------------- lobby screen
   function myPick() {
     const d = App.pick[0];
-    return { id: d.id, prime: P.isPrime(d.id), skin: P.skinOf(d.id) };
+    return { id: d.id, prime: P.isPrime(d.id), skin: P.skinOf(d.id), celeb: P.celebOf() };
   }
   const myName = () => ($('onName').value || '').trim() || 'Player';
-  const payload = (t, extra) => Object.assign({ t, mode, name: myName(), pick: myPick(), moves: Array.from(P.moveSet()) }, extra);
+  const payload = (t, extra) => Object.assign({ t, v: ISO.Net.PROTO, mode, name: myName(), pick: myPick(), moves: Array.from(P.moveSet()) }, extra);
 
   function render() {
     if (!$('onMenu')) return;
@@ -117,9 +120,11 @@
       : 'SEARCHING FOR ' + (mode === '2v2' ? missing + ' MORE ' : 'AN ') + word + '…';
     $('onWait').classList.toggle('live', !!lobby && !missing);
     // the teams: yours first
+    // the traits each slot brings (from the catalogue, exactly what the sim will use; Prime and skins never change them)
+    const tagsOf = (pk) => { const d = ISO.playerById(pk.id); return d ? '<div class="traits">' + ISO.styleOf(d).traits.map((t) => '<span class="chip trait" title="' + esc(ISO.TRAITS[t].desc) + '">' + ISO.TRAITS[t].tag + '</span>').join('') + '</div>' : ''; };
     const roster = (t) => {
       const rows = [];
-      lobby.players.forEach((p, i) => { if (i % 2 === t) rows.push(p ? '<div class="on-slot' + (i === lobby.you ? ' me' : '') + '"><b>' + esc(p.name.toUpperCase()) + '</b><span>' + esc(ISO.playerById(p.pick.id).short.toUpperCase()) + '</span></div>' : '<div class="on-slot empty">WAITING…</div>'); });
+      lobby.players.forEach((p, i) => { if (i % 2 === t) rows.push(p ? '<div class="on-slot' + (i === lobby.you ? ' me' : '') + '"><b>' + esc(p.name.toUpperCase()) + '</b><span>' + esc(ISO.playerById(p.pick.id).short.toUpperCase()) + '</span>' + tagsOf(p.pick) + '</div>' : '<div class="on-slot empty">WAITING…</div>'); });
       return rows.join('');
     };
     const mine = lobby ? lobby.you % 2 : 0;
@@ -159,6 +164,15 @@
     get net() { return pred && { ping: pingMs, rate: pred.rate, pending: pred.pending, stats: pred.stats }; },      // for a debug overlay / the console
     onShow() { render(); if (!ws || ws.readyState > 1) connect(); else status('CONNECTED' + (pingMs != null ? ' · ' + pingMs + ' MS' : '')); },
     rematch() { rematching = true; $('endRematch').textContent = 'WAITING FOR OPPONENT…'; $('endRematch').disabled = true; send({ t: 'rematch' }); },
+    // Settings -> Admin: the server checks the code (ADMIN_CODE env var). cb(true|false); false after 5 s without an answer.
+    // This only unlocks the developer switches in the local profile (there is no server-side account to change).
+    adminLogin(code, cb) {
+      if (adminCb) { const f = adminCb; adminCb = null; clearTimeout(adminTimer); f(false); }
+      adminCb = cb; adminTimer = setTimeout(() => { if (adminCb) { const f = adminCb; adminCb = null; f(false); } }, 5000);
+      const go = () => send({ t: 'admin', code: String(code || '') });
+      if (connecting && pending) { const prev = pending; pending = () => { prev(); go(); }; }   // chain after the pending create/join/quick
+      else connect(go);
+    },
     leave() { send({ t: 'leave' }); lobby = null; queued = false; qinfo = null; pred = null; },
   };
   start();
