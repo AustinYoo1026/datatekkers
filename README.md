@@ -45,7 +45,7 @@ The shoot key doubles as a standing tackle while you defend. Skill moves are cho
 
 **Attacking**
 
-- Hold a shot key to charge and release to strike; hold too long and it sails over the bar. Hold up or down to pick a corner, or aim with the mouse.
+- Hold a shot key to charge and release to strike; hold too long and it sails over the bar. Hold left or right to pick a corner, or aim with the mouse.
 - Hold a shot key as a loose ball arrives for a first-time shot. Press a skill key while charging to cancel.
 - Land a skill move on a defender who has committed to a lunge or slide and you break their ankles (about 0.9 s on the floor). Nothing else breaks ankles.
 - Shielding (jockey with the ball) keeps your body between the ball and the tackler.
@@ -63,6 +63,7 @@ The main menu has four buttons: **Play**, **Store**, **Settings** and **Controls
 
 ### Play
 
+- **Tutorial** — eight short interactive lessons (movement, shooting, shot types, skill moves, defending, the clear rule, penalties, views and settings) played on the real pitch with your current key bindings; progress is saved, nothing counts towards stats or career, and finishing all eight (without skipping a step) pays 150 CR once. New players are offered it once; it is also reachable from the Controls guide outside a match.
 - **MyCareer** — build your own player (look + kit) and climb a 12-opponent ladder from the weakest squad players to the greatest icons (first to 3, CPU difficulty rises as you climb). Wins earn upgrade points to spend on your attributes; losses still earn one. Any stat can be dropped as low as 30 to refund points into others.
 - **Quick Match** — any footballer you own, Prime upgrade and skin included, against the CPU on easy, normal or hard.
 - **Drills** — **Penalty Shootout** (take your kick, then keep goal for theirs; five each, then sudden death), and one player against the keeper in **Target Practice** (hit the lit corner for 3 points), **Chip Challenge** (lob a keeper who has come off his line), **Free Kick** (a wall of four), **One on One** (dribble, then shoot), **Long Shots**, **Finesse** (curlers), **Power** (power blasts) and the free **Testing Arena** (every skill move unlocked, no score limit; a side panel adds defenders, a keeper you choose, start spots, unlimited stamina, rain, slow motion and an accuracy tally). The **Drill Creator** lets you build your own drill (cones, walls, defenders, a keeper, target zones), test it at once, keep 20 and share them as a code. Drills pay credits by score and keep your best.
@@ -73,7 +74,7 @@ The main menu has four buttons: **Play**, **Store**, **Settings** and **Controls
 - **Players** — for every player you own: **Skins** (Away, National, Third, Blackout, Gold; every purchasable jersey is unique) and **Prime** (+4 to every attribute, cap 99, gold boots; rarer players cost more, 800 – 8,000 CR).
 - **Box Draw** — most players are locked. Spend credits on Bronze / Silver / Gold / Icon boxes (each tier unlocks by completing an achievement). Rarer tiers have better odds, duplicates refund credits, and a pity counter guarantees a Legendary or better every 10 boxes.
 - **Skill Moves** — the basic moves (body feint, stepovers, knock on) are free. Ball roll, drag back, La Croqueta, roulette, heel-to-heel, nutmeg, elastico and rainbow flick are unlocked here (300 – 1,600 CR). A move also needs the player's skill stars.
-- **Celebrations** — your goal celebration: every player has a signature one; buy and equip others (300 – 1,500 CR, cosmetic, global like the ball skin).
+- **Celebrations** — your goal celebration: every player has a signature one; buy and equip others (24 to choose from: gestures, poses, slides, dances and acrobatics, 300 – 3,000 CR, cosmetic, global like the ball skin; the shop previews each pose on hover).
 - **Maps** — cosmetic pitches: The Stadium (free), Street Cage, Copa Beach, Winter Cup, Neon Night.
 - **Achievements** — 25 goals that pay out credits and unlock box tiers.
 
@@ -153,6 +154,7 @@ In short: the server steps the same 120 Hz simulation as single-player and broad
 | `js/profile.js` | Saved profile: credits, collection, purchases, achievements, boxes, MyCareer |
 | `js/3d/*.js` | 3D mode: `r3d` renderer, player rigs, `anim3d.js` animation pipeline, clip libraries (`clips-*.js`, `animkit.js`), the Smooth to Adapter bridge. No gameplay. |
 | `js/main.js` | Screens, HUD, main loop |
+| `js/tutorial.js` | Tutorial lessons: step definitions, scripted opponent, run engine and panel; `node tools/tutorial-test.js` drives every step headless |
 | `js/meta-ui.js` | Play, MyCareer, Store, Settings and key-binding screens |
 | `js/config.js` | Deployment settings: where the online server is |
 | `js/net.js`, `js/online.js` | Online: snapshot encode / apply and input packing; connection, lobby, prediction |
@@ -165,6 +167,7 @@ The simulation is independent of rendering. The helpers need Node:
 
 ```sh
 node tools/sim.js 40 normal      # 40 CPU-vs-CPU matches, prints aggregate stats
+node tools/tutorial-test.js      # every tutorial lesson and step driven through the real sim
 node tools/drill-test.js         # custom drills: validate fuzz, 200-drill soak, cone / wall collisions, share codes, slots
 node tools/check.js 60           # invariant checks (NaNs, players inside goals, stuck balls, ...)
 node tools/anim-check.js         # 3D animation quality limits (currently FAILS; see HANDOFF.md)

@@ -39,6 +39,7 @@
   // ------------------------------------------------------------- matches
   // `roster` (online 2v2): four footballers, player i on team i % 2; a team shares one kit
   function buildMatch(home, away, ctrl, labels, quiet, roster, takers) {
+    if (App.tut && (quiet || App.mode !== 'tut') && ISO.Tutorial) ISO.Tutorial.abort();      // any game that is not a lesson ends the lesson first (panel, saved Views settings, the tutHold freeze)
     const defs = roster || [home, away];
     const kst = !quiet && !takers && !roster && (App.mode === 'cpu' || App.mode === 'career') && !!App.matchGk;      // Phase 3 offline CPU seat knobs (level, momentum, keeper style)
     const kits = ISO.resolveKits(defs[0], defs[1]);
@@ -53,7 +54,9 @@
       sand: ISO.ArenaUI ? ISO.ArenaUI.simOpts(App, quiet) : undefined, drillDef: !quiet && App.mode === 'drill' && App.drill === 'custom' ? App.drillDef : undefined,      // Phase 4.3 / 4.4: the training sandbox and a custom drill (offline only: the server never passes either)
       keeperNerf: quiet ? 0 : (kst && App.matchLvl != null ? ISO.AI.Adapt.keeperNerf(App.matchLvl) : ({ easy: 16, normal: 0, hard: -6 }[App.matchDiff] || 0)),
       ...(!quiet && App.mode === 'online' && App.onOpts ? App.onOpts : {}),      // online: the room's validated pitch / weather / rules / walls / win target (the server builds its game from the same settings)
-      moves: ctrl.map((c) => (c === 'human' ? ISO.Profile.moveSet() : null)) });      // you can only use the skill moves you have unlocked
+      moves: ctrl.map((c) => (c === 'human' ? ISO.Profile.moveSet() : null)),      // you can only use the skill moves you have unlocked
+      ...(!quiet && App.mode === 'tut' && ISO.Tutorial ? ISO.Tutorial.simOpts(App) : {}) });      // a tutorial lesson's situation (js/tutorial.js): a solo sandbox, a one-on-one with a scripted dribbler or a shootout; the same simulation, overrides only
+    if (!quiet && App.mode === 'tut' && ISO.Tutorial && App.tut) ISO.Tutorial.setup(App.G, App.tut.cfg);      // the lesson's situation on the fresh sim (a mannequin keeper, a loose ball): js/tutorial.js
     App.ctrl = ctrl;
     App.ai = ctrl.map((c, i) => { const pers = !quiet && App.mode === 'career' && App.matchPers && i === 1 ? App.matchPers : !quiet && App.mode === 'cpu' && !takers && !roster && i === 1 && App.cpuStyle && App.cpuStyle !== 'auto' && ISO.AI.ARCH[App.cpuStyle] ? ISO.AI.archProfile(App.cpuStyle) : ISO.AI.profileOf(defs[i]); return c === 'cpu' ? ISO.AI.create(quiet ? 'normal' : App.matchDiff, kst && App.matchLvl != null ? { pers, lvl: App.matchLvl, adapt: App.matchAdapt } : { pers }) : null; });      // App.matchPers: a rival's forced archetype (5.5), career finale only
     App.matchDefs = defs; App.hudIdx = [0, 1]; App.me = 0;
@@ -83,6 +86,14 @@
   }
 
   function startMatch() {
+    if (App.mode === 'tut' && ISO.Tutorial && App.tut) {      // a tutorial lesson: no stats, credits, challenges or career (nothing below the buildMatch call runs)
+      const S = ISO.Tutorial.matchSetup(App);
+      App.demo = false; App.paused = false; App.tutHold = false; App.matchDiff = 'easy'; App.matchWin = 0; App.boss = null; App.matchPers = null; App.matchRules = null; App.matchLvl = null; App.matchAdapt = false; App.matchGk = null; App.kickoffFlip = 0;
+      streetLook();
+      buildMatch(S.home, S.away, S.ctrl, S.labels, false, null, S.takers);
+      if (S.teams) App.V.teams = S.teams;      // (the countdown banner reads "<team> ATTACKS")
+      beginMatch(S.arena); return;
+    }
     let [home, away] = App.pick;
     App.demo = false; App.paused = false;
     const arena = App.mode === 'drill', career = App.mode === 'career', cupMode = App.mode === 'cup';       // `arena`: any one-player drill
@@ -154,7 +165,8 @@
   };
 
   function beginMatch(arena) {
-    if (App.mode !== 'online') { const noRestart = App.mode === 'cup' || App.mode === 'career'; $('pRestart').classList.toggle('hidden', noRestart); $('pQuit').textContent = T(App.mode === 'cup' ? 'btn.forfeit_cup' : App.mode === 'career' ? 'btn.forfeit_match' : 'btn.change_players'); $('pQuitMenu').classList.remove('hidden'); }      // a cup match cannot be restarted: leaving it is a forfeit
+    $('pRestart').textContent = T(App.mode === 'tut' ? 'btn.restart_lesson' : 'btn.restart_match');      // (in a lesson it starts the whole lesson again)
+    if (App.mode !== 'online') { const noRestart = App.mode === 'cup' || App.mode === 'career'; $('pRestart').classList.toggle('hidden', noRestart); $('pQuit').textContent = T(App.mode === 'cup' ? 'btn.forfeit_cup' : App.mode === 'career' ? 'btn.forfeit_match' : App.mode === 'tut' ? 'btn.exit_lesson' : 'btn.change_players'); $('pQuitMenu').classList.remove('hidden'); }      // a cup match cannot be restarted: leaving it is a forfeit
     ISO.Input.resetMouse();
     $('hud').classList.toggle('arena', arena);
     const team2 = App.matchDefs.length > 2 && !!App.V.teams;
@@ -166,8 +178,8 @@
       $('hudTag' + i).textContent = team2 ? T(App.me % 2 === i ? 'hud.your_team' : 'hud.opponents') : App.V.labels[i]; $('hudScore' + i).textContent = '0';
     }
     App.hud = { s: [-1, -1], t: -1 };
-    App.hintT = ISO.Profile.data.settings.hint ? 8 : 0;
-    $('hint').classList.toggle('hidden', !ISO.Profile.data.settings.hint);
+    App.hintT = ISO.Profile.data.settings.hint && App.mode !== 'tut' ? 8 : 0;
+    $('hint').classList.toggle('hidden', !ISO.Profile.data.settings.hint || App.mode === 'tut');
     show('match');
     ISO.Audio.init(); ISO.Audio.ambience(true);
     if (ISO.PresUI) ISO.PresUI.begin(App);      // Phase 6.4: intro card / online lower-third (App.introOn holds the sim)
@@ -176,7 +188,7 @@
   }
 
   // ------------------------------------------------------------- screens
-  const MENU_SCREENS = ['menu', 'play', 'drills', 'select', 'career', 'cup', 'store', 'settings', 'online', 'editor', 'info'];
+  const MENU_SCREENS = ['menu', 'play', 'drills', 'select', 'career', 'cup', 'store', 'settings', 'online', 'editor', 'info', 'tutorial'];
   function updateCredits() { $('creditsVal').textContent = ISO.Profile.infinite() ? '∞' : ISO.Profile.data.credits.toLocaleString(); }
   function toast(title, sub, col) {
     const el = document.createElement('div'); el.className = 'toast';
@@ -199,7 +211,7 @@
     $('end').classList.toggle('hidden', screen !== 'end');
     $('drillend').classList.toggle('hidden', screen !== 'drillend');
     $('pause').classList.add('hidden');
-    $('hint').classList.toggle('hidden', screen !== 'match' || !ISO.Profile.data.settings.hint);
+    $('hint').classList.toggle('hidden', screen !== 'match' || !ISO.Profile.data.settings.hint || App.mode === 'tut');
     $('dim').classList.toggle('on', MENU_SCREENS.includes(screen));
     ISO.Input.setCapture(screen === 'match');
     if (screen !== 'match' && screen !== 'end') ISO.Audio.ambience(false);
@@ -210,6 +222,7 @@
       renderSelect();
     }
     if (ISO.Meta && ISO.Meta.onShow) ISO.Meta.onShow(screen);
+    if (ISO.Tutorial && ISO.Tutorial.onShow) ISO.Tutorial.onShow(screen);      // the lesson list, the first-run offer
     updateCredits();
   }
 
@@ -369,6 +382,7 @@
 
   // ------------------------------------------------------------- end screen
   function showEnd() {
+    if (App.mode === 'tut') return;      // a lesson never ends as a match: no result, stats, credits, challenges or achievements (the loop hands its end to Tutorial.onEnd)
     const G = App.G, w = G.winner, s = G.stats;
     const team2 = App.matchDefs.length > 2 && !!App.V.teams;
     for (const i of [0, 1]) {
@@ -477,9 +491,10 @@
   const ACTIONS = {
     'mode-cpu': () => { App.mode = 'cpu'; App.rules = ''; App.side = 0; App.touched = false; show('select'); },
     'mode-drills': () => show('drills'),
+    'mode-tutorial': () => show('tutorial'),
     'drills-back': () => show('drills'),
     'select-back': () => App.screen === 'select' && App.selStep === 'set' ? (App.selStep = 'players', renderSelect()) : show(App.mode === 'drill' ? 'drills' : App.mode === 'online' ? 'online' : 'play'),
-    'controls': () => $('controls').classList.remove('hidden'),
+    'controls': () => { $('controls').classList.remove('hidden'); if (ISO.Tutorial) ISO.Tutorial.syncControls(App.screen); },
     'close-controls': () => $('controls').classList.add('hidden'),
     'back-menu': () => show('menu'),
     'side-0': () => { App.side = 0; App.touched = true; renderSelect(); },
@@ -512,7 +527,7 @@
     'boxes': () => { ISO.Meta.storeTab('boxes'); show('store'); },
     'achievements': () => { ISO.Meta.storeTab('ach'); show('store'); },
     'resume': () => setPaused(false),
-    'restart': () => { if (App.mode !== 'cup' && App.mode !== 'career') startMatch(); },
+    'restart': () => { if (App.mode === 'tut' && ISO.Tutorial) { ISO.Tutorial.restart(); return; } if (App.mode !== 'cup' && App.mode !== 'career') startMatch(); },
     'rematch': () => { if (App.mode === 'online') { ISO.Online.rematch(); return; } if (App.mode === 'cup') { show('cup'); return; } App.kickoffFlip = 1 - App.kickoffFlip; startMatch(); },
     'mode-cpu-menu': () => { App.mode = 'cpu'; App.side = 0; App.touched = false; show('select'); },
     'cam-next': () => { const o = ISO.R3D && ISO.R3D.camPresets ? ISO.R3D.camPresets() : [], S = ISO.Profile.data.settings, i = o.indexOf(S.cam3d || 'chase'), n = o[(i + 1) % (o.length || 1)]; if (!n) return; ISO.Profile.setSetting('cam3d', n); syncCamBtn(); toast(T('toast.camera'), ISO.R3D.CamRig.PRESETS[n].name, '#7ad0ff'); },
@@ -523,8 +538,8 @@
     'info': () => show('info'),
     'challenges': () => { if (ISO.ChallengeUI) ISO.ChallengeUI.open(); },
     'chal-close': () => { if (ISO.ChallengeUI) ISO.ChallengeUI.close(); },
-    'quit': () => { App.paused = false; if (App.mode === 'online') { ISO.Online.leave(); show('online'); return; } if (App.mode === 'cup') { forfeitCup(); show('cup'); return; } if (App.mode === 'career') forfeitCareer(); show(App.mode === 'career' ? 'career' : 'select'); },
-    'quit-menu': () => { App.paused = false; if (App.mode === 'online') ISO.Online.leave(); if (App.mode === 'cup') forfeitCup(); if (App.mode === 'career') forfeitCareer(); show('menu'); },
+    'quit': () => { App.paused = false; if (App.mode === 'tut' && ISO.Tutorial) { ISO.Tutorial.exit(); return; } if (App.mode === 'online') { ISO.Online.leave(); show('online'); return; } if (App.mode === 'cup') { forfeitCup(); show('cup'); return; } if (App.mode === 'career') forfeitCareer(); show(App.mode === 'career' ? 'career' : 'select'); },
+    'quit-menu': () => { App.paused = false; if (App.mode === 'tut' && ISO.Tutorial) { ISO.Tutorial.exit(); show('menu'); return; } if (App.mode === 'online') ISO.Online.leave(); if (App.mode === 'cup') forfeitCup(); if (App.mode === 'career') forfeitCareer(); show('menu'); },
   };
   // leaving a cup match (or its pause menu) is a loss and ends the run: the prize of the rounds already won stays paid
   // leaving a career fixture is a 0-3 loss (the matchday counts, no retries)
@@ -556,7 +571,7 @@
     else if (App.screen === 'match') setPaused(!App.paused);
     else if (App.screen === 'career' && $('career').dataset.page !== 'hub') $('career').dataset.page = 'hub';      // Esc: one page back
     else if (App.screen === 'select' && App.selStep === 'set') { App.selStep = 'players'; renderSelect(); }
-    else if (App.screen !== 'menu' && MENU_SCREENS.includes(App.screen) && $('opening').classList.contains('hidden')) show(App.screen === 'select' ? (App.mode === 'drill' ? 'drills' : App.mode === 'online' ? 'online' : 'play') : App.screen === 'career' || App.screen === 'cup' || App.screen === 'drills' || App.screen === 'online' ? 'play' : 'menu');
+    else if (App.screen !== 'menu' && MENU_SCREENS.includes(App.screen) && $('opening').classList.contains('hidden')) show(App.screen === 'select' ? (App.mode === 'drill' ? 'drills' : App.mode === 'online' ? 'online' : 'play') : App.screen === 'career' || App.screen === 'cup' || App.screen === 'drills' || App.screen === 'online' || App.screen === 'tutorial' ? 'play' : 'menu');
   });
   window.addEventListener('blur', () => { if (App.screen === 'match' && !App.paused && App.mode !== 'online' && App.G.phase !== 'end') setPaused(true); });
 
@@ -583,6 +598,7 @@
     for (const i of [0, 1]) {
       if (App.ctrl[i] === 'none') out[i] = ISO.Game.ZERO;
       else if (App.ctrl[i] === 'cpu') out[i] = ISO.AI.update(G, G.players[i], App.ai[i], C.STEP);
+      else if (App.ctrl[i] === 'tut') out[i] = ISO.Tutorial.input(App, G, i);      // a tutorial lesson's scripted seat (it only ever reads G)
       else out[i] = humanInput(i);
     }
     if (G.sand && ISO.ArenaUI) ISO.ArenaUI.fill(out, G, App);      // Phase 4.3: CPU defenders beyond the two seats
@@ -627,7 +643,7 @@
     App.last = now;
     const online = App.mode === 'online' && !App.demo;           // the server runs the match: no local stepping, and no pausing
     const D = ISO.Dbg, t0 = D ? performance.now() : 0; let steps = 0, t1 = 0, t2 = 0;      // Phase 9.5: zero cost while the debug HUD is off (ISO.Dbg is null)
-    const G = App.G, running = (online || !(App.screen === 'match' && App.paused)) && !App.introOn;
+    const G = App.G, running = (online || !(App.screen === 'match' && App.paused)) && !App.introOn && !App.tutHold;      // (App.tutHold: a finished lesson's card freezes the pitch)
     pickView();
     if (running) {
       if (online) ISO.Online.frame(G, dt);
@@ -649,6 +665,7 @@
         if (App.chTr) ISO.Career.Tracker.onEvent(App.chTr, G, e);      // Phase 9.2: daily / weekly challenges (reads the event, never writes G)
         if (App.tr) ISO.Career.Tracker.onEvent(App.tr, G, e);      // career objectives: reads the event, never writes G
         if (G.sand && ISO.ArenaUI) ISO.ArenaUI.onEvent(App, G, e);      // Phase 4.3: the accuracy tally (app-side, reads only)
+        if (App.mode === 'tut' && ISO.Tutorial) ISO.Tutorial.onEvent(App, G, e);      // the lesson's step detection (reads the event, never writes G)
         if (cur3d) ISO.R3D.onEvent(G, e); else R.onEvent(G, e);
         if (!App.demo) ISO.Audio.play(e.type, e);
         if (!App.demo && App.mode === 'drill' && App.drill === 'arena' && e.type === 'goal' && (!G.sand || (G.sand.keeper === 'live' && G.sand.nerf <= 16))) achToasts(ISO.Profile.recordArenaGoal());
@@ -656,7 +673,7 @@
       G.events.length = 0;
       if (G.phase === 'end') {
         if (App.demo) startDemo();
-        else if (App.screen === 'match') { App.endTimer += dt; if (App.endTimer > (ISO.PresUI ? ISO.PresUI.endDelay(App) : 0.6)) { if (App.mode === 'drill') showDrillEnd(); else showEnd(); } }
+        else if (App.screen === 'match') { App.endTimer += dt; if (App.endTimer > (ISO.PresUI ? ISO.PresUI.endDelay(App) : 0.6)) { if (App.mode === 'drill') showDrillEnd(); else if (App.mode === 'tut') ISO.Tutorial.onEnd(App); else showEnd(); } }
       }
     }
     if (D) t1 = performance.now();
@@ -689,6 +706,7 @@
     } finally { ISO.Smooth.end(App.G); }
     if (D) t2 = performance.now();
     if (ISO.ArenaUI) ISO.ArenaUI.frame(App, dt);      // Phase 4.3: the arena side panel (match screen) and the tally flush (any screen)
+    if (ISO.Tutorial && ISO.Tutorial.frame) ISO.Tutorial.frame(App, dt);      // the tutorial's instruction panel and step detection (no-op outside a lesson)
     if (App.screen === 'match') {
       updateHud();
       if (ISO.PresUI) ISO.PresUI.frame(App, dt, !App.demo && App.G.phase === 'goal' && (cur3d ? ISO.R3D.inReplay(App.G) : !noTape && R.inReplay(App.G, App.V)));

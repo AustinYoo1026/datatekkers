@@ -102,7 +102,7 @@
       schema: SCHEMA, credits: 300, owned: STARTERS.slice(), claimed: {}, pity: 0, career: null,
       skins: {}, equip: {}, prime: {}, moves: [], maps: ['stadium'], map: 'stadium', balls: [], ball: 'classic', celebs: [], celeb: 'signature',      // store purchases (celeb: global, like the ball)
       settings: { volume: 0.8, muted: false, crowd: true, speed: 0.75, mouseAim: false, reticle: true, camera: 'classic', cam3d: 'chase', camZoom: 1, camSens: 1, camShake: 1, camGoal: 'celeb', pres: true, slowmo: true, hint: true, adaptive: true, weather: true, diff: 'normal', keys: null,
-        uiScale: 1, palette: 'default', hcHud: false, motion: null, flash: true, hudLabels: true, hudFxText: true, hudStam: true, lang: 'en', quality: 'auto', lastTier: null, stFlags: true, stCrowd: 'full', padLayout: 'classic', padDz: 0.22, mRain: false, mTurf: 'grass', mCpu: 'auto',      // Phase 9.1 (flat keys, back-filled by load(); sanitised by ISO.Access.clean). speed and weather above are dead settings: never read
+        uiScale: 1, palette: 'default', hcHud: false, motion: null, flash: true, hudLabels: true, hudFxText: true, hudStam: true, lang: 'en', quality: 'auto', lastTier: null, stFlags: true, stCrowd: 'full', padLayout: 'classic', padDz: 0.22, mRain: false, mTurf: 'grass', mCpu: 'auto', tut: { done: {}, seen: false, paid: false },      // Phase 9.1 (flat keys, back-filled by load(); sanitised by ISO.Access.clean). speed and weather above are dead settings: never read
         admin: { unlocked: false, allChars: false, allAch: false, infCredits: false } },
       stats: { matches: 0, wins: 0, goals: 0, powerGoals: 0, skills: 0, clears: 0, cleanSheets: 0, hardWins: 0,
         boxes: 0, careerWins: 0, careerDone: 0, seasonsWon: 0, promotions: 0, arenaGoals: 0, iconPulls: 0, drillRuns: 0, cupWins: 0, streetWins: 0, objDone: 0, chDone: 0 },
@@ -613,8 +613,25 @@
   const trainActive = () => !!trainPending;
   const trainAbort = () => { trainPending = null; };
 
+  // The tutorial (js/tutorial.js): which lessons are done (1 = completed, 2 = finished with a step skipped: seen, but it does not count for the reward), whether the first-run offer was answered and whether the one-time reward was paid. Lives in settings.tut, so an old
+  // profile gets it back-filled by load(), reset() keeps it (the reward can never be collected twice) and no schema number changes. Lessons never touch stats, challenges or career.
+  function tutState() {
+    const S = P.settings, t = S.tut && typeof S.tut === 'object' && !Array.isArray(S.tut) ? S.tut : (S.tut = {});
+    if (!t.done || typeof t.done !== 'object' || Array.isArray(t.done)) t.done = {};
+    for (const k of Object.keys(t.done)) if (!/^[a-z]{1,16}$/.test(k) || t.done[k] !== 1 && t.done[k] !== 2) delete t.done[k];
+    t.seen = t.seen === true; t.paid = t.paid === true;
+    if (t.snap !== undefined && !(t.snap && typeof t.snap === 'object' && !Array.isArray(t.snap))) delete t.snap;
+    return t;
+  }
+  const tutDone = (id, completed) => { const t = tutState(), v = completed === false ? 2 : 1; if (/^[a-z]{1,16}$/.test(id) && (t.done[id] === undefined || (v === 1 && t.done[id] === 2))) { t.done[id] = v; t.seen = true; save(); } };      // (only ever grows: a skipped finish is 2, a completed one 1, and 1 is never lowered)
+  // the settings a lesson changes (Views: camera, 3D camera, mouse aim) as they were when it began, kept until the lesson puts them back: a tab closed mid-lesson is restored on the next boot
+  const tutSnap = (v) => { const t = tutState(); if (v === undefined) return t.snap || null; if (v) t.snap = v; else delete t.snap; save(); return t.snap || null; };
+  const tutSeen = () => { const t = tutState(); if (!t.seen) { t.seen = true; save(); } };
+  function tutReward(cr) { const t = tutState(); if (t.paid || !(cr > 0)) return 0; t.paid = true; P.credits += Math.min(500, Math.floor(cr)); save(); return Math.min(500, Math.floor(cr)); }      // once, ever: the flag is set before the credits are paid
+
   load();
   ISO.Profile = {
+    tutState, tutDone, tutSeen, tutSnap, tutReward,
     get data() { return P; }, save, ACH, BOXES, PITY, statOf, isDone, claim, recordMatch, recordArenaGoal, recordArena, recordDrill,
     WIN_MULT, winMult, canOpen, openBox, openBoxes, claimInfo: () => lastClaim, FAMILIES, filler, owns, infinite, ownedCount: () => ISO.PLAYERS.filter((d) => owns(d.id)).length,
     cupCan, cupEnter, cupKickoff, recordCup, cupSimNext, cupOpponent, cupWon,

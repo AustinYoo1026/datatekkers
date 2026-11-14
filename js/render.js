@@ -226,7 +226,11 @@
   }
   function ease(A, T, rate) {
     const k = A.init ? 1 - Math.exp(-rate * fdt) : 1;
-    for (const key of KEYS) { const t = T[key] === undefined ? REST[key] : T[key]; A.P[key] += (t - A.P[key]) * k; }
+    for (const key of KEYS) {
+      const t = T[key] === undefined ? REST[key] : T[key];
+      A.P[key] += (key === 'rot' ? t - A.P[key] - Math.round((t - A.P[key]) / TAU) * TAU : t - A.P[key]) * k;      // a turn goes the short way round (a full somersault ends upright, it does not unwind)
+    }
+    if (A.P.rot > Math.PI) A.P.rot -= TAU; else if (A.P.rot < -Math.PI) A.P.rot += TAU;
     A.init = true;
   }
   // which of the three drawn views shows this facing; a little hysteresis stops it flickering on the boundary
@@ -254,7 +258,78 @@
     robot(T, t) { const q = Math.floor(t * 2.5) % 4; T.armsUp = q === 3 ? 1 : 0; T.ab = q === 2 ? 1.3 : 0; T.s1 = q === 0 ? 1.5 : 0.2; T.s2 = q === 1 ? 1.5 : 0.2; T.e1 = T.e2 = 1.4; T.tilt = q % 2 ? 0.1 : -0.1; T.k1 = T.k2 = 0.15; },
     sit(T, t) { const u = sm(t / 0.6); T.t1 = T.t2 = 1.15 * u; T.k1 = T.k2 = 2.1 * u; T.lean = 0.45 * u; T.s1 = T.s2 = 0.8 * u; T.e1 = T.e2 = 2.2 * u; },
     knee(T, t) { const u = sm(t / 0.5); T.t1 = 0.8 * u; T.k1 = 1.6 * u; T.t2 = 0.3 * u; T.k2 = 2.3 * u; T.lean = -0.3 * u; T.ab = 1.2 * u; },
-    spin(T, t) { const f = clamp((t % 2.4) / 0.9, 0, 1), a = f > 0 && f < 1 ? Math.sin(f * Math.PI) : 0; T.armsUp = a > 0 ? 1 : 0; T.air = a * 9; T.k1 = T.k2 = 0.4; T.spread = a * 4; T.t1 = T.t2 = 0.25 * a; T.tilt = a > 0 ? 0.25 * Math.sin(f * Math.PI * 4) : 0; },
+    spin(T, t) { const f = clamp(((t % 2.4) - 0.1) / 0.6, 0, 1), a = f > 0 && f < 1 ? Math.sin(f * Math.PI) : 0; T.armsUp = a > 0 ? 1 : 0; T.air = a * 9; T.k1 = T.k2 = 0.4; T.spread = a * 4; T.t1 = T.t2 = 0.25 * a; T.tilt = a > 0 ? 0.25 * Math.sin(f * Math.PI * 4) : 0; },
+    // ---- the 2D poses of the newer celebrations. Front view unless T.view says otherwise; t loops on the clip's dur (ISO.CELEBS).
+    // The arm keys are shared by both arms (ab, armsUp), so asymmetric poses use s1 / s2 / e1 / e2 with abd (right arm out, left arm in) and tilt.
+    cornerflag(T, t) { const u = sm(t / 0.45); T.view = 'side'; T.t1 = lerp(0.2, 1.25, u); T.k1 = lerp(0.2, 0.05, u); T.t2 = lerp(0.2, 0.05, u); T.k2 = lerp(0.3, 1.75, u); T.lean = -0.3 * u; T.armsUp = 0.85 * u; T.s1 = lerp(0.3, 1.9, u); T.e1 = 0.12; T.s2 = -0.7 * u; T.e2 = 0.5; T.bob = 0.4 * Math.sin(t * 9) * u; },
+    blind(T, t) { T.ab = -0.35; T.s1 = 2.5; T.e1 = 1.5; T.s2 = 0.1; T.e2 = 0.2; T.tilt = 0.09 * Math.sin(t * 9); T.k1 = T.k2 = 0.08; T.t1 = T.t2 = 0.05; T.lean = -0.05; },
+    heart(T, t) { const push = 0.5 + 0.5 * Math.sin(t * Math.PI); T.ab = -0.9; T.s1 = T.s2 = 0.45 + 0.7 * push; T.e1 = T.e2 = 1.2; T.air = Math.abs(Math.sin(t * Math.PI)) * 1.6; T.k1 = T.k2 = 0.25; T.t1 = T.t2 = 0.1; T.tilt = 0.05 * Math.sin(t * 1.6); },
+    knockout(T, t) {
+      t %= 2.6; T.view = 'side';
+      const bump = (c) => Math.max(0, 1 - Math.abs(t - c) / 0.11), jab = sm(bump(0.17)), cross = sm(bump(0.39));
+      if (t < 0.5) {       // a jab (right) at 0.17 s and a cross (left) at 0.39 s
+        T.t1 = 0.55; T.k1 = 0.6; T.t2 = -0.4; T.k2 = 0.5; T.lean = 0.14 + 0.1 * Math.max(jab, cross); T.bob = 0.3 * Math.sin(t * 12);
+        T.s1 = lerp(0.95, 1.55, jab); T.e1 = lerp(1.9, 0.08, jab); T.s2 = lerp(0.95, 1.55, cross); T.e2 = lerp(1.9, 0.08, cross);
+      } else if (t < 0.9) {      // down on the back, the feet leave the turf as the head goes back
+        const u = sm((t - 0.5) / 0.4); T.rot = -1.5 * u; T.dy = 9 * u; T.air = 3 * Math.sin(u * Math.PI); T.t1 = 0.55 * (1 - u); T.k1 = 0.6; T.t2 = -0.4 * (1 - u); T.k2 = 0.5; T.s1 = T.s2 = 0.95 + u; T.e1 = T.e2 = 0.5;
+      } else {      // flat out, arms out; from 1.9 s he sits up and gets back to his guard
+        const w = 1 - sm((t - 1.9) / 0.6); T.rot = -1.5 * w; T.dy = 9 * w; T.t1 = 0.1; T.k1 = 0.1; T.t2 = -0.1; T.k2 = 0.1; T.s1 = lerp(0.95, 2.0, w); T.s2 = lerp(0.95, 2.4, w); T.e1 = T.e2 = lerp(1.9, 0.2, w);
+      }
+    },
+    tree(T, t) { const u = sm(t / 0.5); T.ab = -0.9 * u; T.s1 = T.s2 = 0.55 * u; T.e1 = T.e2 = 1.25 * u; T.t2 = 0.9 * u; T.k2 = 2.3 * u; T.sw2 = -2.2 * u; T.tilt = 0.05 * Math.sin(t * 2.2); T.air = 0; T.lean = -0.04; },
+    dab(T, t) {
+      const ph = t % 1.8, side = ph < 0.9 ? 1 : -1, l = ph % 0.9, u = sm(l / 0.15) * (1 - sm((l - 0.7) / 0.2));      // side +1: the right arm goes up; up by 0.15 s, held to 0.7 s, the arms drop through neutral to the other side
+      T.ab = 0.3; T.abd = side * 0.25 * u; T.tilt = -side * 0.42 * u;
+      T['s' + (side > 0 ? 2 : 1)] = 2.6 * u; T['e' + (side > 0 ? 2 : 1)] = 0.1;
+      T['s' + (side > 0 ? 1 : 2)] = 1.5 * u; T['e' + (side > 0 ? 1 : 2)] = 2.4 * u;
+      T.k1 = T.k2 = 0.2; T.t1 = T.t2 = 0.1; T.lean = 0.06 * u;
+    },
+    kneeslide(T, t) { const u = sm(t / 0.4); T.view = 'side'; T.t1 = 0.05 * u; T.k1 = lerp(0.2, 1.7, u); T.t2 = 0.1 * u; T.k2 = lerp(0.2, 1.55, u); T.lean = -0.5 * u; T.s1 = T.s2 = -0.35 * u; T.e1 = T.e2 = 1.5 * u; T.bob = 0.4 * Math.sin(t * 14) * u; },
+    cold(T, t) { T.ab = -1.1; T.s1 = T.s2 = 0.4; T.e1 = T.e2 = 1.9; T.tilt = 0.07 * Math.sin(t * 31); T.bob = 0.5 + 0.3 * Math.sin(t * 27); T.k1 = T.k2 = 0.22 + 0.08 * Math.sin(t * 29); T.t1 = T.t2 = 0.1; T.lean = 0.1; T.spread = -0.8; },
+    griddy(T, t) {
+      const bar = t % 1.6, tap = Math.abs(Math.sin(Math.PI * bar / 0.4)), a = bar < 0.4 || (bar >= 0.8 && bar < 1.2) ? 1 : 2, b = 3 - a;
+      const g = bar < 0.8 ? 1 : bar < 1.0 ? 1 - sm((bar - 0.8) / 0.2) : bar < 1.4 ? 0 : sm((bar - 1.4) / 0.2), sw = Math.sin(Math.PI * 2 * (bar - 0.8) / 0.8);
+      T['t' + a] = 0.65 * tap * (bar < 0.8 ? 1 : 0.4); T['k' + a] = 0.05 + 0.25 * (1 - tap); T['t' + b] = 0; T['k' + b] = 0.1 + 0.2 * (1 - tap); T.air = 1.2 * tap * (bar < 0.8 ? 1 : 0.5); T.lean = 0.08;
+      T.ab = lerp(0.5 + 0.2 * sw, -0.35, g); T.abd = 0.2 * sw * (1 - g);      // goggles from the first beat: the hands circle up to the eyes; from 0.8 s the arms swing instead
+      T.s1 = lerp(1.0 * sw, 2.5, g); T.s2 = lerp(-1.0 * sw, 2.5, g); T.e1 = T.e2 = lerp(0.6, 1.5, g);
+    },
+    jumpturn(T, t) {
+      t %= 2.4;
+      if (t < 0.2) { const u = sm(t / 0.2); T.t1 = lerp(0.1, 0.9, u); T.k1 = lerp(0.2, 1.1, u); T.t2 = lerp(0.1, -0.3, u); T.k2 = lerp(0.2, 0.7, u); T.lean = 0.2 * u; T.s1 = -0.9 * u; T.s2 = 0.9 * u; T.e1 = T.e2 = 0.6; }      // the run-up step
+      else if (t < 0.65) {       // the leap (0.2 - 0.65 s): arms up, a half turn in the air (the figure shows its back from halfway)
+        const f = (t - 0.2) / 0.45; T.air = Math.sin(f * Math.PI) * 13; T.armsUp = 1; T.t1 = 0.4; T.k1 = 0.9; T.t2 = -0.2; T.k2 = 0.9; T.spread = 1.5; T.tilt = 0.12 * Math.sin(f * Math.PI * 2); if (f > 0.5) T.view = 'up';
+      } else { T.view = 'up'; T.spread = 5; T.ab = lerp(1.0, 0.75, sm((t - 0.65) / 0.2)); T.s1 = T.s2 = -0.5; T.e1 = T.e2 = 0.15; T.k1 = T.k2 = 0.3 + 0.15 * Math.sin(t * 6); T.t1 = T.t2 = 0.1; T.lean = -0.1; }      // landed wide, arms thrown down and back
+    },
+    backflip(T, t) {
+      t %= 2.0;
+      if (t < 0.1) { const u = sm(t / 0.1); T.view = 'side'; T.t1 = 0.9 * u; T.k1 = 1.8 * u; T.t2 = 0.9 * u; T.k2 = 1.8 * u; T.lean = 0.3 * u; T.s1 = T.s2 = -1.0 * u; T.e1 = T.e2 = 0.5; }
+      else if (t < 0.62) {       // the take-off and the somersault (0.1 - 0.62 s: a replayed goal cuts away at 0.75 s): a full backward pitch about the body, knees tucked, high enough that the head clears the turf upside down
+        const f = (t - 0.1) / 0.52; T.view = 'side'; T.air = Math.sin(f * Math.PI) * 20; T.rot = -TAU * sm(f); T.t1 = T.t2 = 1.4; T.k1 = T.k2 = 2.2; T.s1 = T.s2 = 1.2; T.e1 = T.e2 = 1.8;
+      } else if (t < 0.72) { const u = sm((t - 0.62) / 0.1); T.view = 'side'; T.t1 = T.t2 = 0.9 * (1 - u); T.k1 = T.k2 = 1.8 * (1 - u); T.lean = 0.3 * (1 - u); T.s1 = T.s2 = 0.4; T.e1 = T.e2 = 0.5; }
+      else { T.ab = 1.45; T.spread = 3; T.tilt = 0.04 * Math.sin(t * 4); T.k1 = T.k2 = 0.15; T.t1 = T.t2 = 0.1; T.e1 = T.e2 = 0.1; T.lean = -0.1; }      // landed, arms out
+    },
+    samba(T, t) {
+      const w = Math.sin(t * 15.7), c = Math.cos(t * 15.7);
+      T.spread = 1.5 + 1.5 * Math.abs(c); T.sw1 = 2.2 * w; T.sw2 = 2.2 * w; T.k1 = 0.3 + 0.3 * Math.max(0, w); T.k2 = 0.3 + 0.3 * Math.max(0, -w); T.t1 = 0.12 * Math.max(0, w); T.t2 = 0.12 * Math.max(0, -w);
+      T.tilt = 0.13 * w; T.bob = 0.4 * Math.abs(c); T.ab = 0.7; T.abd = 0.3 * c; T.s1 = 0.7 + 0.8 * Math.sin(t * 15.7 + 1.2); T.s2 = 0.7 + 0.8 * Math.sin(t * 15.7 + 2.6); T.e1 = T.e2 = 1.1;
+    },
+    floss(T, t) {
+      const w = Math.sin(t * 7.8), c = Math.cos(t * 7.8);      // the straight arms swing past the hips to one side while the hips go the other way
+      T.ab = 0.15; T.abd = 0.65 * w; T.s1 = T.s2 = 0.35 * c; T.e1 = T.e2 = 0.05; T.tilt = 0.14 * w; T.sw1 = T.sw2 = -2.6 * w; T.spread = 1.6; T.k1 = T.k2 = 0.28; T.t1 = T.t2 = 0.1;
+    },
+    shimmy(T, t) {
+      const w = Math.sin(t * 15.7);      // each shoulder rolls forward in turn, a slight squat, the head nodding
+      T.t1 = T.t2 = 0.3; T.k1 = T.k2 = 0.6 + 0.1 * Math.abs(w); T.lean = 0.12; T.ab = 0.3; T.s1 = 0.5 + 0.7 * w; T.s2 = 0.5 - 0.7 * w; T.e1 = T.e2 = 0.7; T.tilt = 0.1 * w; T.bob = 0.6 * Math.abs(Math.sin(t * 7.85));
+    },
+    runman(T, t) {
+      const ph = t * 7.85 + Math.PI / 2, s = Math.sin(ph), c = Math.cos(ph);      // the knee drives up while the other foot slides back, the arms pumping
+      T.view = 'side'; T.t1 = 0.95 * Math.max(0, s) - 0.25 * Math.max(0, -s); T.k1 = 0.2 + 1.3 * Math.max(0, s); T.t2 = 0.95 * Math.max(0, -s) - 0.25 * Math.max(0, s); T.k2 = 0.2 + 1.3 * Math.max(0, -s); T.s1 = -1.1 * s; T.s2 = 1.1 * s; T.e1 = T.e2 = 1.5; T.lean = 0.08; T.air = 0.8 * Math.abs(c);
+    },
+    moonwalk(T, t) {
+      const ph = t * 5.24 + Math.PI, s = Math.sin(ph), c = Math.cos(ph);      // one heel up on the toe, the other foot flat and sliding back; they swap
+      T.view = 'side'; T.t1 = 0.28 * c; T.k1 = 0.1 + 1.0 * Math.max(0, -s); T.t2 = -0.28 * c; T.k2 = 0.1 + 1.0 * Math.max(0, s); T.lean = -0.07; T.s1 = 0.15; T.s2 = -0.15; T.e1 = T.e2 = 0.4;
+      const tip = t % 2.4; if (tip > 0.1 && tip < 0.5) { const u = Math.sin(((tip - 0.1) / 0.4) * Math.PI); T.s1 = lerp(0.15, 2.2, u); T.e1 = lerp(0.4, 2.0, u); }      // the hat-tip on the first beat
+    },
   };
   // target pose (and how it should be shown) for an outfield player
   function playerPose(p, A) {
@@ -262,7 +337,8 @@
     if (st === 'celebrate') {
       const id = ISO.celebOf ? ISO.celebOf(p.def) : 'fist';
       (CELEB_2D[id] || CELEB_2D.fist)(T, id === 'fist' ? fx.t * 6.5 : p.stT);      // roadmap 2.5: a pose per celebration (presentation only)
-      o.dir = 'down';
+      o.dir = T.view || 'down'; o.dy = T.dy || 0;      // the view ('down' faces the camera, 'up' shows the back, 'side' faces right) and a drop to the turf are not pose keys
+      delete T.view; delete T.dy;
     } else if (st === 'ankle') {            // ankles broken: stagger, go down, sit there, scramble up
       const u = p.stT / (p.stDur || 0.8), fd = p.fallDir !== undefined ? p.fallDir : p.face + Math.PI;
       o.dir = 'side'; o.flip = Math.cos(fd) > 0; o.rate = 15;
@@ -1039,7 +1115,7 @@
         c.font = '800 italic 34px "Avenir Next Condensed","Arial Narrow",Arial,sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
         c.lineWidth = 7; c.strokeStyle = 'rgba(6,10,14,.85)'; c.strokeText(str, VW / 2, OY + 60); c.fillStyle = '#fff'; c.fillText(str, VW / 2, OY + 60);
       }
-    } else if (G.phase === 'play' && !pen && G.t - G.time < 4 && G.time < 0.9 && G.score[0] + G.score[1] === 0) {
+    } else if (G.phase === 'play' && !pen && !V.freeze && G.t - G.time < 4 && G.time < 0.9 && G.score[0] + G.score[1] === 0) {      // (V.freeze: a lesson's frozen pitch: the banner would hang there)
       c.globalAlpha = Math.min(1, (0.9 - G.time) * 4);
       c.font = '900 italic 54px "Avenir Next Condensed","Arial Narrow",Arial,sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
       c.lineWidth = 8; c.strokeStyle = 'rgba(6,10,14,.85)'; c.strokeText('GO!', VW / 2, OY + 70); c.fillStyle = '#35e08a'; c.fillText('GO!', VW / 2, OY + 70);
@@ -1069,5 +1145,7 @@
   // read-only helpers for the debug HUD (js/debug-hud.js): a ground point (sim x, y) to canvas pixels as this frame's classic view draws it, and the effect counts
   const debugProj = (X, Y) => (LIVE.cam ? pr(LIVE.cam, Y, FW - X, 0) : { x: OX + Z * Y, y: OY + Z * (FW - X) });
   const debugCounts = () => ({ parts: fx.parts.length, texts: fx.texts.length });
-  ISO.Render = { debugProj, debugCounts, draw, onEvent, reset, VW, VH, TEAM_COL, Z, OX, OY, drawAim, setMap, thumb, unprojectGoal, unprojectLive, inReplay, setBall, overlays, penaltyOverlay, theme: () => TH, mapId: () => mapId };
+  // a celebration's pose at time t for a preview figure outside the match (the shop): the pose keys plus the view ('down' | 'up' | 'side') and the drop to the turf
+  const celebPose = (id, t) => { const T = {}; (CELEB_2D[id] || CELEB_2D.fist)(T, t); const view = T.view || 'down', dy = T.dy || 0; delete T.view; delete T.dy; return { T, view, dy }; };
+  ISO.Render = { celebPose, debugProj, debugCounts, draw, onEvent, reset, VW, VH, TEAM_COL, Z, OX, OY, drawAim, setMap, thumb, unprojectGoal, unprojectLive, inReplay, setBall, overlays, penaltyOverlay, theme: () => TH, mapId: () => mapId };
 })();

@@ -82,6 +82,10 @@
     </header>
     <button class="chal-strip" id="chalStrip" data-act="challenges"></button>
     <div class="playgrid">
+      <button class="playcard tutorial art art-tutorial" data-act="mode-tutorial">
+        <span data-i18n="play.learn_the_game" class="pc-k">LEARN THE GAME</span><span data-i18n="play.tutorial" class="pc-t">TUTORIAL</span>
+        <span data-i18n="play.eight_short_hands_on_lessons" class="pc-d">Eight short hands-on lessons on the pitch: moving, shooting, shot types, skill moves, defending, the clear rule, penalties and the views. Do them in order or pick one.</span>
+        <span class="pc-s" id="playTut">0 / 8 LESSONS</span></button>
       <button class="playcard career" data-act="mode-career">
         <span data-i18n="play.build_your_player" class="pc-k">BUILD YOUR PLAYER</span><span data-i18n="play.mycareer" class="pc-t">MYCAREER</span>
         <span data-i18n="play.play_five_seasons_each_an" class="pc-d">Play five seasons, each an eight-team league of seven matchdays against tougher rivals. Win the table to move up; finish low and you can be relegated. Wins earn upgrade points for your stats.</span>
@@ -153,11 +157,22 @@
         <span data-i18n="drills.6_blasts_power_shot" class="pc-k">6 BLASTS · POWER SHOT</span><span data-i18n="drills.power_blasts" class="dc-t">POWER BLASTS</span>
         <span data-i18n="drills.only_the_power_shot_counts" class="pc-d">Only the power shot counts. Hold it long enough to hammer it, not so long it clears the bar.</span>
         <span class="pc-s" id="drillBest-power"></span></button>
-      <button class="drillcard" style="--pc:#b48cff" data-act="editor">
+      <button class="drillcard art art-creator" style="--pc:#b48cff" data-act="editor">
         <span data-i18n="drills.build_your_own" class="pc-k">BUILD YOUR OWN</span><span data-i18n="drills.drill_creator" class="dc-t">DRILL CREATOR</span>
         <span data-i18n="drills.place_cones_walls_defenders_a" class="pc-d">Place cones, walls, defenders, a keeper and target zones, set your start spot and the scoring, then test it at once. Save up to 20 drills and share them with a code.</span>
         <span data-i18n="drills.20_save_slots_share_codes" class="pc-s">20 SAVE SLOTS · SHARE CODES</span></button>
     </div>
+  </section>
+
+  <!-- tutorial: the lesson list is built by js/tutorial.js; the lessons themselves run on the pitch -->
+  <section id="tutorial" class="screen meta hidden">
+    <header class="sel-head">
+      <button data-i18n="btn.play_2" class="btn small ghost" data-act="play">‹ PLAY</button>
+      <h2 data-i18n="tut.ui.title">TUTORIAL</h2>
+      <div class="sel-mode" id="tutProg">0 / 8 LESSONS</div>
+    </header>
+    <div class="tutbar"><button class="btn primary" id="tutAll" data-tut-act="all">START FROM THE BEGINNING</button><span data-i18n="tut.ui.intro">Each lesson is a short exercise on the pitch. Do the move to continue. Nothing here counts towards your stats, credits or career.</span></div>
+    <div class="tutgrid" id="tutGrid"></div>
   </section>
 
   <!-- custom drill creator (Phase 4.4): filled by js/editor-ui.js -->
@@ -557,7 +572,7 @@
   <!-- controls guide -->
   <section id="controls" class="overlay hidden">
     <div class="card guide">
-      <div class="guide-head"><h2>CONTROLS</h2><button class="btn primary" data-act="close-controls">GOT IT</button></div>
+      <div class="guide-head"><h2>CONTROLS</h2><button class="btn" data-tut-act="open" data-i18n="tut.ui.open">PLAY THE TUTORIAL</button><button class="btn primary" data-act="close-controls">GOT IT</button></div>
       <div class="guide-body">
         <h3>KEYS</h3>
         <div class="keys-grid">
@@ -570,7 +585,7 @@
         <ul>
           <li><b>Hold</b> a shot key to charge, <b>release</b> to strike. The longer you hold, the higher it goes — hold too long and it sails over the bar. The <b>power shot</b> takes longer to charge but is far harder.</li>
           <li>The <b>chip shot</b> scoops a lofted shot over a keeper who has come off his line. Charge it quickly: too soft and he plucks it down, too hard and it clears the bar.</li>
-          <li>Hold <b>up / down</b> while shooting to pick a corner.</li>
+          <li>Hold <b>left / right</b> while shooting to pick a corner.</li>
           <li><b>Tap</b> the normal shot key for a <b>fake shot</b>: defenders may bite, and you get a burst of speed. Tapping any other shot key fires a quick, weak shot.</li>
           <li>Hold a shot key as a loose ball arrives for a <b>first-time shot</b>: the same button gives a <b>volley</b>, <b>half-volley</b>, <b>header</b> or <b>diving header</b> depending on how the ball arrives, and a quick shot at speed is <b>driven</b>; shooting across the body with your weaker foot uses the <b>outside of the strong foot</b>. No extra buttons. Press a <b>skill key</b> while charging to cancel the shot.</li>
           <li>Sprinting knocks the ball further ahead — a defender can nick it. Hold <b>Jockey</b> with the ball for close control: slower, tighter touches, and the ball is shielded when a defender is near (it drains stamina). Tap Jockey at speed to stop, then Sprint + a direction right after to burst away (stop-and-go).</li>
@@ -662,6 +677,7 @@
 <script src="js/challenges-ui.js"></script>
 <script src="js/arena-ui.js"></script>
 <script src="js/editor-ui.js"></script>
+<script src="js/tutorial.js"></script>
 <script src="js/online.js"></script>
 </body>
 </html>

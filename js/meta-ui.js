@@ -277,17 +277,88 @@
       return '<div class="st-card ball' + (on ? ' on' : '') + '"><div class="ballpic"><img src="' + ballPic(b.id) + '" alt=""></div><h4>' + b.name + '</h4><p>' + b.desc + '</p>' + act + '</div>';
     }).join('') + '</div><p class="note center">Ball skins are cosmetic and show on your screen in every mode.</p>';
   }
-  const CELEB_ICON = { signature: '★', fist: '✊', arms: '🙌', point: '☝️', salute: '🫡', robot: '🤖', sit: '🧊', knee: '🧎', spin: '🌀' };
+  // Shop logos: one pictogram per celebration, drawn by celebLogo() from a joint description on a 64 x 64 grid, so every icon shares the stroke,
+  // the head and the cap shapes. h: head centre, n: neck (the shoulders), p: pelvis, a: the two arms and l: the two legs as [elbow|knee x, y, hand|foot x, y],
+  // x: props in the card's accent colour (a string is an outline path, ['f', d] is filled).
+  const HEART = 'M32 38C23 31 25 23 30 24.5C31.5 25 32 26 32 27C32 26 32.5 25 34 24.5C39 23 41 31 32 38Z';
+  const LEGS = [[29, 48, 27, 59], [35, 48, 37, 59]], WIDE = [[27, 48, 22, 59], [37, 48, 42, 59]], DOWN = [[27, 29, 26, 38], [37, 29, 38, 38]];
+  const CELEB_POSE = {
+    signature: { h: [32, 14], n: [32, 22], p: [32, 38], a: [[19, 22, 14, 30], [45, 22, 50, 30]], l: LEGS, x: [['f', 'M50 7l2 4 4.5.7-3.3 3.1.8 4.5L50 17l-4 2.3.8-4.5-3.3-3.1L48 11z']] },
+    fist: { h: [30, 14], n: [31, 22], p: [31, 38], a: [[24, 30, 22, 38], [40, 15, 43, 6]], l: LEGS, x: ['M47 6l4-3', 'M48 11l5 0', 'M38 3l-1-3'] },
+    arms: { h: [32, 13], n: [32, 21], p: [32, 37], a: [[20, 23, 11, 15], [44, 23, 53, 15]], l: WIDE, x: ['M8 25q-3 5 0 10', 'M56 25q3 5 0 10'] },
+    point: { h: [32, 15], n: [32, 23], p: [32, 39], a: [[22, 27, 25, 11], [42, 27, 39, 11]], l: LEGS, x: ['M25 5v-3', 'M39 5v-3', 'M20 7l-2-2', 'M44 7l2-2'] },
+    salute: { h: [32, 14], n: [32, 22], p: [32, 38], a: [[27, 29, 26, 38], [43, 26, 38, 11]], l: LEGS, x: ['M44 9l3-3', 'M46 13l4 0'] },
+    robot: { h: [32, 14], n: [32, 22], p: [32, 38], a: [[17, 22, 17, 11], [47, 22, 47, 33]], l: LEGS, x: ['M10 8h4', 'M50 38h4'] },
+    sit: { h: [27, 21], n: [28, 29], p: [28, 44], a: [[37, 33, 31, 38], [38, 38, 29, 40]], l: [[42, 44, 39, 57], [43, 46, 34, 58]], x: ['M48 14v8', 'M44 18h8', 'M45.5 15.5l5 5', 'M50.5 15.5l-5 5'] },
+    knee: { h: [27, 17], n: [31, 25], p: [31, 40], a: [[22, 27, 14, 24], [41, 27, 49, 24]], l: [[41, 54, 26, 57], [43, 56, 30, 58]], x: [] },
+    spin: { h: [32, 15], n: [32, 23], p: [32, 37], a: [[21, 19, 17, 9], [43, 19, 47, 9]], l: [[28, 45, 26, 53], [36, 45, 38, 53]], x: ['M7 36A25 8 0 0 0 57 36', 'M57 36l-1-7', 'M57 36l-7 0'] },
+    blind: { h: [32, 14], n: [32, 22], p: [32, 38], a: [[20, 19, 36, 13], DOWN[1]], l: LEGS, x: ['M18 8q-3 4 0 8', 'M46 8q3 4 0 8'] },
+    heart: { h: [32, 13], n: [32, 21], p: [32, 38], a: [[23, 29, 28, 31], [41, 29, 36, 31]], l: LEGS, x: [['f', HEART], 'M16 28q-4 0 -5 4', 'M48 28q4 0 5 4'] },
+    tree: { h: [32, 11], n: [32, 19], p: [32, 36], a: [[26, 27, 31, 25], [38, 27, 33, 25]], l: [[32, 47, 32, 58], [44, 41, 33, 46]], x: ['M10 18q5-9 11-4q-5 8-11 4', 'M10 18l5-3'] },
+    cold: { h: [32, 16], n: [32, 24], p: [32, 40], a: [[24, 30, 38, 26], [40, 30, 26, 26]], l: [[30, 49, 29, 59], [34, 49, 35, 59]], x: ['M50 10v10', 'M45 15h10', 'M46.5 11.5l7 7', 'M53.5 11.5l-7 7', 'M13 12v6', 'M10 15h6'] },
+    dab: { h: [30, 15], n: [32, 23], p: [32, 39], a: [[22, 20, 31, 16], [43, 17, 52, 6]], l: LEGS, x: ['M55 12l3-1', 'M54 3l3-3', 'M45 6l-1-4'] },
+    knockout: { h: [30, 14], n: [32, 22], p: [30, 38], a: [[40, 24, 51, 23], [36, 30, 40, 22]], l: [[38, 48, 45, 58], [24, 48, 17, 58]], x: ['M55 15l5-3', 'M56 23h6', 'M55 31l5 3'] },
+    cornerflag: { h: [20, 30], n: [25, 37], p: [30, 49], a: [[27, 28, 29, 18], [18, 44, 11, 47]], l: [[42, 52, 54, 55], [39, 57, 29, 58]], x: ['M52 58V32', ['f', 'M52 32l10 4-10 4z'], 'M6 54h10', 'M3 59h12'] },
+    kneeslide: { h: [22, 17], n: [27, 26], p: [33, 41], a: [[22, 34, 22, 42], [32, 35, 39, 40]], l: [[41, 55, 27, 57], [47, 56, 33, 58]], x: ['M9 10l-5-3', 'M8 17h-6', 'M6 50h12', 'M2 56h14'] },
+    shimmy: { h: [32, 16], n: [32, 25], p: [32, 39], a: [[22, 32, 25, 39], [42, 30, 39, 37]], l: [[27, 47, 25, 58], [37, 47, 39, 58]], x: ['M16 20q-4 4 0 9', 'M48 20q4 4 0 9', 'M24 6q8-5 16 0'] },
+    runman: { h: [35, 12], n: [33, 20], p: [31, 36], a: [[41, 25, 45, 17], [25, 26, 20, 33]], l: [[42, 40, 38, 50], [25, 48, 15, 55]], x: ['M5 22h10', 'M3 30h8', 'M44 56h12'] },
+    griddy: { h: [32, 14], n: [32, 22], p: [32, 38], a: [[22, 21, 28, 14], [42, 21, 36, 14]], l: [[37, 46, 45, 51], [29, 48, 27, 59]], x: ['M24.5 13.5a3.5 3.5 0 1 0 7 0a3.5 3.5 0 1 0-7 0', 'M32.5 13.5a3.5 3.5 0 1 0 7 0a3.5 3.5 0 1 0-7 0', 'M50 40l-3 2'] },
+    floss: { h: [34, 12], n: [33, 20], p: [29, 37], a: [[38, 28, 43, 38], [42, 26, 49, 34]], l: [[26, 48, 24, 58], [31, 48, 33, 58]], x: ['M53 28q6 6 2 16', 'M10 30q-4 6 0 12'] },
+    samba: { h: [33, 12], n: [32, 20], p: [29, 37], a: [[21, 15, 15, 23], [43, 27, 50, 33]], l: [[25, 47, 19, 57], [34, 47, 40, 56]], x: ['M9 42q-4 6 0 12', 'M55 42q4 6 0 12', ['f', 'M50 10a2.5 2.5 0 1 0 .1 0z'], 'M52.5 10v-8l5 1.5'] },
+    moonwalk: { h: [33, 15], n: [32, 23], p: [32, 39], a: [[40, 22, 38, 12], [27, 31, 25, 38]], l: [[34, 48, 24, 58], [35, 48, 40, 58]], x: [['f', 'M25 9.5h16l-3-7h-10z'], 'M50 58h-8', 'M45 55l-3 3 3 3'] },
+    jumpturn: { h: [32, 19], n: [32, 27], p: [32, 41], a: [[22, 29, 14, 25], [42, 29, 50, 25]], l: [[26, 50, 16, 54], [38, 50, 48, 54]], x: ['M12 15Q32 -3 52 15', 'M52 15l-7-1', 'M52 15l-2-7', 'M14 61h36'] },      // (a half-turn arc over the head and a split leap: not the spin's ring under the feet)
+    backflip: { h: [32, 43], n: [32, 36], p: [32, 22], a: [[26, 36, 29, 28], [38, 36, 35, 28]], l: [[40, 14, 45, 20], [34, 12, 39, 18]], x: ['M50 52A22 22 0 1 0 14 44', 'M14 44l-1 7', 'M14 44l7 1'] },
+  };
+  const CELEB_ACC = { GESTURES: '#35e08a', POSES: '#e9c46a', SLIDES: '#ffb23d', DANCES: '#6db8ff', ACROBATICS: '#f1735f', MORE: '#8b98ab' };      // one accent per group (ISO.CELEB_GROUPS)
+  function celebLogo(id) {
+    const P = CELEB_POSE[id] || CELEB_POSE.signature;
+    const limb = (o, e) => '<path d="M' + o[0] + ' ' + o[1] + 'L' + e[0] + ' ' + e[1] + 'L' + e[2] + ' ' + e[3] + '"/>';
+    const body = '<path d="M' + P.n[0] + ' ' + P.n[1] + 'L' + P.p[0] + ' ' + P.p[1] + '"/>' + P.a.map((e) => limb(P.n, e)).join('') + P.l.map((e) => limb(P.p, e)).join('') +
+      '<circle cx="' + P.h[0] + '" cy="' + P.h[1] + '" r="5" fill="none" stroke-width="3.4"/>';
+    const acc = (P.x || []).map((d) => Array.isArray(d) ? '<path d="' + d[1] + '" fill="var(--acc)" stroke="none"/>' : '<path d="' + d + '"/>').join('');
+    return '<svg viewBox="0 0 64 64" width="60" height="60" aria-hidden="true" focusable="false"><g fill="none" stroke="currentColor" stroke-width="4.2" stroke-linecap="round" stroke-linejoin="round">' + body +
+      '</g><g fill="none" stroke="var(--acc)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">' + acc + '</g></svg>';
+  }
   function storeCelebs() {
-    const cur = PF.celebOf(), card = (id, name, desc, cost) => {
+    const cur = PF.celebOf(), card = (id, name, desc, cost, acc) => {
       const own = PF.ownsCeleb(id), on = cur === id;
       const act = on ? '<span class="st-tag on">✓ EQUIPPED</span>' : own ? '<button class="btn small" data-st="setceleb" data-id="' + id + '">EQUIP</button>' : buyBtn('celeb', id, cost);
-      return '<div class="st-card celeb' + (on ? ' on' : '') + '"><div class="cicon">' + (CELEB_ICON[id] || '★') + '</div><h4>' + esc(name) + '</h4><p>' + esc(desc) + '</p>' + act + '</div>';
+      return '<div class="st-card celeb' + (on ? ' on' : '') + '" data-celeb="' + id + '" tabindex="0" style="--acc:' + acc + '"><div class="cicon">' + celebLogo(id) + '</div><h4>' + esc(name) + '</h4><p>' + esc(desc) + '</p>' + act + '</div>';
     };
-    return '<div class="st-maps st-celebs">' + card('signature', ISO.CELEB_SIG.name, ISO.CELEB_SIG.desc, 0) + ISO.CELEBS.map((c) => card(c.id, c.name, c.desc, c.cost)).join('') + '</div>' +
+    const byCost = (ids) => ids.filter((id) => ISO.hasCeleb(id)).sort((a, b) => ISO.celebById(a).cost - ISO.celebById(b).cost);
+    const known = new Set([].concat(...ISO.CELEB_GROUPS.map((g) => g[1]))), groups = [['GESTURES', ['signature'].concat(byCost(ISO.CELEB_GROUPS[0][1]))]].concat(ISO.CELEB_GROUPS.slice(1).map((g) => [g[0], byCost(g[1])]));
+    const rest = ISO.CELEBS.filter((c) => !known.has(c.id)).map((c) => c.id); if (rest.length) groups.push(['MORE', byCost(rest)]);      // an id missing from the groups still gets a card
+    return '<div class="st-maps st-celebs">' + groups.map(([title, ids]) => '<h5 class="st-sec">' + title + '</h5>' +
+      ids.map((id) => { if (id === 'signature') return card(id, ISO.CELEB_SIG.name, ISO.CELEB_SIG.desc, 0, CELEB_ACC[title]); const c = ISO.celebById(id); return card(id, c.name, c.desc, c.cost, CELEB_ACC[title]); }).join('')).join('') + '</div>' +
       '<p class="note center">After you score, your player celebrates: the Signature one, or any celebration you buy. It plays in 2D and 3D, offline and online (your opponents see it), and never changes how the match plays. Sprite-sheet players keep their own pose in 2D.</p>';
   }
+  // hover / focus preview: the 2D figure plays the card's pose on a small canvas in place of the logo (a static frame with reduced motion)
+  const STILL = { backflip: 0.9, knockout: 1.4, jumpturn: 0.9 };      // reduced motion: the frame that shows the celebration (t = 0.7 s is mid-somersault / mid-fall for these)
+  let preview = null;
+  function stopPreview() { if (!preview) return; cancelAnimationFrame(preview.raf); if (preview.el.isConnected) { preview.el.classList.remove('live'); preview.el.innerHTML = preview.html; } preview = null; }
+  function startPreview(card) {
+    const el = card.querySelector('.cicon'), id = card.dataset.celeb;
+    if (!el || (preview && preview.el === el) || !ISO.Render || !ISO.Render.celebPose || id === 'signature') return;
+    stopPreview();
+    const def = ISO.PLAYERS[0], sheet = ISO.Sprites.forPlayer(def, def.kit, 'shop'), still = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    el.classList.add('live'); preview = { el, html: el.innerHTML, raf: 0 };
+    el.innerHTML = '<canvas width="144" height="168"></canvas>';
+    const cv = el.firstChild, c = cv.getContext('2d'), t0 = performance.now(), me = preview;
+    const frame = (now) => {
+      if (preview !== me || !cv.isConnected) return;
+      const ps = ISO.Render.celebPose(id, still ? STILL[id] || 0.7 : (now - t0) / 1000 * ISO.C.SPEED);      // (a match runs at C.SPEED of real time: the preview plays at the pace it has in game)
+      c.clearRect(0, 0, 144, 168); c.save(); c.scale(2.2, 2.2);
+      ISO.Sprites.drawLive(c, sheet, Object.assign({}, ISO.Sprites.REST, ps.T), ps.view, 36, 70 + ps.dy, false, null, 1);
+      c.restore();
+      if (!still) me.raf = requestAnimationFrame(frame);
+    };
+    frame(t0);
+  }
+  document.addEventListener('mouseover', (e) => { const c = e.target.closest && e.target.closest('.st-card.celeb'); if (c) startPreview(c); else if (preview) stopPreview(); });
+  document.addEventListener('focusin', (e) => { const c = e.target.closest && e.target.closest('.st-card.celeb'); if (c) startPreview(c); });
+  document.addEventListener('focusout', (e) => { if (e.target.closest && e.target.closest('.st-card.celeb')) stopPreview(); });
   function renderStore() {
+    preview = null;
     const ro = $('stRoster'), top = ro ? ro.scrollTop : 0, T = store.tab;
     document.querySelectorAll('#storeTabs .segb').forEach((b) => b.classList.toggle('on', b.dataset.id === T));
     const own = T === 'players' || T === 'maps' || T === 'balls' || T === 'celebs' || T === 'collection';
@@ -563,7 +634,7 @@
       if (ta.style.display === 'none') { ta.value = ''; ta.style.display = 'block'; ta.focus(); return; }
       try {
         const o = JSON.parse(ta.value); if (!o || typeof o !== 'object' || Array.isArray(o)) throw new Error('shape');
-        const ST2 = PF.data.settings, base = Object.assign({}, ST2);
+        const ST2 = PF.data.settings, base = Object.assign({}, ST2); delete base.tut;      // (the tutorial's progress and reward flag are never imported)
         for (const k of Object.keys(base)) if (k !== 'admin' && Object.prototype.hasOwnProperty.call(o, k) && typeof o[k] === typeof base[k] || (base[k] === null && k in o)) ST2[k] = o[k];      // known keys of the same type only
         ISO.Access.clean(ST2); PF.save(); ISO.Access.apply(ST2); renderSettings(); App.toast(ISO.I18n.t('toast.imp_ok'), '', '#35e08a'); ta.style.display = 'none';
       } catch (e2) { App.toast(ISO.I18n.t('toast.imp_bad'), ISO.I18n.t('toast.imp_bad_sub'), '#f1735f'); }

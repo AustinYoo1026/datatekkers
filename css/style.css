@@ -528,14 +528,25 @@ kbd { display: inline-block; font: 700 12px/1 ui-monospace, Menlo, monospace; ba
 .ctrait .ctb i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 3px; background: currentColor; }
 .ctrait .ctb u { position: absolute; top: -2px; bottom: -2px; width: 2px; background: #ffcf4d; }
 .ctrait b { text-align: right; font-weight: 900; }
-.st-card.celeb .cicon { font-size: 40px; line-height: 1.1; padding: 12px 0 2px; }
+.st-card.celeb { --acc: var(--green); }
+.st-card.celeb .cicon { color: var(--text); padding: 8px 0 0; line-height: 0; width: 100%; display: flex; justify-content: center; }
+.st-card.celeb .cicon svg, .st-card.celeb .cicon canvas { width: 60px; height: 60px; }
+.st-card.celeb:hover, .st-card.celeb:focus-visible { border-color: var(--acc); outline: none; }
+.st-card.celeb.on { border-color: var(--acc); box-shadow: 0 0 0 1px var(--acc) inset; }
+.st-card.celeb .cicon.live { height: 84px; padding-top: 0; } .st-card.celeb .cicon.live canvas { width: 72px; height: 84px; }
+.st-celebs { align-content: start; } .st-celebs .st-sec { grid-column: 1 / -1; margin: 6px 0 -4px; font-size: 12px; font-weight: 900; letter-spacing: .16em; color: var(--mute); display: flex; align-items: center; gap: 10px; }
+.st-celebs .st-sec::after { content: ''; flex: 1; height: 1px; background: var(--line); } .st-celebs .st-sec:first-child { margin-top: 0; }
 
 /* ---------- tournament (roadmap 4.2) ---------- */
 .playgrid { grid-template-columns: repeat(3, 1fr); grid-auto-rows: 1fr; gap: 12px; }      /* six cards: two rows of three */
 .playgrid .pc-t { font-size: 34px; } .playgrid .pc-d { font-size: 13px; line-height: 1.3; } .playgrid .playcard { padding: 18px 20px 16px; gap: 7px; } .playgrid .pc-k { font-size: 11px; } .playgrid .pc-s { padding-top: 8px; min-height: 22px; font-size: 11px; }
 .playcard.tourney { --pc: #ffcf4d; } .playcard.street { --pc: #ff7a3d; }
-.art-cup { --art: radial-gradient(circle at 50% 38%, #ffcf4d 0 11%, transparent 12%), linear-gradient(160deg, #3a2f12, #151b2b 70%); --at: 50% 0%; }
-.art-street { --art: repeating-linear-gradient(45deg, rgba(255,255,255,.08) 0 3px, transparent 3px 14px), linear-gradient(160deg, #5a2a12, #151b2b 70%); --at: 50% 0%; }
+/* celebration card art (assets/celebs/*.svg): the picture sits on top of the card's old gradient, which shows if the file is missing */
+.art-cup { --art: url('../assets/celebs/drogba.svg') 50% 0% / cover no-repeat, radial-gradient(circle at 50% 38%, #ffcf4d 0 11%, transparent 12%), linear-gradient(160deg, #3a2f12, #151b2b 70%); --at: 50% 0%; }
+.art-street { --art: url('../assets/celebs/pogba.svg') 50% 0% / cover no-repeat, repeating-linear-gradient(45deg, rgba(255,255,255,.08) 0 3px, transparent 3px 14px), linear-gradient(160deg, #5a2a12, #151b2b 70%); --at: 50% 0%; }
+.art-creator { --art: url('../assets/celebs/salah.svg') 50% 0% / cover no-repeat, repeating-linear-gradient(45deg, rgba(255,255,255,.06) 0 3px, transparent 3px 14px), linear-gradient(160deg, #2c2150, #151b2b 70%); --at: 50% 0%; }
+.art-tutorial { --art: url('../assets/celebs/bale.svg') 50% 0% / cover no-repeat, radial-gradient(circle at 50% 36%, rgba(53,224,138,.35) 0 12%, transparent 13%), linear-gradient(160deg, #123a2a, #151b2b 70%); --at: 50% 0%; }
+.playcard.tutorial { --pc: #35e08a; }
 .cup-body { flex: 1; display: grid; grid-template-columns: 340px 1fr; gap: 14px; margin-top: 10px; min-height: 0; }
 .cup-side { display: flex; flex-direction: column; gap: 8px; overflow-y: auto; }
 .cup-list { display: flex; flex-direction: column; gap: 8px; }
@@ -654,3 +665,34 @@ body.hc .stam { background: #000; outline: 2px solid #fff; }
 body.hc #goalCard, body.hc .toast, body.hc .card { background: #000; border: 2px solid #fff; }
 body.hc #hint { color: #fff; text-shadow: 0 0 3px #000, 0 0 3px #000; }
 body.hc .set-row, body.hc .panel { border-color: #fff; }
+
+/* ---------- tutorial ---------- */
+.tutbar { display: flex; align-items: center; gap: 16px; margin-top: 10px; } .tutbar span { font-size: 14px; font-weight: 600; color: #b9c4d3; line-height: 1.35; }
+.tutgrid { flex: 1; display: grid; grid-template-columns: repeat(4, 1fr); grid-template-rows: repeat(2, 1fr); gap: 12px; margin: 12px 0 6px; min-height: 0; }
+.tutgrid .tutcard { padding: 16px 18px 14px; gap: 6px; min-height: 0; }
+.tutgrid .dc-t { font-size: 30px; } .tutgrid .pc-d { font-size: 13px; line-height: 1.3; } .tutgrid .pc-k { font-size: 11px; }
+.tutcard .pc-s { font-size: 11px; font-weight: 900; letter-spacing: .14em; color: var(--mute); border-top: 1px solid var(--line); padding-top: 7px; }
+.tutcard.done { box-shadow: 0 0 0 1px rgba(53,224,138,.5) inset; } .tutcard.done .pc-k { color: var(--green); } .tutcard.skipped .pc-k { color: #ffb23d; }
+.art-plain { --art: radial-gradient(circle at 50% 36%, rgba(255,255,255,.12) 0 13%, transparent 14%), repeating-linear-gradient(45deg, rgba(255,255,255,.05) 0 3px, transparent 3px 14px), linear-gradient(160deg, color-mix(in srgb, var(--pc) 38%, #151b2b), #151b2b 70%); --at: 50% 0%; }
+.tutcard.art-vardy { --ap: 50% 16%; --art: url('../assets/celebs/vardy.svg') var(--ap) / cover no-repeat, linear-gradient(160deg, #1d4a35, #151b2b 70%); --at: 50% 0%; }
+.tutcard.art-pulisic { --ap: 50% 0%; --art: url('../assets/celebs/pulisic.svg') var(--ap) / cover no-repeat, linear-gradient(160deg, #4d3913, #151b2b 70%); --at: 50% 0%; }
+.tutcard.art-palmer { --ap: 50% 20%; --art: url('../assets/celebs/palmer.svg') var(--ap) / cover no-repeat, linear-gradient(160deg, #173a63, #151b2b 70%); --at: 50% 0%; }
+.tutcard.art-rooney { --ap: 50% 0%; --art: url('../assets/celebs/rooney.svg') var(--ap) / cover no-repeat, linear-gradient(160deg, #5a2a22, #151b2b 70%); --at: 50% 0%; }
+#tutPanel { position: absolute; left: 14px; top: 14px; width: 262px; z-index: 25; box-sizing: border-box; display: flex; flex-direction: column; gap: 8px; padding: 11px 13px 10px; border-radius: 10px; border: 1px solid rgba(255,255,255,.16); border-left: 5px solid var(--green);
+  background: rgba(8,14,22,.9); color: #e8eef6; font: 700 15px/1.32 var(--font); letter-spacing: .02em; box-shadow: 0 10px 30px rgba(0,0,0,.45); }
+#tutPanel.done { border-left-color: #ffcf4d; }
+#tutPanel .tp-k { font-size: 11px; font-weight: 900; letter-spacing: .16em; color: var(--green); }
+#tutPanel .tp-dots { display: flex; align-items: center; gap: 5px; } #tutPanel .tp-dots i { width: 16px; height: 5px; border-radius: 3px; background: #2a3446; } #tutPanel .tp-dots i.cur { background: #ffcf4d; } #tutPanel .tp-dots i.ok { background: var(--green); }
+#tutPanel .tp-dots span { margin-left: auto; font-size: 11px; letter-spacing: .1em; color: var(--mute); }
+#tutPanel .tp-txt { font-size: 17px; font-weight: 800; line-height: 1.3; }
+#tutPanel .tp-ok { font-size: 17px; font-weight: 900; color: var(--green); line-height: 1.3; animation: tutPop .35s ease-out; }
+#tutPanel .tp-warn { font-size: 13px; color: #ff9d7a; } #tutPanel .tp-hint { font-size: 13px; color: #ffcf4d; font-weight: 700; animation: fade .4s ease-out; } #tutPanel .tp-wait { font-size: 12px; letter-spacing: .14em; color: var(--mute); }
+#tutPanel .tp-done { font-size: 24px; font-weight: 900; font-style: italic; color: #ffcf4d; } #tutPanel .tp-tip { font-size: 13px; font-weight: 600; color: #c6d0dc; line-height: 1.35; } #tutPanel .tp-reward { font-size: 14px; font-weight: 900; color: #ffcf4d; letter-spacing: .06em; }
+#tutPanel .tp-btns { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 2px; }
+#tutPanel .tp-b { font: 800 12px/1 var(--font); letter-spacing: .08em; color: var(--text); background: var(--panel2); border: 1px solid var(--line); border-radius: 5px; padding: 6px 9px; cursor: pointer; }
+#tutPanel .tp-b:hover { border-color: #fff; } #tutPanel .tp-b.primary { background: var(--green); color: #06140c; border-color: var(--green); } #tutPanel .tp-b.ghost { background: transparent; color: var(--mute); }
+#tutPanel kbd, #tutNudge kbd { font-size: 12px; margin: 0 1px; } #tutPanel kbd.pad { color: #7ad0ff; border-color: #2f5f86; }
+@keyframes tutPop { from { transform: scale(.94); opacity: 0; } }
+#stage.tut-on .hud-mid { visibility: hidden; } #stage.tut-on #hint { display: none; }
+#tutNudge { position: absolute; left: 16px; top: 16px; z-index: 6; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 12px 20px; border-radius: 10px; background: rgba(8,14,22,.92); border: 1px solid var(--green); box-shadow: 0 0 26px rgba(53,224,138,.25); text-align: center; max-width: 280px; }
+#tutNudge b { font-size: 16px; letter-spacing: .12em; color: var(--green); } #tutNudge span { font-size: 14px; color: #c6d0dc; font-weight: 600; } #tutNudge div { display: flex; gap: 8px; margin-top: 4px; }

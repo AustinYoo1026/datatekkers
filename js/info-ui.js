@@ -18,8 +18,9 @@
       grid(Object.keys(ISO.ROLES).map((id) => card(ISO.ROLES[id].name, '', ROLE_DESC[id] || 'Adjusts movement and touch.'))),
     moves: () => { const SK = ISO.Game.SKILLS; return '<p class="note">Every skill move is unlocked. A move needs enough skill stars; until then the input does a simpler move.</p>' +
       grid(Object.keys(SK).map((id) => card(SK[id].name || id, SK[id].star ? '★'.repeat(SK[id].star) + ' skill stars' : '', 'Skill move' + (SK[id].star ? ' needing ' + SK[id].star + ' star' + (SK[id].star > 1 ? 's' : '') + '.' : '.')))); },
-    celebs: () => '<p class="note">After a goal your player celebrates (2D and 3D, online too). Celebrations are cosmetic.</p>' +
-      grid([card(ISO.CELEB_SIG.name, 'FREE', ISO.CELEB_SIG.desc)].concat(ISO.CELEBS.map((c) => card(c.name, c.cost ? c.cost + ' CR' : 'FREE', c.desc)))),
+    celebs: () => { const cd = (c) => card(c.name, c.cost ? c.cost + ' CR' : 'FREE', c.desc), by = (ids) => ids.filter((id) => ISO.hasCeleb(id)).map(ISO.celebById).sort((a, b) => a.cost - b.cost), known = new Set([].concat(...ISO.CELEB_GROUPS.map((g) => g[1]))), rest = ISO.CELEBS.filter((c) => !known.has(c.id));
+      return '<p class="note">After a goal your player celebrates (2D and 3D, online too). Celebrations are cosmetic.</p>' +
+        ISO.CELEB_GROUPS.map(([title, ids], i) => '<h5 class="info-sub">' + title + '</h5>' + grid((i ? [] : [card(ISO.CELEB_SIG.name, 'FREE', ISO.CELEB_SIG.desc)]).concat(by(ids).map(cd)))).join('') + (rest.length ? '<h5 class="info-sub">MORE</h5>' + grid(rest.map(cd)) : ''); },
     gk: () => '<p class="note">Each CPU keeper has a style, shown on the match-settings page.</p>' + grid(ISO.GK_ORDER.map((id) => card(ISO.GK_STYLES[id].name, '', ISO.GK_STYLES[id].desc))),
     ai: () => '<p class="note">How the CPU plays. Shown on the opponent panel as the AI chip.</p>' + grid(ISO.AI.ARCH_ORDER.map((id) => card(ISO.AI.ARCH[id].name, '', ISO.AI.ARCH[id].desc))),
     rules: () => {

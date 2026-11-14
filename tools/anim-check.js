@@ -574,8 +574,8 @@ SCENES.push({ name: 'celebrate', clip: (k) => k === 'celebrate', variants: FT, t
   setup(G) { const p = G.players[0]; p.x = 60; p.y = 110; p.face = PI / 2; away(G.players[1]); G.ball.x = 20; G.ball.y = 700; },
   pre(G, k) { if (k === sec(1.0)) { const p = G.players[0]; G.phase = 'goal'; G.phaseT = 99; p.charge = null; p.state = 'celebrate'; p.stT = 0; p.stDur = 0; } },
   input: () => [IN({ my: 1 }), ZERO] }) });
-// ---- the purchasable celebrations (roadmap 2.5): the same scene with def.celeb set. Only those that pass the strict thresholds are listed (see PHASE2_NOTES.md)
-for (const id of ['arms', 'point', 'salute', 'robot', 'sit', 'knee', 'spin']) SCENES.push({ name: 'celebrate:' + id, clip: (k) => k === 'celebrate', variants: FT, tail: 0, cap: 3.2, phase: 'any', make: (v) => ({ roster: [Object.assign(defFoot(v.foot), { celeb: id }), OPPD], solo: true, seed: 18,
+// ---- the purchasable celebrations (roadmap 2.5): the same scene with def.celeb set (every celebration with a 3D clip, the backflip too: the strict thresholds apply to all of them)
+for (const id of ['arms', 'point', 'salute', 'robot', 'sit', 'knee', 'spin', 'cornerflag', 'blind', 'heart', 'knockout', 'tree', 'dab', 'kneeslide', 'cold', 'griddy', 'jumpturn', 'backflip', 'samba', 'floss', 'shimmy', 'runman', 'moonwalk']) SCENES.push({ name: 'celebrate:' + id, clip: (k) => k === 'celebrate', variants: FT, tail: 0, cap: 3.2, phase: 'any', make: (v) => ({ roster: [Object.assign(defFoot(v.foot), { celeb: id }), OPPD], solo: true, seed: 18,
   setup(G) { const p = G.players[0]; p.x = 60; p.y = 110; p.face = PI / 2; away(G.players[1]); G.ball.x = 20; G.ball.y = 700; },
   pre(G, k) { if (k === sec(1.0)) { const p = G.players[0]; G.phase = 'goal'; G.phaseT = 99; p.charge = null; p.state = 'celebrate'; p.stT = 0; p.stDur = 0; } },
   input: () => [IN({ my: 1 }), ZERO] }) });

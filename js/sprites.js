@@ -236,12 +236,13 @@
   //   t1 k1 t2 k2   thigh angle (rad, + = forward) and knee bend (rad) of each leg
   //   s1 e1 s2 e2   shoulder swing (+ = forward) and elbow bend of each arm;  ab = arms held out sideways
   //   armsUp 0..1   arms raised overhead;  lean = torso pitch (+ = forward);  tilt = roll to the side
+  //   abd           front / back view: added to the right arm's abduction and taken from the left's (arms swung to one side, or crossed)
   //   sw1 sw2       a foot swept sideways on screen (px, + = right) - the front/back view's way of rolling the ball with one foot
   //   spread        feet apart (px);  air = height off the ground (px);  rot = whole-body rotation (lying down)
   // The legs are solved in the body's own side-on plane and the lower foot is put on the ground, so the hips rise and
   // fall with the stride instead of the feet sliding. The same solution is then drawn side-on, or from the front / back.
   const THIGH = 7.9, SHIN = 7.9, UARM = 5.3, FARM = 5.1, DZ = 0.42;
-  const REST = { t1: 0, k1: 0, t2: 0, k2: 0, s1: 0, e1: 0.2, s2: 0, e2: 0.2, ab: 0, armsUp: 0, lean: 0, tilt: 0, spread: 0, air: 0, rot: 0, bob: 0, sw1: 0, sw2: 0 };
+  const REST = { t1: 0, k1: 0, t2: 0, k2: 0, s1: 0, e1: 0.2, s2: 0, e2: 0.2, ab: 0, armsUp: 0, lean: 0, tilt: 0, spread: 0, air: 0, rot: 0, bob: 0, sw1: 0, sw2: 0, abd: 0 };
   const POSE_KEYS = Object.keys(REST);
   const FK1 = { kf: 0, kd: 0, ff: 0, fd: 0, fa: 0 }, FK2 = { kf: 0, kd: 0, ff: 0, fd: 0, fa: 0 };
   const AK1 = { ef: 0, ed: 0, hf: 0, hd: 0 }, AK2 = { ef: 0, ed: 0, hf: 0, hd: 0 };
@@ -306,13 +307,13 @@
     const w = L.w || 1, h = L.h || 1, skin = L.skin || DEF_SKIN, skinD = shade(skin, -34);
     const sock = kit.socks, sockD = shade(sock, -38), boot = L.boot || CORAL;
     const sleeve = kit.pat === 'sleeves' ? kit.b : kit.a, sleeveD = shade(sleeve, -34);
-    const lw = 4.5 * Math.sqrt(w), up = g('armsUp'), ab = g('ab'), lean = g('lean'), tilt = g('tilt'), spr = g('spread');
+    const lw = 4.5 * Math.sqrt(w), up = g('armsUp'), ab = g('ab'), abd = g('abd'), lean = g('lean'), tilt = g('tilt'), spr = g('spread');
     const L1 = legFK(FK1, g('t1'), g('k1')), L2 = legFK(FK2, g('t2'), g('k2'));
     const A1 = armFK(AK1, g('s1'), g('e1'), up), A2 = armFK(AK2, g('s2'), g('e2'), up);
     const hip = Math.max(L1.fd, L2.fd) + g('air') - 0.6, bob = g('bob');
     c.save();
     c.scale(h, h);
-    if (g('rot')) { c.translate(0, -12); c.rotate(g('rot')); c.translate(0, 12); }
+    if (g('rot')) { const pv = 12 + Math.max(0, g('air')); c.translate(0, -pv); c.rotate(g('rot')); c.translate(0, pv); }      // (turns about a point that rises with the figure: a somersault in the air does not dip the head under the turf)
     if (dir === 'side') {
       const tw = 8.9 * w, hy = -hip;
       const leg = (F, far) => {
@@ -352,7 +353,7 @@
         c.fillText(String(L.num), 0, -4.9 - th / 2 + bob + 0.4);
       }
       const arm = (A, sg) => {
-        const sx = sg * (tw / 2 + 0.7), sy = -4.9 - th + 2.1 + bob, out = Math.sin(ab) + up * 0.35, k = Math.max(0.3, Math.cos(ab));
+        const sx = sg * (tw / 2 + 0.7), sy = -4.9 - th + 2.1 + bob, aa = ab + sg * abd, out = Math.sin(aa) + up * 0.35, k = Math.max(0.3, Math.cos(aa));
         const ex = sx + sg * (0.9 + out * UARM), ey = sy + A.ed * k + s * A.ef * DZ;
         const hx = sx + sg * (1.3 + out * (UARM + FARM)), hy2 = sy + A.hd * k + s * A.hf * DZ;
         limb2(c, sx, sy, ex, ey, hx, hy2, 3.6, 3, sleeve, skin, 1.0, 0);

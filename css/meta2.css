@@ -115,6 +115,7 @@ html[dir=rtl] .set-row span, html[dir=rtl] .pc-d, html[dir=rtl] .note { unicode-
 .info-tabs { flex-wrap: wrap; align-self: flex-start; margin-top: 10px; }
 .info-body { flex: 1; min-height: 0; overflow-y: auto; padding: 12px 4px; }
 .info-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 14px; }
+.info-sub { margin: 4px 0 8px; font-size: 12px; font-weight: 900; letter-spacing: .16em; color: var(--mute); }
 .info-card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; }
 .info-card .ic-h { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; } .info-card b { font-size: 17px; font-weight: 900; letter-spacing: .04em; }
 .info-card small { color: #ffcf4d; font-weight: 800; letter-spacing: .1em; font-size: 11px; } .info-card p { margin: 6px 0 0; color: #b9c4d3; font-size: 13px; line-height: 1.4; }

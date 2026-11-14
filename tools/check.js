@@ -589,6 +589,17 @@ function inBoxNow(G) { return ISO.inBox(G.ball); }
     if (!c.cam || !(c.cam.D > 3 && c.cam.D < 12) || !(c.cam.H > 0.8 && c.cam.H < 5) || !Number.isFinite(c.cam.yaw)) fail('celebs: bad cam ' + c.id);
   }
   if (!CE.some((c) => c.cost === 0)) fail('celebs: no free celebration');
+  // the roster of celebrations: 24 entries, every bought one priced 300..3000, every id has a 2D pose (render.js CELEB_2D) and a shop group, every signature target exists
+  if (CE.length < 24) fail('celebs: expected at least 24 celebrations, have ' + CE.length);
+  const r2d = require('fs').readFileSync(__dirname + '/../js/render.js', 'utf8'), grouped = [].concat(...ISO.CELEB_GROUPS.map((g) => g[1]));
+  for (const c of CE) {
+    if (c.cost > 0 && (c.cost < 300 || c.cost > 3000)) fail('celebs: cost out of range ' + c.id + ' ' + c.cost);
+    if (!new RegExp('\\n    ' + c.id + '\\(T, t\\)').test(r2d)) fail('celebs: no 2D pose for ' + c.id);
+    if (!grouped.includes(c.id)) fail('celebs: ' + c.id + ' is in no shop group');
+  }
+  if (new Set(grouped).size !== grouped.length || grouped.some((id) => !ISO.hasCeleb(id))) fail('celebs: shop groups repeat an id or name an unknown one');
+  for (const d of ISO.PLAYERS) { const sg = ISO.styleOf(d).celeb; if (!ISO.hasCeleb(sg)) fail('celebs: signature of ' + d.id + ' is unknown: ' + sg); }
+  for (const [pid, id] of [['salah', 'tree'], ['palmer', 'cold'], ['drogba', 'kneeslide'], ['vardy', 'cornerflag'], ['rooney', 'knockout'], ['ronaldo', 'jumpturn']]) if (ISO.celebOf(ISO.playerById(pid)) !== id) fail('celebs: ' + pid + ' should celebrate with ' + id);
   const used = new Set();
   for (const d of ISO.PLAYERS) { const id = ISO.celebOf(d); used.add(id); if (!ISO.hasCeleb(id)) fail('celebs: ' + d.id + ' resolves to unknown ' + id); }
   if (used.size < 5) fail('celebs: the roster uses only ' + used.size + ' signatures');

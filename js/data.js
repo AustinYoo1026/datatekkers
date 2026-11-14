@@ -427,14 +427,36 @@
     { id: 'sit', name: 'SIT DOWN', cost: 600, dur: 2.4, loop: true, cam: { D: 5.4, H: 1.6, yaw: 0.25 }, desc: 'Cool as ice: drop into a low squat, arms folded.' },
     { id: 'knee', name: 'KNEE DROP', cost: 900, dur: 2.2, loop: true, cam: { D: 5.4, H: 1.5, yaw: 0.25 }, desc: 'Sink low on the knees, head back, arms out.' },
     { id: 'spin', name: 'SPIN LEAP', cost: 1500, dur: 2.4, loop: true, cam: { D: 8.0, H: 3.0, yaw: 0.3 }, desc: 'A leap with a full turn in the air, then a fist pump.' },
+    // poses: a held shape, usually on the ground
+    { id: 'blind', name: 'ARM OVER EYES', cost: 600, dur: 2.0, loop: true, cam: { D: 5.2, H: 1.9, yaw: 0.25 }, desc: 'Too cool to look: a forearm across the eyes, fist clenched.' },
+    { id: 'heart', name: 'HEART HANDS', cost: 500, dur: 2.0, loop: true, cam: { D: 5.0, H: 1.6, yaw: 0.15 }, desc: 'Both hands make a heart, pushed out to the crowd.' },
+    { id: 'tree', name: 'TREE POSE', cost: 800, dur: 2.4, loop: true, cam: { D: 5.4, H: 1.9, yaw: 0.25 }, desc: 'Balance on one leg, foot at the thigh, palms together.' },
+    { id: 'cold', name: 'COLD', cost: 400, dur: 2.0, loop: true, cam: { D: 5.0, H: 1.6, yaw: 0.15 }, desc: 'Arms crossed, hands rubbing the shoulders, shivering.' },
+    { id: 'dab', name: 'THE DAB', cost: 700, dur: 1.8, loop: true, cam: { D: 5.0, H: 1.8, yaw: 0.25 }, desc: 'Head into one elbow, the other arm thrown up. Then switch sides.' },
+    { id: 'knockout', name: 'KNOCKOUT', cost: 1400, dur: 2.6, loop: true, cam: { D: 5.8, H: 1.5, yaw: 0.35 }, desc: 'A quick jab and cross, then flat on the back, arms out.' },
+    // slides
+    { id: 'cornerflag', name: 'CORNER FLAG SLIDE', cost: 1200, dur: 2.4, loop: true, cam: { D: 6.0, H: 1.7, yaw: 0.1 }, desc: 'Skid down on one hip, one arm punched at the sky.' },
+    { id: 'kneeslide', name: 'KNEE SLIDE', cost: 1000, dur: 2.2, loop: true, cam: { D: 5.3, H: 1.5, yaw: 0.1 }, desc: 'Both knees down, leaning back, fists clenched, a roar.' },
+    // dances and acrobatics
+    { id: 'shimmy', name: 'SHOULDER SHIMMY', cost: 1100, dur: 1.6, loop: true, cam: { D: 5.2, H: 1.8, yaw: 0.25 }, desc: 'Shoulders rolling in turn, a low squat, head nodding.' },
+    { id: 'runman', name: 'RUNNING MAN', cost: 1300, dur: 1.6, loop: true, cam: { D: 5.4, H: 1.7, yaw: 0.3 }, desc: 'Knees drive and slide back on the spot, arms pumping.' },
+    { id: 'griddy', name: 'GRIDDY', cost: 1600, dur: 1.6, loop: true, cam: { D: 5.4, H: 1.8, yaw: 0.25 }, desc: 'Goggles up, heel taps skipping on the beat, then arms swinging.' },
+    { id: 'floss', name: 'FLOSS', cost: 1700, dur: 1.6, loop: true, cam: { D: 5.4, H: 1.8, yaw: 0.25 }, desc: 'Straight arms whip past the hips while the hips go the other way.' },
+    { id: 'samba', name: 'SAMBA STEPS', cost: 1800, dur: 1.6, loop: true, cam: { D: 5.6, H: 1.8, yaw: 0.25 }, desc: 'Quick footwork side to side, hips swaying, arms rolling.' },
+    { id: 'moonwalk', name: 'MOONWALK', cost: 2000, dur: 2.4, loop: true, cam: { D: 5.6, H: 1.7, yaw: 0.5 }, desc: 'Feet glide backwards, one heel up, then a hat-tip.' },
+    { id: 'jumpturn', name: 'JUMP & TURN', cost: 2200, dur: 2.4, loop: true, cam: { D: 8.0, H: 3.0, yaw: 0.3 }, desc: 'A run-up, a leap with a half turn, landing wide, arms back.' },
+    { id: 'backflip', name: 'BACKFLIP', cost: 3000, dur: 2.0, loop: true, cam: { D: 8.8, H: 3.2, yaw: 0.5 }, desc: 'Crouch, a full back somersault, land with arms out.' },
   ];
+  // how the shop and the Info page group them (each list is shown by price)
+  ISO.CELEB_GROUPS = [['GESTURES', ['fist', 'arms', 'point', 'salute', 'blind', 'heart', 'cold', 'dab']], ['POSES', ['sit', 'tree', 'knockout']], ['SLIDES', ['knee', 'kneeslide', 'cornerflag']],
+    ['DANCES', ['robot', 'shimmy', 'runman', 'griddy', 'floss', 'samba', 'moonwalk']], ['ACROBATICS', ['spin', 'jumpturn', 'backflip']]];
   const CELEB_IDS = Object.create(null);      // no prototype: 'constructor' and '__proto__' are not celebrations
   for (const c of ISO.CELEBS) CELEB_IDS[c.id] = c;
   ISO.celebById = (id) => CELEB_IDS[id] || CELEB_IDS.fist;
   ISO.hasCeleb = (id) => !!CELEB_IDS[id];
   ISO.CELEB_SIG = { id: 'signature', name: 'SIGNATURE', desc: "Your player's own celebration (every star has one; others follow their playstyle)." };
-  const CELEB_FIX = { messi: 'point', ronaldo: 'arms', mbappe: 'salute', haaland: 'sit', neymar: 'knee', yamal: 'robot', vinicius: 'spin', salah: 'knee', bellingham: 'arms',
-    debruyne: 'fist', dembele: 'robot', kane: 'fist', pele: 'fist', maradona: 'arms', ronaldinho: 'spin', r9: 'arms', henry: 'knee', zidane: 'salute', cruyff: 'point', beckham: 'knee' };
+  const CELEB_FIX = { messi: 'point', ronaldo: 'jumpturn', mbappe: 'salute', haaland: 'sit', neymar: 'knee', yamal: 'robot', vinicius: 'spin', salah: 'tree', bellingham: 'arms',
+    debruyne: 'fist', dembele: 'robot', kane: 'fist', pele: 'fist', maradona: 'arms', ronaldinho: 'spin', r9: 'arms', henry: 'knee', zidane: 'salute', cruyff: 'point', beckham: 'knee', palmer: 'cold', drogba: 'kneeslide', vardy: 'cornerflag', rooney: 'knockout' };
   const ROLE_CELEB = { winger: 'knee', striker: 'fist', playmaker: 'point', target: 'arms', box2box: 'salute', defender: 'robot' };
   function buildStyle(def) {
     const role = ISO.roleOf(def), traits = ISO.traitsOf(def), b = baseOf(def), a = def.attr, M = ISO.MODS, m = neutralM();

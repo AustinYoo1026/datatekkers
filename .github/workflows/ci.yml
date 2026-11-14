@@ -37,6 +37,7 @@ jobs:
           node tools/challenge-test.js
           node tools/settings-test.js
           node tools/drill-test.js
+          node tools/tutorial-test.js
       - name: Server tests
         run: |
           npm ci --prefix server

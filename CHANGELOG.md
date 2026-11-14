@@ -2,6 +2,12 @@
 
 Release notes for DataTekkers: ISO Football. The newest work is first. The README links here instead of repeating them.
 
+## Unreleased
+
+- **16 new celebrations.** Gestures (Arm over Eyes, Heart Hands, Cold, The Dab), poses (Tree Pose, Knockout), slides (Knee Slide, Corner Flag Slide) and dances (Shoulder Shimmy, Running Man, Griddy, Floss, Samba Steps, Moonwalk, Jump & Turn, Backflip), 400 to 3,000 CR. Each has a 2D pose (some in side or back view; the figure gained an `abd` pose key so the arms can swing to one side or cross). Signatures: Salah tree, Palmer cold, Drogba knee slide, Vardy corner flag, Rooney knockout, Ronaldo jump & turn. The shop has a drawn logo for every celebration (one shared pictogram function), groups the 25 cards by kind and price, and plays the 2D pose on hover or focus; the Info page groups them the same way.
+- **Tutorial.** A TUTORIAL card (first on the Play screen) opens eight hands-on lessons: moving and sprinting, shooting, shot types, skill moves, defending, rebounds and the CLEAR IT rule, penalties and keeping, and views and settings. Each lesson is a short scripted situation on the real simulation with on-screen instructions that name your current keys, detect the move from sim events, give a hint after a quiet spell and can be skipped, retried, exited and replayed, in Classic 2D and 3D. Lessons never change stats, credits, challenges or career; finishing all eight pays 150 CR once. New profiles are offered the tutorial once. The Tournament, Street Football and Drill Creator cards have new artwork. A lesson finished with a skipped step is marked SKIPPED and does not count towards the reward; the Penalties lesson is endless practice and never ends as a match; the Rebounds lesson starts with the ball loose in your box; the Views lesson puts the view and mouse aiming back when it ends; the tutorial cannot be opened from a running match. The simulation and online play are unchanged.
+- Spin Leap 2D timing changed (the leap now runs 0.1 to 0.7 s).
+
 ## Beta 3.02
 
 - **3D goal replay.** Goals in 3D now replay: the build-up at full speed, then the finish in slow motion from a low side-on camera, with a REPLAY badge (skippable like the 2D replay; follows Match presentation, Slow-motion goals, reduce motion and reduce flash).

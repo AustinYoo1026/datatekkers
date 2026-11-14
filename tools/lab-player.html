@@ -32,6 +32,7 @@
   <div class="row"><label for="selSkin">Skin</label><select id="selSkin"></select></div>
   <div class="row"><label for="selState">State</label><select id="selState"></select></div>
   <div class="row"><label for="selSkill">Skill</label><select id="selSkill"></select></div>
+  <div class="row"><label for="selCeleb">Celeb</label><select id="selCeleb"></select></div>
   <div class="row"><label for="selSide">Side</label><select id="selSide"><option value="1">right</option><option value="-1">left</option></select>
     <label for="selFoot" style="width:auto">Foot</label><select id="selFoot"><option value="1">right</option><option value="-1">left</option></select></div>
   <div class="row"><label for="rngU">time</label><input id="rngU" type="range" min="0" max="1" step="0.002" value="0"><span id="uval">0.00</span></div>
@@ -127,6 +128,7 @@
   ISO.KEEPERS.forEach((k, i) => opt($('selPlayer'), 'k' + i, 'GK: ' + k.name));
   ISO.SKINS.forEach((s) => opt($('selSkin'), s.id, s.name));
   A.SKILLS.forEach((s) => opt($('selSkill'), s, s));
+  Object.keys(R3D.Clips.celebClips).forEach((id) => opt($('selCeleb'), id, id));
   const OUT_STATES = A.CLIPS.filter((c) => c.indexOf('skill:') !== 0).concat(['skill']);
   function fillStates(keeper) {
     const sel = $('selState'), cur = sel.value; sel.innerHTML = '';
@@ -139,6 +141,7 @@
   function clipDur(c) {
     let d = { 'gk:diveLow': 0.42, 'gk:diveHigh': 0.42, 'gk:jump': 0.46, 'gk:ground': 0.6, 'gk:slide': 0.44, 'gk:catch': 0.35, 'gk:parry': 0.2, 'gk:throw': 0.3, fake: ISO.C.FAKE_T || 0.26, celebrate: 1.2, charge: 0.6 }[c];
     if (c.indexOf('skill:') === 0) d = (ISO.Game.SKILLS[c.slice(6)] || {}).dur;
+    if (c === 'celebrate') return R3D.Clips.celebDur($('selCeleb').value) / SPEED;      // the loop of the chosen celebration, as the state clock runs it
     const s = A.samplePV(c, 0, 0);
     return (d || (s.kickT > 0.001 ? s.kickT : 0) || s.stDur || 0.72) / SPEED;
   }
@@ -193,8 +196,9 @@
     const tt = seq ? st.T - PRE : st.T % dur, inClip = !seq || (tt >= 0 && tt < dur);
     const cur = inClip ? c : keeper ? 'gk:set' : /^(skill:|fake$|charge$|shield$|dribble$)/.test(c) ? 'dribble' : 'jog', u = inClip ? Math.min(1, Math.max(0, tt / dur)) : 0, dts = dt * SPEED;
     st.u = u; st.cur = cur; st.simT += dts;
-    actor.foot = foot;
+    actor.foot = foot; actor.celeb = $('selCeleb').value;
     pv = A.samplePV(cur, u, st.simT, pv && (keeper === (pv.runPh === undefined)) ? pv : null, { sd, foot });
+    if (cur === 'celebrate') pv.stT = u * R3D.Clips.celebDur($('selCeleb').value);      // the celebration's own loop on the state clock
     // samplePV switches velocity instantly between clips; ease it and keep the stride clocks continuous, as the sim would
     const kv = st.first ? 1 : 1 - Math.exp(-dt / 0.06); st.first = false;
     st.vx += (pv.vx - st.vx) * kv; st.vz += (pv.vz - st.vz) * kv;
@@ -230,6 +234,7 @@
   let last = performance.now();
   function loop(now) {
     requestAnimationFrame(loop);
+    if (sheetOn) return;
     const dt = Math.min(0.05, (now - last) / 1000); last = now;
     if (!actor) return;
     try {
@@ -252,9 +257,24 @@
   $('btnFwd').addEventListener('click', () => step(1)); $('btnBack').addEventListener('click', () => step(-1));
   window.addEventListener('keydown', (e) => { if (e.target.tagName === 'SELECT' || e.target.tagName === 'INPUT') return; if (e.key === ' ') { e.preventDefault(); setPlay(!playing); } else if (e.key === '.') step(1); else if (e.key === ',') step(-1); });
   ['selPlayer', 'selSkin', 'chkPrime'].forEach((id) => $(id).addEventListener('change', build));
-  ['selState', 'selSkill', 'selSide', 'selFoot', 'chkSeq'].forEach((id) => $(id).addEventListener('change', () => { restart(); if (!playing) replay(1 / 60); }));
-  $('selState').addEventListener('change', () => { $('selSkill').disabled = $('selState').value !== 'skill'; });
+  ['selState', 'selSkill', 'selCeleb', 'selSide', 'selFoot', 'chkSeq'].forEach((id) => $(id).addEventListener('change', () => { restart(); if (!playing) replay(1 / 60); }));
+  $('selState').addEventListener('change', () => { $('selSkill').disabled = $('selState').value !== 'skill'; $('selCeleb').disabled = $('selState').value !== 'celebrate'; });
   $('chkTravel').addEventListener('change', restart);
+  // ?sheet=N[&cols=C]: a contact sheet of the clip: N poses at equal clip phases (each replayed exactly, as stepping does) from the front, in a grid; the page stays paused
+  let sheetOn = false; const q0 = new URLSearchParams(location.search);
+  function sheet(n, cols) {
+    sheetOn = true; $('chkBall').checked = false; setPlay(false); $('chkSeq').checked = false; $('ui').style.display = 'none'; $('hint').style.display = 'none';
+    const rows = Math.ceil(n / cols), tw = Math.floor(window.innerWidth / cols), th = Math.floor(window.innerHeight / rows), tot = total();
+    for (let i = 0; i < n; i++) {
+      replay(Math.max(1 / 60, tot * i / n));
+      const x = (i % cols) * tw, y = window.innerHeight - (Math.floor(i / cols) + 1) * th;
+      renderer.setScissorTest(true); renderer.setViewport(x, y, tw, th); renderer.setScissor(x, y, tw, th);
+      cam.aspect = tw / th; cam.updateProjectionMatrix(); Object.assign(orb, { yaw: +q0.get('yaw') || 0.2, pitch: 0.1, dist: +q0.get('dist') || 3.6, tx: 0, ty: +q0.get('ty') || 0.95, tz: 0 }); placeCam();
+      renderer.render(scene, cam);
+    }
+    renderer.setScissorTest(false);
+  }
+  window.labSheet = sheet;      // console: edit a clip's keys (R3D.Clips.celebClips[id].clip.p), then labSheet(8, 4) to look again
   // URL parameters: player (p0.. / k0..), clip (a state name or skill:<id>), side, foot (1 / -1), seq (0 = loop the clip), rate, play (0 = paused)
   const q = new URLSearchParams(location.search), has = (sel, v) => [...$(sel).options].some((o) => o.value === v);
   if (q.get('player') && has('selPlayer', q.get('player'))) $('selPlayer').value = q.get('player');
@@ -267,7 +287,10 @@
   if (+q.get('rate') > 0) $('rngRate').value = q.get('rate');
   if (q.get('play') === '0') setPlay(false);
   $('selSkill').disabled = $('selState').value !== 'skill';
+  if (has('selCeleb', q.get('celeb'))) $('selCeleb').value = q.get('celeb');
+  $('selCeleb').disabled = $('selState').value !== 'celebrate';
   restart();
+  if (+q.get('sheet') > 1) sheet(+q.get('sheet'), +q.get('cols') || 4);
   requestAnimationFrame(loop);
 })();
 </script>
